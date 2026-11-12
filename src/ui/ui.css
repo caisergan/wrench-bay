@@ -161,18 +161,20 @@ button:disabled { cursor: default; }
 .fame-badge[hidden], .map-btn[hidden] { display: none; }
 .fame-badge { left: calc(50% - min(31%, 135px) - 58px); }
 .map-btn { left: calc(50% + min(31%, 135px) + 8px); }
+/* fame level = gold star with the level inside it, XP ring around it. Cream disc (like the map button) so two-digit
+   levels stay readable where they run past the star's points. */
 .fame-badge, .fm-badge {
-  position: relative; display: grid; place-items: center; border-radius: 50%; background: var(--navy);
+  position: relative; display: grid; place-items: center; border-radius: 50%; background: var(--cream); border: 3px solid var(--navy);
   box-shadow: 0 4px 0 var(--navy-d), 0 8px 14px rgba(0,0,0,.25);
 }
 .fame-badge { position: absolute; }
 .fame-badge > svg, .fm-badge > svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
-.fb-bg, .fb-fg { fill: none; stroke-width: 5; }
-.fb-bg { stroke: rgba(255,255,255,.16); }
-.fb-fg { stroke: var(--mustard); stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; transition: stroke-dashoffset .6s cubic-bezier(.3,1.2,.5,1); }
+.fb-bg, .fb-fg { fill: none; stroke-width: 4; }
+.fb-bg { stroke: rgba(47,72,88,.14); }
+.fb-fg { stroke: var(--mustard-d); stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; transition: stroke-dashoffset .6s cubic-bezier(.3,1.2,.5,1); }
 .fb-star { display: grid; place-items: center; position: absolute; inset: 0; }
-#ui .fb-star svg.ico { width: 78%; height: 78%; filter: drop-shadow(0 2px 0 rgba(0,0,0,.3)); }
-.fame-badge b, .fm-badge b { position: relative; font-size: 17px; font-weight: 700; color: var(--navy-d); margin-top: 1px; }
+#ui .fb-star svg.ico { width: 91%; height: 91%; }
+.fame-badge b, .fm-badge b { position: relative; font-size: 14px; font-weight: 700; letter-spacing: -.3px; color: var(--navy-d); margin-top: 3px; }
 .map-btn {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; font-size: 26px; padding-top: 2px;
   border-radius: 16px; background: var(--cream); border: 3px solid var(--navy); box-shadow: 0 4px 0 var(--navy-d), 0 8px 14px rgba(0,0,0,.25);
@@ -528,8 +530,10 @@ button:disabled { cursor: default; }
 .sl-price { display: flex; align-items: center; gap: 3px; padding: 1px 9px 1px 4px; border-radius: 12px; background: var(--navy); color: var(--cream); font-size: 15px; font-weight: 700; box-shadow: 0 2px 0 var(--navy-d); }
 #ui .sl-price svg.ico { width: 19px; height: 19px; }
 .sl-price em { font-style: normal; font-variant-numeric: tabular-nums; }
-.sl-fame { display: flex; align-items: center; gap: 2px; font-size: 11.5px; font-weight: 700; color: var(--teal-d); }
-#ui .sl-fame svg.ico { width: 15px; height: 15px; }
+/* fame needed: the HUD badge's star with the level inside ("Fame 3" does not fit beside the price) */
+.sl-fame { position: relative; flex: none; display: grid; place-items: center; width: 32px; height: 32px; margin: -4px -2px -4px 0; }
+#ui .sl-fame svg.ico { position: absolute; inset: 0; width: 100%; height: 100%; }
+.sl-fame em { position: relative; font-style: normal; font-size: 12.5px; font-weight: 700; line-height: 1; letter-spacing: -.3px; color: var(--navy-d); margin-top: 3px; }
 .wl-sale .bar { margin-top: 5px; height: 6px; border-radius: 3px; background: rgba(47,72,88,.18); overflow: hidden; }
 .wl-sale .bar i { display: block; height: 100%; transform: scaleX(0); transform-origin: left; background: var(--mustard); border-radius: 3px; }
 .wl-sale.upgrade .card-s { border-color: var(--teal-d); }
@@ -538,7 +542,6 @@ button:disabled { cursor: default; }
 .wl-sale.locked .card-s::after { border-color: #62767f; }
 .wl-sale.locked .sl-name { color: #5b6f78; }
 .wl-sale.locked .sl-price { background: #8a9aa2; box-shadow: 0 2px 0 #66767e; }
-.wl-sale.locked .sl-fame { color: var(--coral-d); }
 .wl-sale.locked .bar i { background: #aab7bd; }
 
 /* ---------- till, timer, stars, call ---------- */
@@ -654,7 +657,7 @@ button:disabled { cursor: default; }
 .fame .panel-body, .mapp .panel-body { gap: 12px; }
 .fm-hero { display: flex; align-items: center; gap: 14px; }
 .fm-badge { width: 84px; height: 84px; flex: none; }
-.fm-badge b { font-size: 28px; }
+.fm-badge b { font-size: 25px; margin-top: 5px; }
 .fm-info { flex: 1; min-width: 0; }
 .fm-title { font-size: 21px; font-weight: 700; line-height: 1.1; }
 .fm-bonus { margin-top: 5px; font-size: 13px; font-weight: 600; color: var(--teal-d); }

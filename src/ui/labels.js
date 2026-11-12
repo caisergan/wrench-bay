@@ -267,7 +267,7 @@ function addSaleApi(L, el) {
     blurb.textContent = info.blurb || '';
     blurb.hidden = !info.blurb;
     priceEl.textContent = '$' + fmt(info.price || 0);
-    fameEl.textContent = info.fame ? 'Fame ' + info.fame : '';
+    fameEl.textContent = info.fame ? String(info.fame) : '';
     el.querySelector('.sl-fame').hidden = !info.fame;
     const up = (info.level | 0) > 1;
     lvl.hidden = !up;
