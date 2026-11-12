@@ -209,7 +209,7 @@ drop-off lane on its own forecourt, its own customers, waiting awning, exit.
 2. Drive the car into a free booth through its south (vehicle) end (capture box, like a lift). It is **masked**
    automatically: paper and tape over glass, lights and wheels (`setMasked`), booth lamps on.
 3. Fetch canisters of the right colour from the tanks (carry stack, capacity upgrade applies; a wrong colour is
-   useless: the waste-paint drum at `PAINT.scrapBin`, beside the colour lab). Deliver them in the work zone in
+   useless: the waste-paint drum at `PAINT.scrapBin`, against the west wall next to the first tank). Deliver them in the work zone in
    front of the nose: the booth's open north (personnel) end, inside the glass.
 4. Spray: stand in the work zone; each delivered canister is `work` seconds; the booth's clear curtain rolls down
    behind the car (`setLamp('spray')`), the player holds a spray gun, a mist in that colour and a soft haze inside

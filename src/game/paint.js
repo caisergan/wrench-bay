@@ -234,6 +234,14 @@ class PaintTank extends Station {
 
 // ---------------------------------------------------------------- painter (mechanic logic, spray pose)
 class Painter extends Mechanic {
+  /** The waste drum stands against the west wall: walk up to its east side and face it. */
+  toScrap() {
+    const b = this.fac.scrap;
+    if (!b) { super.toScrap(); return; }
+    this.goTo(b.x + 0.95, b.z);
+    this.idleYaw = -Math.PI / 2;
+    this.state = 'toScrap';
+  }
   setWorkAnim(on) {
     if (on) {
       const hex = this.lift?.jobHex?.();

@@ -710,17 +710,14 @@ export function createWashKiosk(tier = 1) {
 }
 
 // ================================================================ lounge annex (tiers 1..2), WORLD coordinates
-// LOUNGE.walls = inner faces (walls stand outside them, front at maxZ). Glazed front with two open sliding doors
-// (LOUNGE.door and one by the upgrade pad), warm wood floor, teal walls with wood wainscot, sofas at LOUNGE.seats
+// LOUNGE.walls = inner faces (walls stand outside them, front at maxZ). Glazed front with one open sliding door
+// at LOUNGE.door, warm wood floor, teal walls with wood wainscot, sofas at LOUNGE.seats
 // facing the TV on the west wall, reception counter beside LOUNGE.tipTray (the tip tray itself is a town-kit prop
 // gameplay places), vending machine at LOUNGE.vending, plants, pictures, sconces, windows, "HARBOR LOUNGE" sign.
 // Tier 2 "Grand Lounge": espresso bar at LOUNGE.bar (barista stands behind it, east), aquarium with moving fish at
 // LOUNGE.aquarium, arcade cabinet at LOUNGE.arcade (screen faces east; a player stands at x + 0.8), rug, bigger TV.
 const L_DOOR_W = 1.8;
-const loungeDoors = () => {
-  const up = PROPERTIES.lounge.upgradePad ?? { x: LOUNGE.walls.maxX - 1.8 };
-  return [LOUNGE.door.x, Math.min(LOUNGE.walls.maxX - L_DOOR_W / 2 - 0.3, up.x)];
-};
+const loungeDoors = () => [LOUNGE.door.x];
 function sofaPairs() {
   // consecutive seats in the same column (same x, 1.2 apart) share a two-seat sofa
   const cols = new Map();
@@ -837,7 +834,7 @@ function loungeShell(tier) {
       wainA: TC.WOOD, wainB: mixHex(TC.WOOD, 0x000000, 0.08), wallA: 0x3f7f86, wallB: 0x46888f,
       trim: TC.CREAM, cap: TC.CORAL, base: TC.WOOD_D, pillar: 0x34636a, pillarBase: TC.WOOD_D, pillarW: 0.6, seg: 1.2,
     });
-    // glazed front: frame, mullions, transom; two door openings with the sliding leaves parked open
+    // glazed front: frame, mullions, transom; the door opening with its sliding leaves parked open
     const zf = W.maxZ - 0.05, doors = loungeDoors();
     b.box(W.maxX - W.minX, 0.08, 0.16, TC.CREAM, cx, 0, zf);                            // sill
     b.box(W.maxX - W.minX, 0.14, 0.14, TC.CREAM, cx, H - 0.14, zf);                     // transom
@@ -850,8 +847,9 @@ function loungeShell(tier) {
       b.box(e - a, 0.05, 0.1, TC.CREAM, (a + e) / 2, 1.0, zf);                          // push bar / rail
     }
     for (const d of doors) {
-      b.box(0.1, H - 0.1, 0.16, TC.CORAL, d - L_DOOR_W / 2, 0, zf); b.box(0.1, H - 0.1, 0.16, TC.CORAL, d + L_DOOR_W / 2, 0, zf);
-      b.box(L_DOOR_W + 0.2, 0.22, 0.22, TC.CORAL, d, H - 0.22, zf);                    // door header with the motor box
+      // jambs 1 cm proud of the sill front, header 1.5 cm above the transom top (shared faces z-fight)
+      b.box(0.1, H - 0.1, 0.18, TC.CORAL, d - L_DOOR_W / 2, 0, zf); b.box(0.1, H - 0.1, 0.18, TC.CORAL, d + L_DOOR_W / 2, 0, zf);
+      b.box(L_DOOR_W + 0.2, 0.235, 0.22, TC.CORAL, d, H - 0.22, zf);                   // door header with the motor box
       b.box(L_DOOR_W, 0.012, 1.2, 0x5a6f7c, d, 0.006, zf - 0.1);                        // entrance mat
       b.box(L_DOOR_W - 0.3, 0.014, 1.0, 0x3f7f86, d, 0.008, zf - 0.1);
     }
@@ -1625,8 +1623,9 @@ function hallMarkTex() {
   return canvasTex('paintHallMarks', w, h, (g) => {
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, w, h);
     g.setTransform(ppm, 0, 0, ppm, -W.minX * ppm, -W.minZ * ppm);
-    // walkway between the tanks and the booths
-    for (const dz of [-0.55, 0.55]) dashedLine(g, W.minX + 0.1, PAINT.staffLaneZ + dz, W.maxX - 0.1, PAINT.staffLaneZ + dz, 0.1, 0.6, 0.3, SAFETY_Y);
+    // walkway between the tanks and the booths (it ends at the waste drum when the drum closes its west end)
+    const SB = PAINT.scrapBin, wx0 = SB.x < W.minX + 1.5 && Math.abs(SB.z - PAINT.staffLaneZ) < 1 ? SB.x + 0.62 : W.minX + 0.1;
+    for (const dz of [-0.55, 0.55]) dashedLine(g, wx0, PAINT.staffLaneZ + dz, W.maxX - 0.1, PAINT.staffLaneZ + dz, 0.1, 0.6, 0.3, SAFETY_Y);
     // drip trays under every tank position (also the ones not bought yet: "a tank goes here")
     for (const st of Object.values(PAINT.stations)) hatchRect(g, st.x - 1.0, st.z - 0.65, st.x + 1.0, st.z + 0.65, 0.12, 'rgba(70,82,94,0.10)');
     // booths: lead-in lines continuing the glass walls to the front, "BOOTH n" stencils
@@ -2371,7 +2370,7 @@ export function createPaintHall() {
   group.add(atlasMesh([
     { r: ATLAS.noSmoke, w: 0.5, h: 0.25, pos: [W.minX + 0.012, 2.1, PD.lockers.z0 + 0.45], ry: R90 },
     { r: ATLAS.resp, w: 0.84, h: 0.21, pos: [W.minX + 0.012, 2.09, PD.lockers.z1 - 0.48], ry: R90 },
-    { r: ATLAS.waste, w: 0.8, h: 0.15, pos: [S.x, 1.35, LB.minZ - 0.07], ry: PI },
+    { r: ATLAS.waste, w: 0.8, h: 0.15, pos: [W.minX + 0.012, 1.42, S.z], ry: R90 },          // on the west wall above the drum
     { r: ATLAS.fascia, w: Sh.maxX - Sh.minX + 0.2, h: 0.17, pos: fpos, rx: ft },
     { r: ATLAS.lab, w: 3.0, h: 0.66, pos: [(LB.minX + pillarX) / 2, 1.6, LB.maxZ - 0.07 + 0.035], ry: 0 },
   ]));
