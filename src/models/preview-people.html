@@ -1,0 +1,15 @@
+<!doctype html>
+<html><head><meta charset="UTF-8"><title>Wrench Bay people preview</title>
+<style>
+html,body{margin:0;height:100%;background:#9fd8cb;overflow:hidden;font:12px system-ui,sans-serif}
+#pv{position:fixed;inset:0}#game-root{display:none}
+#nav{position:fixed;left:8px;top:8px;display:flex;gap:4px;flex-wrap:wrap;z-index:2;max-width:70vw}
+#nav a{background:#2f4858;color:#fff6e6;padding:4px 8px;border-radius:8px;text-decoration:none}
+</style></head>
+<body><canvas id="pv"></canvas><div id="game-root"></div>
+<div id="nav">
+  <a href="?focus=parts">parts</a><a href="?focus=stack">stack (top)</a><a href="?focus=teams">teams</a><a href="?focus=poses">poses</a>
+  <a href="?focus=peds">pedestrians</a><a href="?focus=gull">gull</a><a href="?focus=fx">fx</a>
+  <a href="?view=game">game cam</a><a href="?view=game&scene=work">game cam work</a><a href="?view=game&scene=town">game cam town</a>
+</div>
+<script type="module" src="./preview-people.js"></script></body></html>

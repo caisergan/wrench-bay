@@ -1,0 +1,16 @@
+YOUR ROLE: `people` — characters, small carried parts, critters and effects (TOWN.md section 7 "Small props / parts", "Characters", "Critters / fx", with sections 0 and 4 for what they are used for).
+
+YOUR FILES: src/models/characters.js, src/models/fx.js, src/models/props.js, new src/models/critters.js, and your own preview page (new src/models/preview-people.html + .js; existing preview.js / preview.html are frozen, copy what you need). In src/models/index.js add only your own export lines.
+
+FIRST, within your first minutes: make every new look function, character method, createPart type, critter and fx function exist and be exported (looks may return an existing look, methods may be no-ops, createPart may return an existing part for unknown ids, fx may do nothing). Other agents start calling these while you work; a missing export breaks the whole game.
+
+THEN build the real thing, each verified from the game camera before the next:
+1. Parts: spray canister per PAINT_COLORS id (`createPart('spray:red')`: the colour must be unmistakable in a carried stack seen from above), the gold premium kit, the lunch box. They fit the same box as existing parts and stack with them.
+2. Character methods: setSpraying (spray gun in hand, sweeping motion, the gun points at what is in front of the character), setPolishing (cloth, circular rubbing at car-body height), setWaving, setEating; and that existing poses (carrying, working, sitting, cheer) still combine sensibly with them.
+3. Looks: painters, prep tech, host, master tech, detailer, VIP customers, barista, managers, buyers, tow driver, a wide pedestrian pool (ages, builds, clothes; the town should not look like clones), and the player's golden cap option. Staff of one place must be recognisable as a team and different from the garage's mechanics.
+4. Seagull: perched, taking off, flying a loop, landing.
+5. fx: paint mist in a colour, foam, sparkle, dust, splash, rain. Pooled like the existing ones, nothing allocated per frame.
+
+The owner of this game is strict about real-world logic (TOWN.md section 0): a spray gun produces mist only while spraying and in front of the nozzle; rain falls where the camera is and does not fall indoors under a roof (the game's enterable buildings have no roofs, so keep rain light and say in your report how it should be used).
+
+VERIFY BEFORE REPORTING: your preview page shows every part, look, pose and effect, including a group seen from the real game camera; go through it at phone size and look at the screenshots; the base game still runs with no console errors and existing characters / parts look as before.

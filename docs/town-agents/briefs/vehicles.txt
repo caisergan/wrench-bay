@@ -1,0 +1,45 @@
+YOUR ROLE: `vehicles`. You build the models of the town's non-customer vehicles: the tow truck, ambient traffic and the ferry. You build models only; gameplay drives them.
+
+YOUR FILES: src/models/vehicles.js and a new preview page src/models/preview-vehicles.html + .js.
+- vehicles.js is currently a stub with the final API. Keep the exported names and return shapes.
+- src/models/index.js already exports createTowTruck, createTrafficVehicle and createFerry; do not touch it.
+- You may import from cars.js (createCar, TOW_LIFT, lookOf) and characters.js (createCharacter and looks), read-only.
+
+READ FIRST
+- CONTRACTS.md: the art direction and model conventions.
+- TOWN.md sections 0, 3, 4.4, 4.5, 4.10, 4.15, 7 ("Vehicles") and 10.
+- src/config.town.js: RESCUE (truck, hookRadius, drop), TRAFFIC_TYPES, TRAFFIC, TOWN.ferryPlaza, TOWN.water, TOWN.busStops, TOWN.roads.
+- How src/models/cars.js builds cars: voxel.js Builder, cached merged geometry per look, shared litMat / glowMat, wheels as separate meshes that spin, glow parts. Your vehicles drive among the customer cars and must clearly be the same family, but they must not look like recoloured customer cars.
+
+DELIVER, in order, each one verified from the game camera before the next
+
+1. `createTowTruck(level) -> { group, hitch, setBoom(0..1), setBeacon(bool), update(dt, speed) }`
+   - Footprint 1.7 x 3.6 (RESCUE.truck); front faces +z; origin at floor level, centre of the footprint.
+   - A real wrecker: cab at the front; a body behind it with side toolboxes; a boom on the rear with a winch drum and cable; a wheel-lift at the tail, meaning a cross-bar with two L-shaped cradles that slide under a car's front tyres; an amber light bar / beacon on the cab roof; work lights at the back.
+   - That is how a modern wrecker tows a car by its front axle. It matches `car.setTowed(1)` in cars.js, which lifts the car's front axle by TOW_LIFT, with the car behind the truck facing the same way.
+   - `hitch` is an Object3D at the cradle, where the towed car's front axle sits. It moves with setBoom: 0 = wheel-lift stowed up against the tail; 1 = lowered to the ground and extended, ready to slide under a car.
+   - Level 1: compact light-duty truck, yellow / orange livery. Level 2 (and 3, which looks the same as 2): heavier. Dual rear wheels, a bigger boom, an extra light bar, a different livery. It must be visibly a different truck.
+   - update(dt, speed): the wheels spin with speed; the beacon rotates or flashes when on (glow material).
+   - Check in your preview: a car from createCar() (several types) hangs at the hitch with `car.setTowed(1)`. Its front tyres sit in the cradles and nothing intersects. The towed car's rear wheels are on the ground.
+2. `createTrafficVehicle(kind) -> { group, update(dt, speed), setDoors?(bool) }` for all seven TRAFFIC_TYPES at the config sizes. Each must read as what it is at a glance from the game camera.
+   - taxi: roof sign, checker band.
+   - delivery: box van with a roller door at the back.
+   - bus: long, a window band along both sides, destination board. Doors on the kerb side: the right-hand side in the travel direction, which is the vehicle's local -x when its front faces +z. setDoors(true) opens them with folding or sliding panels, visible from the camera.
+   - police: light bar that flashes (in update) blue and red.
+   - icecream: serving hatch on the side, a big cone on the roof.
+   - garbage: compactor body, bin-lift arm at the back.
+   - scooter: with a rider sitting on it. Use createCharacter from characters.js if a seated pose works; otherwise build a simple rider in the same style.
+   - update(dt, speed): wheels spin.
+3. `createFerry() -> { group, setRamp(0..1), update(dt, t) }`: a small car ferry.
+   - A roll-on deck for 3 or 4 cars, a wheelhouse / bridge, a funnel, life rings, railings, an anchor and a name on the hull.
+   - The ramp hinges at the end that docks against the quay: 1 = lowered to quay height (quay top at about y 0); 0 = raised.
+   - update gently bobs and rolls it as on real water (small amplitude).
+   - Build it at the origin. In your report, say where the ramp end is relative to the origin, and which position and yaw gameplay should use so it docks at the ferry plaza (east quay, x >= 50.5; water z >= 17).
+
+PERFORMANCE: geometry cached per kind / level; shared materials; nothing allocated per frame; about 9 traffic vehicles on screen at once.
+
+REAL-WORLD LOGIC (TOWN.md section 0): the boom never clips through the body; the beacon is amber; bus doors are on the kerb side; the ferry ramp hinges at the stern; the scooter rider sits on the seat with hands on the bars.
+
+VERIFY
+- The preview page: rows of every vehicle and state, plus a `view=game` mode with the real portrait camera (copy it from the frozen src/models/preview.js). Check it at phone size and look at the screenshots.
+- The base game is unaffected: it does not boot until core says so in /tmp/wb-progress/core.md, so check `?nogame` before that and the real game after.

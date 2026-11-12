@@ -1,0 +1,5 @@
+YOUR ROLE: `comfort` — the car wash and the waiting lounge (TOWN.md sections 4.6 and 4.7; config WASH, LOUNGE). YOUR FILES: src/game/wash.js and src/game/lounge.js (new).
+
+Car wash: dirt on arriving cars, the pass through the three arches with every effect in its physically right order and place (TOWN.md is explicit; the car wash model exposes what you need), fee coins and float text, three tiers, stats, fame at tier 3, offline contribution. It has to look good with two cars passing in a row and with a car that stops inside (blocked ahead).
+
+Lounge: tiers 1 and 2 on top of the legacy patio (tier 0 must keep working unchanged): seats and sitting, the route over the zebra crossing in both directions, cars yielding to people on the crossing (and never deadlocking there), patience multiplier, tips to the tip tray and vending coins as collectable piles, the barista and the little idle activities at tier 2, fame at tier 2. Check the edge cases the legacy owner code already handles (car ready while its owner is still walking in, owner abandoned, world rebuild) on the new routes.

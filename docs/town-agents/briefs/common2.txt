@@ -1,0 +1,31 @@
+RESUME ADDENDUM (read after common.txt, before your role file). This overrides common.txt where they differ.
+
+1. This is a resumed run. The first wave of agents was cut off by a rate limit in the middle of their work. Their files are in the tree. Read what your predecessor left, keep what is sound, and continue. Do not rewrite working code from scratch.
+
+2. Where the other roles stand right now:
+   - `people`: DONE. Parts `createPart('spray:<colorId>' | 'premium' | 'lunch')`, all new character looks plus setSpraying / setPolishing / setWaving / setEating, `char.sprayTip`, fx `mist foam sparkle dust splash rain`, `createSeagull`. Its preview page: src/models/preview-people.html.
+   - `ui`: DONE. Label kinds 'sale' 'till' 'timer' 'stars' 'call', job canister / gold tiles, ui.pointer, ui.hint, ui.banner, ui.chip, fame badge, map, Fame / Pro Gear / Academy panels, ui.showGarageComplete(), ui.showFerry(onSail), level-up and Perfect moments, 16 sfx. `?nogame&uitest` shows them.
+   - Resuming now, in parallel with you: `core` (src/core, src/game, config), `env` (ground, roads, tunnels, terrain, fillers, environment.js), `envdress` (src/models/env-harbor.js, env-life.js), `cars` (src/models/cars.js, leak.js), `vehicles` (src/models/vehicles.js), `bhome` (src/models/buildings-home.js, props-town.js), `bmain` (src/models/buildings-main.js).
+
+3. The full game page does NOT boot at the moment: core's half-finished facility refactor imports files it had not written yet. Core's first job is to make it boot. Until then, use `?nogame` (environment + UI only) or your own preview page. Check /tmp/wb-progress/core.md for "GAME BOOTS".
+
+4. Progress file, mandatory: create /tmp/wb-progress/<your role>.md in your first minutes. Update it after every finished step with what is done and verified, what is in progress, what comes next, and known issues. If you are cut off too, the next agent resumes from this file. Read other roles' progress files when you need their status.
+
+5. Work in small, safe increments so a cut-off loses little.
+   - Never write a huge file in one go. Write or append one factory or one area at a time.
+   - Run `node --check <file>` after each edit, then look at the result.
+   - Before a long piece of work, make sure what is already there parses and loads.
+
+6. Browser: use the `search` MCP. Load the tools with ToolSearch `select:mcp__search__tabs_context,mcp__search__tabs_create,mcp__search__navigate,mcp__search__read_page,mcp__search__find,mcp__search__computer,mcp__search__batch,mcp__search__read_console_messages,mcp__search__javascript_tool,mcp__search__resize_page`.
+   - Open your own tab with `tabs_create`. Never close or navigate tabs you did not open: six other agents share this browser.
+   - After editing files, reload with `navigate` url "hard".
+
+7. Design changes by the lead since the first briefs:
+   - Paint colour 'yellow' ("Mustard") is now 'lime' (0x9bcf3a, "Lime"); gold and mustard were indistinguishable. The unlock id is 'paint_lime'.
+   - `TOWN.busStops` was added: two glass shelters on the kerb.
+   - Placement rule for buildings (core spawns them; bhome and bmain build them):
+     - A factory for a property's building (tow shed, wash arches, lounge annex, paint hall, VIP hall and every Main Street / corner building) is built in WORLD coordinates. It reads its plot and positions from the config and sets `group.userData.world = true`. Gameplay adds it at 0,0,0.
+     - Repeated equipment is built at the origin with its front facing +z, and gameplay places it. This covers spray booth, paint tank, gold lift, premium cabinet, turntable, red carpet, bar, paparazzi wall, host stand, wash kiosk, and every town-kit prop.
+     - Core: if `userData.world` is not set, place the group at the plot centre facing +z.
+
+8. The game's owner rejects visuals that could not happen in real life (see TOWN.md section 0 and the memory note on visual realism). Check every model and effect from the real game camera, not only in close-up.

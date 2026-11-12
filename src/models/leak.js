@@ -115,6 +115,7 @@ function land(d) {
 }
 
 export function updateLeaks(dt) {
+  updateWater(dt);
   if (!dripMesh || (!spots.length && !drops.length && !dripMesh.count && !puddleMesh.count && !dropMesh.count)) return;
   for (let i = drops.length - 1; i >= 0; i--) {
     const d = drops[i];
@@ -149,4 +150,89 @@ export function updateLeaks(dt) {
   dripMesh.instanceMatrix.needsUpdate = true;
   puddleMesh.instanceMatrix.needsUpdate = true;
   dropMesh.instanceMatrix.needsUpdate = true;
+}
+
+// ---------------------------------------------------------------- water (wet car after a wash or in the rain)
+// Same idea as the oil, but water: a wet car sheds drops off its sills for a few seconds; each lands as a small damp
+// patch on the floor (darker, see-through) that soaks away in a couple of seconds. A moving car leaves a short trail of
+// damp spots behind it, a parked one a cluster under its sills. Two InstancedMeshes shared by every car.
+const W_MAX_SPOTS = 160;
+const W_MAX_DROPS = 64;
+const W_FLOOR_Y = FLOOR_Y - 0.002;   // under the oil
+const W_SPOT_R = 0.09;
+const W_LIFE = 1.6;                  // seconds a damp spot stays before it soaks away
+const W_DRY = 1.4;
+const damp = new THREE.MeshBasicMaterial({ color: 0x24313b, transparent: true, opacity: 0.4, depthWrite: false });
+const waterMat = new THREE.MeshLambertMaterial({ color: 0xbfe6fa, transparent: true, opacity: 0.85, flatShading: true });
+const wSpotGeo = (() => {
+  const g = new THREE.CylinderGeometry(1, 1, 0.003, 10);
+  g.translate(0, 0.0015, 0);
+  return g;
+})();
+const wDropGeo = new THREE.BoxGeometry(0.035, 0.07, 0.035);
+let wParent = null, wSpotMesh = null, wDropMesh = null;
+const wSpots = [];   // { x, z, r, rot, age }
+const wDrops = [];   // { x, y, z, vy }
+
+function wEnsure(p) {
+  if (!wSpotMesh) {
+    wSpotMesh = new THREE.InstancedMesh(wSpotGeo, damp, W_MAX_SPOTS);
+    wDropMesh = new THREE.InstancedMesh(wDropGeo, waterMat, W_MAX_DROPS);
+    for (const m of [wSpotMesh, wDropMesh]) {
+      m.castShadow = false; m.receiveShadow = false; m.frustumCulled = false; m.count = 0;
+      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      m.name = 'water-drips';
+    }
+    wSpotMesh.renderOrder = 1;
+  }
+  if (wParent !== p) {
+    wSpots.length = 0; wDrops.length = 0;
+    wParent = p;
+    p.add(wSpotMesh, wDropMesh);
+  }
+}
+
+/** One drop of water running off a wet car, from (x, y, z) in `p`'s space (the car's parent). */
+export function waterDrop(p, x, y, z) {
+  if (!p) return;
+  wEnsure(p);
+  if (wDrops.length >= W_MAX_DROPS) return;
+  wDrops.push({ x, y, z, vy: -0.6 });
+}
+
+function updateWater(dt) {
+  if (!wSpotMesh || (!wSpots.length && !wDrops.length && !wSpotMesh.count && !wDropMesh.count)) return;
+  for (let i = wDrops.length - 1; i >= 0; i--) {
+    const d = wDrops[i];
+    d.vy -= GRAVITY * dt;
+    d.y += d.vy * dt;
+    if (d.y <= W_FLOOR_Y) {
+      wDrops.splice(i, 1);
+      if (wSpots.length >= W_MAX_SPOTS) wSpots.shift();
+      wSpots.push({ x: d.x, z: d.z, r: W_SPOT_R * (0.7 + Math.random() * 0.6), rot: Math.random() * 3, age: 0 });
+    }
+  }
+  let n = 0;
+  for (let i = 0; i < wSpots.length; i++) {
+    const s = wSpots[i];
+    s.age += dt;
+    if (s.age >= W_LIFE + W_DRY) { wSpots.splice(i--, 1); continue; }
+    const grow = Math.min(1, s.age * 8);
+    const k = s.age > W_LIFE ? 1 - (s.age - W_LIFE) / W_DRY : 1;
+    const r = Math.max(0.001, s.r * grow * (0.4 + 0.6 * k));
+    _q.setFromAxisAngle(_up, s.rot);
+    _m.compose(_p.set(s.x, W_FLOOR_Y, s.z), _q, _s.set(r * 1.2, 1, r));
+    wSpotMesh.setMatrixAt(n++, _m);
+  }
+  for (let i = 0; i < wDrops.length; i++) {
+    const d = wDrops[i];
+    const st = 1 + Math.min(1, -d.vy * 0.15);
+    _q.identity();
+    _m.compose(_p.set(d.x, d.y, d.z), _q, _s.set(1 / Math.sqrt(st), st, 1 / Math.sqrt(st)));
+    wDropMesh.setMatrixAt(i, _m);
+  }
+  wSpotMesh.count = n;
+  wDropMesh.count = wDrops.length;
+  wSpotMesh.instanceMatrix.needsUpdate = true;
+  wDropMesh.instanceMatrix.needsUpdate = true;
 }

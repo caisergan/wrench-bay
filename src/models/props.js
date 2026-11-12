@@ -2,7 +2,7 @@
 // Every rigid piece is one merged vertex-coloured mesh (voxel.js Builder) cached per kind; moving bits (lift arms,
 // pump handle, hoist chain, mixer can, blinking LEDs) are separate small meshes sharing materials.
 import * as THREE from 'three';
-import { PALETTE as P } from '../config.js';
+import { PALETTE as P, PAINT_COLORS } from '../config.js';
 import { Builder, litMat, memo, mesh, roundedRect } from './voxel.js';
 
 export const PART_H = 0.26;    // vertical spacing when parts are stacked
@@ -164,11 +164,83 @@ function partGeo(type) {
       b.box(0.045, 0.04, 0.02, CORAL, -0.06, 0.085, 0.18);
       b.box(0.045, 0.04, 0.02, TEAL, 0.0, 0.085, 0.183);
       b.box(0.045, 0.04, 0.02, MUSTARD, 0.06, 0.085, 0.18);
+    } else if (type.startsWith('spray:')) {
+      sprayCan(b, PAINT_COLORS[type.slice(6)]?.hex ?? 0xcccccc);
+    } else if (type === 'premium') {
+      premiumCase(b);
+    } else if (type === 'lunch') {
+      lunchBox(b);
     } else {
       b.box(0.4, 0.22, 0.4, 0xffffff, 0, 0, 0);
     }
     return b.build();
   });
+}
+
+const lum = (hex) => ((hex >> 16) & 255) * 0.3 + ((hex >> 8) & 255) * 0.59 + (hex & 255) * 0.11;
+const tint = (hex, k) => {
+  const r = Math.min(255, Math.round(((hex >> 16) & 255) * k)), g = Math.min(255, Math.round(((hex >> 8) & 255) * k));
+  const bl = Math.min(255, Math.round((hex & 255) * k));
+  return (r << 16) | (g << 8) | bl;
+};
+/** Spray-paint canister lying on its side (like the other parts): the whole body, the cap and the label stripe are
+ *  the paint colour, so a stack seen from above shows long strips of that colour. Silver dome + valve at +x. */
+function sprayCan(b, hex) {
+  const dark = lum(hex) < 70, light = lum(hex) > 215;
+  const ink = light ? NAVY : dark ? 0xe9eef0 : CREAM;                // label panel contrast
+  const R = 0.118, y = R + 0.004;
+  b.cyl(R, R, 0.34, hex, -0.03, y - 0.17, 0, 14, 0, 0, R90);       // body
+  b.cyl(R + 0.008, R + 0.008, 0.05, tint(hex, 0.78), -0.17, y - 0.025, 0, 14, 0, 0, R90);      // base seam
+  b.cyl(R * 0.82, R * 0.9, 0.05, STEEL, 0.165, y - 0.025, 0, 12, 0, 0, R90);                     // shoulder
+  b.cyl(R * 0.5, R * 0.55, 0.045, STEEL_D, 0.2, y - 0.0225, 0, 10, 0, 0, R90);                   // neck
+  b.cyl(R * 0.62, R * 0.62, 0.1, hex, 0.275, y - 0.05, 0, 12, 0, 0, R90);                        // cap in the colour
+  b.cyl(R * 0.64, R * 0.64, 0.016, tint(hex, 0.72), 0.325, y - 0.008, 0, 12, 0, 0, R90);
+  b.box(0.05, 0.05, 0.045, CREAM, 0.262, y + R * 0.62 - 0.004, 0);                                // spray button
+  b.box(0.02, 0.02, 0.05, ink, 0.285, y + R * 0.62 + 0.024, 0);                                   // nozzle
+  b.box(0.17, 0.12, 0.012, ink, -0.04, y - 0.06, R - 0.006);                                        // label, front
+  b.box(0.17, 0.05, 0.014, hex, -0.04, y - 0.03, R - 0.004);                                      // colour stripe on it
+  b.box(0.17, 0.12, 0.012, ink, -0.04, y - 0.06, -R + 0.006);
+  b.box(0.17, 0.05, 0.014, hex, -0.04, y - 0.03, -R + 0.004);
+  b.box(0.05, 0.014, 0.236, ink, -0.1, y + R - 0.002, 0);                                         // thin ink band over the top
+  b.box(0.05, 0.014, 0.236, ink, 0.02, y + R - 0.002, 0);
+}
+/** The gold premium service case: a hard case with brass corners, a handle, a star plate and a medical-style cross
+ *  of tools on top. Fits 0.46 x 0.26 x 0.34. */
+function premiumCase(b) {
+  const G = 0xe8b923, GD = 0xb98a14, GL = 0xfbe27a, BLK = 0x2b2f36;
+  b.box(0.46, 0.2, 0.34, G, 0, 0, 0);
+  b.box(0.47, 0.06, 0.35, GD, 0, 0.0, 0);                                    // lower shell
+  b.box(0.47, 0.015, 0.35, BLK, 0, 0.095, 0);                                // seam
+  b.box(0.44, 0.03, 0.32, GL, 0, 0.2, 0);                                    // lid plate
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(0.05, 0.215, 0.05, GD, sx * 0.215, 0, sz * 0.155);  // corners
+  b.box(0.18, 0.025, 0.05, BLK, 0, 0.215, 0.0);                              // handle grip
+  b.box(0.03, 0.03, 0.05, BLK, -0.075, 0.2, 0.0);
+  b.box(0.03, 0.03, 0.05, BLK, 0.075, 0.2, 0.0);
+  b.cyl(0.07, 0.07, 0.014, BLK, 0, 0.2, 0.1, 5, 0, 0, 0);                    // star medallion
+  b.box(0.1, 0.012, 0.03, GL, 0, 0.214, 0.1);
+  b.box(0.03, 0.012, 0.1, GL, 0, 0.214, 0.1);
+  b.box(0.1, 0.012, 0.03, GL, 0, 0.214, 0.1, 0, 0.785, 0);
+  b.box(0.1, 0.012, 0.03, GL, 0, 0.214, 0.1, 0, -0.785, 0);
+  for (const sx of [-1, 1]) {
+    b.box(0.05, 0.05, 0.022, BLK, sx * 0.12, 0.1, 0.17);                      // latches
+    b.box(0.03, 0.03, 0.026, GL, sx * 0.12, 0.11, 0.17);
+  }
+}
+/** Lunch box: red tin box with a cream band, a folding handle, two silver latches and a little sandwich sticker. */
+function lunchBox(b) {
+  const RED = 0xe5484d, RD = 0xb73238, SIL = 0xd7dde0;
+  b.box(0.4, 0.17, 0.26, RED, 0, 0, 0);
+  b.box(0.41, 0.07, 0.27, CREAM, 0, 0.085, 0);                               // cream band round the middle
+  b.box(0.4, 0.04, 0.26, RD, 0, 0.17, 0);                                    // lid, domed look
+  b.box(0.36, 0.03, 0.22, RED, 0, 0.21, 0);
+  b.box(0.04, 0.05, 0.03, SIL, -0.15, 0.2, 0);                               // handle: two posts + bar
+  b.box(0.04, 0.05, 0.03, SIL, 0.15, 0.2, 0);
+  b.box(0.34, 0.025, 0.03, SIL, 0, 0.245, 0);
+  for (const sx of [-1, 1]) b.box(0.05, 0.1, 0.02, SIL, sx * 0.1, 0.08, 0.135);  // latches
+  b.box(0.12, 0.05, 0.012, 0xf3d29a, -0.0, 0.0, 0.136);                       // sandwich sticker on the lower half
+  b.box(0.12, 0.015, 0.014, 0x7bbf5a, 0, 0.05, 0.138);
+  b.box(0.12, 0.02, 0.014, 0xe5484d, 0, 0.065, 0.14);
+  b.box(0.12, 0.035, 0.012, 0xf3d29a, 0, 0.085, 0.136);
 }
 export function createPart(type) {
   return mesh(partGeo(type));

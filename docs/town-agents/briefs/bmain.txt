@@ -1,0 +1,68 @@
+YOUR ROLE: `bmain`. You build the models for the Main Street and corner buildings (TOWN.md section 7, "Main Street + corners"). Models only.
+
+YOUR FILES: src/models/buildings-main.js and a new preview page src/models/preview-main.html + .js.
+- buildings-main.js is a stub now. Keep the exported names and return shapes.
+- index.js already exports your factories; do not touch it.
+
+READ FIRST
+- CONTRACTS.md: the art direction.
+- TOWN.md sections 0, 2, 3, 4.11-4.15, 7 and 10.
+- src/config.town.js:
+  - PROPERTIES: the plots and pads of junkyard, diner, showroom, gas, quickfit and ferry;
+  - SERVICES: depot and academy, with their plots and pads;
+  - PROJECT (junkGate, stands, office), BUSINESS (tills, levels), VISITS (paths where traffic cars pull in), LUNCH (diner pickup window);
+  - TOWN.parking, TOWN.ferryPlaza, TOWN.roads.
+- Style reference:
+  - src/models/props.js and the garage hall in src/models/environment.js;
+  - src/models/props-town.js: the town kit and shared helpers.
+- Import and use these props-town.js helpers read-only: signTex, roofSign, hallShell, floorPlane, floorTex, glassPane, glassMat, wallWindow, plant, tireUp, tireFlat, geo, solidGroup, canvasTex, face, decal, flat, mixHex, TC. Another agent (`bhome`) owns that file and keeps those signatures stable. If you need a variant, write it in your own file.
+- Match the family: voxel.js Builder, merged cached geometry, shared litMat / glowMat, animated parts as small separate meshes.
+
+PLACEMENT RULE
+- Every factory you write builds in WORLD coordinates. It reads its own plot and positions from the config, so pads, tills, stands, turntables and visit paths line up with gameplay.
+- Every factory sets `group.userData.world = true`. Gameplay adds the group at 0,0,0.
+- Buildings face the street in front of them. On Main Street that is south (+z), since the camera looks north.
+
+CAMERA FACTS (TOWN.md section 3)
+- Places you go inside (the showroom, and the salvage yard is an open yard) have 2.6 m walls, no roof, and an open south side, so the floor stays visible.
+- Places you only visit at the front are closed buildings 3-7 m tall with a roof: depot, diner, academy, gas kiosk, Quick-Fit, ferry terminal.
+- Names go where the camera reads them: a sign at the top of the front or back wall.
+- Never block the pads, tills, the LUNCH pickup, parking bays, visit paths or the junkyard stands.
+
+DELIVER, one at a time, each one looked at from the game camera before the next
+1. `createJunkyard() -> { group, update }`
+   - Corrugated / chain-link fence with a gate at PROJECT.junkGate.
+   - Office shack, a crane with a magnet or claw that slowly moves (update), scrap piles, a crushed-car stack, tyre heaps.
+   - Three stands at PROJECT.stands: low plinths or marked bays with a price board each. Gameplay puts the wrecks on them.
+2. `createDepot()`: "Harbor Parts Co." A parts warehouse and shop.
+   - Roller doors, shelves visible through a shop window, parts crates on pallets, a forklift parked beside it.
+   - A clear teal counter area at its pad.
+3. `createDiner(level 1..5)`: "The Greasy Spoon". Each level changes the silhouette:
+   - L1 a small chrome-and-pastel diner;
+   - L2 a terrace with tables;
+   - L3 a bigger neon sign and a roof sign;
+   - L4 an extension wing;
+   - L5 a drive-through lane or rooftop seating.
+   - A serving window at LUNCH.pickup.
+4. `createAcademy()`: "Wrench Academy". A training school: classroom windows, a practice bay with a car on stands, a banner, a flagpole.
+5. `createShowroom() -> { group, turntables[], update }`: "Bay Classics".
+   - Enterable: low glass front, no roof, polished floor, spotlights, a collection wall.
+   - Turntables at the config positions if PROJECT / showroom has them; otherwise choose sensible positions and report them.
+   - Each turntable is `{ group, platform, setAngle(rad), setGlow(bool), update(dt) }`. Check whether bhome's `createTurntable` in buildings-home.js is real by then and import it from './buildings-home.js'. If it is still a stub, build your own variant in your file.
+6. `createGasStation(level 1..5)`: "Pump & Go".
+   - Canopy over the pumps, a kiosk, a price sign. Levels add pumps, a car wash bay, a bigger canopy, an EV charger row, a mini-mart.
+   - Pump positions match VISITS.gas paths, so traffic cars stop at a pump.
+7. `createQuickFit(level 1..5) -> { group, setBusy(bayIndex, bool), update }`: "Quick-Fit Express", fast tyre and oil service.
+   - Open service bays with lifts. setBusy raises a lift and makes sparks / the tool light active in that bay.
+   - Levels add bays, a tyre tower, a waiting bench, a bigger sign.
+   - Bays match VISITS.quickfit.
+8. `createFerryTerminal()`: a ticket office with a clock, a waiting canopy, a gangway barrier and a timetable board, on the ferry plaza. Leave the ramp landing and the 'ferry' parking bay free.
+
+LEVEL RULE: a level must change the silhouette (a new wing, a terrace, more pumps, a bigger sign), not only a colour. All levels share one look, so a level-up reads as the same business growing.
+
+REAL-WORLD LOGIC (TOWN.md section 0): pumps stand on an island under the canopy; lifts sit inside bays that a car can drive into; the crane's cable hangs vertically; signs face the street.
+
+VERIFY
+- Your preview page: rows of every factory at every level, plus a `view=game` mode that places them at their real world positions under the real portrait game camera (copy it from the frozen src/models/preview.js; optionally add the environment). Check it at phone size and look at the screenshots.
+- Check that nothing overlaps a pad, till, visit path, parking bay or stand.
+- The base game is unaffected: it does not boot until core says so in /tmp/wb-progress/core.md, so use `?nogame` until then.

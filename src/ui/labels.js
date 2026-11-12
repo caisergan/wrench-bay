@@ -25,7 +25,13 @@ const ANCHOR = {
   info: 'translate(-50%,-100%)',
   station: 'translate(-50%,-100%)',
   emote: 'translate(-50%,-100%)',
+  sale: 'translate(-50%,-100%)',
+  till: 'translate(-50%,-100%)',
+  timer: 'translate(-50%,-50%)',
+  stars: 'translate(-50%,-100%)',
+  call: 'translate(-50%,-100%)',
 };
+const BAR_KINDS = new Set(['price', 'till', 'sale', 'call']);
 const MAX_JOBS = 4;
 const JOB_STATES = ['need', 'ready', 'done'];
 const EMOTES = { happy: ICON.happy, angry: ICON.angry, wait: ICON.wait, star: ICON.star };
@@ -39,7 +45,7 @@ function build(kind) {
       // tile = work-fill (rises while the job is worked on) + part icon + done check
       const chips = Array.from({ length: MAX_JOBS }, () =>
         `<span class="jb" data-s="need"><span class="jb-w"><i></i></span><span class="jb-i"></span><u>${ICON.check}</u></span>`).join('');
-      return html(`<div class="wl wl-job"><div class="bubble"><s class="vstar">${ICON.star}</s><div class="jobs">${chips}</div>` +
+      return html(`<div class="wl wl-job"><div class="bubble"><s class="vstar">${ICON.star}</s><s class="ribbon" hidden></s><div class="jobs">${chips}</div>` +
         `<div class="mood"><span class="face"></span><div class="pat"><i></i></div></div></div></div>`);
     }
     case 'max':
@@ -48,6 +54,20 @@ function build(kind) {
       return html('<div class="wl wl-station"><div class="pill"><span class="st-i"></span><b></b></div></div>');
     case 'emote':
       return html('<div class="wl wl-emote"><div class="bubble"></div></div>');
+    case 'sale':
+      // for-sale / upgrade pad card: name, one-line benefit, price (fills as cash drains in) and the fame it needs
+      return html(`<div class="wl wl-sale"><div class="card-s"><s class="sl-lvl" hidden></s><div class="sl-name"><s class="sl-lock">${ICON.lock}</s><b></b></div>` +
+        `<div class="sl-blurb"></div><div class="sl-foot"><div class="sl-price">${ICON.cash}<em></em></div>` +
+        `<span class="sl-fame">${ICON.star}<em></em></span></div><div class="bar"><i></i></div></div></div>`);
+    case 'till':
+      return html(`<div class="wl wl-till"><div class="pill"><s class="tl-i">${ICON.coins}</s><b></b></div><div class="bar"><i></i></div></div>`);
+    case 'timer':
+      return html('<div class="wl wl-timer"><div class="ring"><svg viewBox="0 0 40 40" aria-hidden="true"><circle class="tr-bg" cx="20" cy="20" r="16"/>' +
+        '<circle class="tr-fg" cx="20" cy="20" r="16" pathLength="100"/></svg><s class="tr-i"></s><b></b></div></div>');
+    case 'stars':
+      return html('<div class="wl wl-stars"><div class="bubble"><i></i><i></i><i></i></div></div>');
+    case 'call':
+      return html(`<div class="wl wl-call"><div class="bubble"><s class="ci">${ICON.phone}</s><div class="cm"><b>Rescue call</b><div class="bar"><i></i></div></div></div></div>`);
     default:
       return html('<div class="wl wl-info"><b></b></div>');
   }
@@ -55,39 +75,48 @@ function build(kind) {
 
 function makeLabel(kind) {
   const el = build(kind);
-  const txt = kind === 'emote' ? null : el.querySelector('b');
-  // price: fill bar (job bubbles show work progress inside the active part tile, see addJobApi)
-  const bar = kind === 'price' ? el.querySelector('.bar i') : null;
+  const txt = kind === 'emote' || kind === 'stars' || kind === 'sale' ? null : el.querySelector('b');
+  // price / till / sale / call: fill bar (job bubbles show work progress inside the active part tile, see addJobApi)
+  const bar = BAR_KINDS.has(kind) ? el.querySelector('.bar i') : null;
   const L = {
     kind, el, txt, bar, anchor: ANCHOR[kind] || ANCHOR.info,
     pos: new THREE.Vector3(), has: false, wantVisible: true, shown: false,
     lx: NaN, ly: NaN, text: null, prog: -1, icon: null,
     setText(s) {
-      if (typeof s === 'number') s = kind === 'price' ? '$' + fmt(s) : String(s);
+      if (typeof s === 'number') s = kind === 'price' || kind === 'till' ? '$' + fmt(s) : String(s);
       s = String(s ?? '');
       if (s === L.text) return L;
       L.text = s;
-      if (kind === 'max' || kind === 'job') return L;
+      if (kind === 'max' || kind === 'job' || kind === 'stars' || kind === 'sale') return L;
+      if (kind === 'call') { txt.textContent = s || 'Rescue call'; return L; }
       if (kind === 'emote') { bubbleEl.innerHTML = EMOTES[s] || EMOTES.happy; bubbleEl.dataset.e = EMOTES[s] ? s : 'happy'; return L; }
       txt.textContent = s;
       if (kind === 'station') el.classList.toggle('full', s.toUpperCase() === 'MAX');
       return L;
     },
     setIcon(name) {
-      if (kind !== 'station' || name === L.icon) return L;
-      L.icon = name;
-      stIcon.innerHTML = ICON[name] || '';
+      if (name === L.icon) return L;
+      if (kind === 'station') { L.icon = name; stIcon.innerHTML = ICON[name] || ''; }
+      else if (kind === 'timer' || kind === 'till' || kind === 'call') {
+        L.icon = name;
+        const host = el.querySelector(kind === 'timer' ? '.tr-i' : kind === 'till' ? '.tl-i' : '.ci');
+        host.innerHTML = ICON[name] || '';
+        if (kind === 'timer') el.classList.toggle('has-i', !!ICON[name]);
+      }
       return L;
     },
     setPos(v) { if (v) { L.pos.set(v.x, v.y, v.z); L.has = true; } return L; },
     setVisible(b) { L.wantVisible = !!b; if (!b) L.hide(); return L; },
     setProgress(p) {
       if (kind === 'job') return L.setWork(p);
-      if (!bar) return L;
       p = Math.max(0, Math.min(1, p || 0));
       if (Math.abs(p - L.prog) < 0.002 && !(p === 0 && L.prog !== 0)) return L;
       L.prog = p;
+      if (kind === 'timer') { ringFg.style.strokeDashoffset = String(100 - p * 100); el.dataset.b = p < 0.2 ? 'low' : p < 0.5 ? 'mid' : 'hi'; return L; }
+      if (!bar) return L;
       bar.style.transform = `scaleX(${p})`;
+      if (kind === 'till') el.classList.toggle('full', p >= 0.999);
+      else if (kind === 'call') { el.dataset.b = p < 0.25 ? 'low' : p < 0.55 ? 'mid' : 'hi'; }
       return L;
     },
     hide() { if (L.shown) { L.shown = false; el.classList.remove('on'); } },
@@ -97,13 +126,23 @@ function makeLabel(kind) {
       L.lx = L.ly = NaN; L.has = false; L.text = null; L.prog = -1; L.icon = null;
       if (bar) bar.style.transform = 'scaleX(0)';
       if (kind === 'job') L.resetJob();
+      if (L.resetKind) L.resetKind();
       if (kind === 'station') { el.classList.remove('full'); stIcon.innerHTML = ''; }
+      if (kind === 'timer' || kind === 'till' || kind === 'call') {
+        el.querySelector(kind === 'timer' ? '.tr-i' : kind === 'till' ? '.tl-i' : '.ci').innerHTML = kind === 'till' ? ICON.coins : kind === 'call' ? ICON.phone : '';
+        el.classList.remove('has-i', 'full'); delete el.dataset.b;
+      }
       pools[kind].push(L);
     },
   };
   const bubbleEl = kind === 'emote' ? el.querySelector('.bubble') : null;
+  const ringFg = kind === 'timer' ? el.querySelector('.tr-fg') : null;
   const stIcon = kind === 'station' ? el.querySelector('.st-i') : null;
   if (kind === 'job') addJobApi(L, el);
+  else if (kind === 'sale') addSaleApi(L, el);
+  else if (kind === 'stars') addStarsApi(L, el);
+  // every label answers every setter, so a caller never has to know which kind it holds (unknown kinds must not throw)
+  for (const m of ['setJobs', 'setPatience', 'setVip', 'setBonus', 'setStars', 'setInfo', 'setWork']) if (!L[m]) L[m] = () => L;
   layer.appendChild(el);
   return L;
 }
@@ -119,12 +158,20 @@ function addJobApi(L, el) {
   const fills = chips.map((c) => c.querySelector('.jb-w i'));
   const mood = el.querySelector('.mood'), face = mood.querySelector('.face');
   const patI = mood.querySelector('.pat i');
-  const cur = chips.map(() => ({ type: null, state: null }));
-  let count = 0, patV = -2, patBand = '', vip = false, act = -1, work = 0;
+  const cur = chips.map(() => ({ key: null, state: null }));
+  const ribbon = bubble.querySelector('.ribbon');
+  let count = 0, patV = -2, patBand = '', vip = false, act = -1, work = 0, bonus = null;
 
   const setFill = (i, p) => {
     fills[i].style.transform = `scaleY(${p})`;
     chips[i].classList.toggle('working', p > 0);
+  };
+  // a tile is a part type, a paint canister in a given colour ({ type: 'spray', color }) or a gold premium kit ({ gold: true })
+  const tileIcon = (j) => {
+    if (!j) return '';
+    if (j.type === 'spray') return ICON.spray;
+    if (j.gold && !j.type) return ICON.premium;
+    return ICON[j.type] || '';
   };
   L.setJobs = (jobs) => {
     jobs = jobs || [];
@@ -133,10 +180,18 @@ function addJobApi(L, el) {
     let first = -1;
     for (let i = 0; i < MAX_JOBS; i++) {
       const c = cur[i], j = i < n ? jobs[i] : null;
-      const type = j ? j.type : null;
-      let st = j ? (j.state || 'need') : null;
+      const has = !!(j && (j.type || j.gold));
+      const key = has ? `${j.type || ''}|${j.color || ''}|${j.gold ? 1 : 0}` : null;
+      let st = has ? (j.state || 'need') : null;
       if (st && !JOB_STATES.includes(st)) st = 'need';
-      if (type !== c.type) { c.type = type; icons[i].innerHTML = type ? ICON[type] || '' : ''; chips[i].hidden = !type; }
+      if (key !== c.key) {
+        c.key = key;
+        icons[i].innerHTML = has ? tileIcon(j) : '';
+        chips[i].hidden = !has;
+        chips[i].classList.toggle('gold', !!(has && j.gold));
+        chips[i].dataset.k = has ? (j.type || 'kit') : '';
+        if (has && j.color) chips[i].style.setProperty('--c', j.color); else chips[i].style.removeProperty('--c');
+      }
       if (st !== c.state) { c.state = st; if (st) chips[i].dataset.s = st; }
       if (st === 'ready' && first < 0) first = i;
     }
@@ -144,6 +199,16 @@ function addJobApi(L, el) {
       if (act >= 0) setFill(act, 0);
       act = first; work = 0;
     }
+    return L;
+  };
+  // small ribbon on top of the bubble ("Rescue x2.5"); null hides it
+  L.setBonus = (text) => {
+    text = text ? String(text) : null;
+    if (text === bonus) return L;
+    bonus = text;
+    ribbon.hidden = !text;
+    ribbon.textContent = text || '';
+    if (text) { ribbon.style.animation = 'none'; void ribbon.offsetWidth; ribbon.style.animation = ''; }
     return L;
   };
   L.setWork = (p) => {
@@ -176,7 +241,7 @@ function addJobApi(L, el) {
     return L;
   };
   L.resetJob = () => {
-    L.setJobs([]); L.setVip(false);
+    L.setJobs([]); L.setVip(false); L.setBonus(null);
     for (let i = 0; i < MAX_JOBS; i++) setFill(i, 0);
     act = -1; work = 0;
     patV = -2; patBand = ''; mood.hidden = true; delete mood.dataset.b; face.innerHTML = ''; bubble.classList.remove('urgent');
@@ -184,6 +249,58 @@ function addJobApi(L, el) {
   };
   chips.forEach((c) => { c.hidden = true; });
   mood.hidden = true;
+}
+
+// ---- for-sale card: name + one-line benefit + price (the bar fills as cash drains in) + the fame it needs ----
+// info = { name, blurb, price, fame, locked, level }. `level` is the level this purchase brings (1 = the building
+// itself); from 2 on the card is shown as an upgrade. locked = the player's fame is too low: grey card, padlock.
+function addSaleApi(L, el) {
+  const name = el.querySelector('.sl-name b'), blurb = el.querySelector('.sl-blurb');
+  const priceEl = el.querySelector('.sl-price em'), fameEl = el.querySelector('.sl-fame em'), lvl = el.querySelector('.sl-lvl');
+  let last = '';
+  L.setInfo = (info) => {
+    info = info || {};
+    const key = JSON.stringify([info.name, info.blurb, info.price, info.fame, !!info.locked, info.level]);
+    if (key === last) return L;
+    last = key;
+    name.textContent = info.name || '';
+    blurb.textContent = info.blurb || '';
+    blurb.hidden = !info.blurb;
+    priceEl.textContent = '$' + fmt(info.price || 0);
+    fameEl.textContent = info.fame ? 'Fame ' + info.fame : '';
+    el.querySelector('.sl-fame').hidden = !info.fame;
+    const up = (info.level | 0) > 1;
+    lvl.hidden = !up;
+    if (up) lvl.textContent = 'Upgrade Lv ' + info.level;
+    el.classList.toggle('locked', !!info.locked);
+    el.classList.toggle('upgrade', up);
+    return L;
+  };
+  L.resetKind = () => { last = ''; el.classList.remove('locked', 'upgrade'); name.textContent = ''; blurb.textContent = ''; };
+}
+
+// ---- three-star judge for a VIP job: [careful, fast, spotless], each true (earned) | false (lost) | null (pending) ----
+function addStarsApi(L, el) {
+  const cells = [...el.querySelectorAll('.bubble i')];
+  const NAMES = ['Careful', 'Fast', 'Spotless'];
+  const cur = [undefined, undefined, undefined];
+  cells.forEach((c, i) => { c.title = NAMES[i]; });
+  L.setStars = (arr) => {
+    arr = arr || [];
+    for (let i = 0; i < 3; i++) {
+      const v = arr[i] === true ? true : arr[i] === false ? false : null;
+      if (v === cur[i]) continue;
+      const was = cur[i];
+      cur[i] = v;
+      cells[i].innerHTML = v === true ? ICON.starGold : v === false ? ICON.starLost : ICON.starEmpty;
+      cells[i].dataset.s = v === true ? 'yes' : v === false ? 'no' : 'wait';
+      if (was !== undefined) { cells[i].classList.remove('pop', 'lose'); void cells[i].offsetWidth; cells[i].classList.add(v === true ? 'pop' : 'lose'); }
+    }
+    el.classList.toggle('perfect', cur[0] === true && cur[1] === true && cur[2] === true);
+    return L;
+  };
+  L.resetKind = () => { cur[0] = cur[1] = cur[2] = undefined; L.setStars([]); cells.forEach((c) => c.classList.remove('pop', 'lose')); };
+  L.setStars([]);
 }
 
 export function label(opts = {}) {

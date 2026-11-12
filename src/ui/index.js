@@ -2,6 +2,7 @@
 import { events } from '../core/events.js';
 import { state } from '../core/state.js';
 import { label, floatText } from './labels.js';
+import { pointer, hint, banner, chip } from './guidance.js';
 import { toast } from './toast.js';
 import { sfx, unlockAudio } from './audio.js';
 import { buildHud } from './hud.js';
@@ -15,11 +16,28 @@ export const ui = {
   label,
   toast,
   floatText,
+  pointer,
+  hint,
+  banner,
+  chip,
   sfx,
   fmt,
   openUpgrades() { panels && panels.openUpgrades(); },
   closeUpgrades() { panels && panels.closeUpgrades(); },
   showShopComplete(onNext) { panels && panels.showComplete(onNext); },
+  // ---- Harbor Town ----
+  openProGear() { panels && panels.openProGear(); },
+  closeProGear() { panels && panels.closeProGear(); },
+  openAcademy() { panels && panels.openAcademy(); },
+  closeAcademy() { panels && panels.closeAcademy(); },
+  openFame() { panels && panels.openFame(); },
+  openMap() { panels && panels.openMap(); },
+  /** Garage complete celebration (nothing resets; the town goes on). */
+  showGarageComplete() { panels && panels.showGarageComplete(); },
+  /** Ferry confirm modal; "Set sail!" calls onSail (core: nextShop) and emits ui:sail. */
+  showFerry(onSail) { panels && panels.showFerry(onSail); },
+  levelUp(level, unlocks) { panels && panels.levelUp(level, unlocks); },
+  perfect(total) { panels && panels.perfect(total); },
   /** Welcome-back modal. No argument: real pendingOffline(). With { amount, seconds }: a preview (dev). */
   showWelcomeBack(info) { return panels ? panels.showWelcome(info) : false; },
 };
@@ -43,6 +61,8 @@ export function initUI() {
     openPause: () => panels.openPause(),
     openMissions: () => panels.openMissions(),
     openShop: () => panels.openShop(),
+    openFame: () => panels.openFame(),
+    openMap: () => panels.openMap(),
   };
   const hud = buildHud(root, api);
   panels = buildPanels(root, hud);

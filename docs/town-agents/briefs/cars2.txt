@@ -1,0 +1,36 @@
+RESUME CONTEXT AND ROLE CHANGE for `cars`. Your role file is /tmp/wb-briefs/cars.txt; this narrows it and adds to it.
+
+THE CARS ROLE IS NOW SPLIT
+- You are `cars`. YOUR FILES: src/models/cars.js, src/models/leak.js, and a new preview page src/models/preview-cars.html + .js.
+- A second agent, `vehicles`, builds src/models/vehicles.js (tow truck, traffic, ferry). That covers steps 1, 5 and 7 of cars.txt. Do not touch vehicles.js.
+- Your steps from cars.txt: 2 (the car methods), 3 (six TOWN_CAR_TYPES), 4 (four VIP_CAR_TYPES), 6 (six CLASSICS with setRestore), plus the preview page and verification.
+
+WHAT YOUR PREDECESSOR LEFT
+- It backed up the pre-task files at /tmp/wb-cars-before.js and /tmp/wb-leak-before.js.
+- It then wrote the new cars.js in one go, 1876 lines:
+  - the five garage types and the gold VIP, the six town classes, the four club cars and the six classics;
+  - setColor, setStripe, setMasked, setDirt, setFoam, setWet, setGloss, setHazard, setTowed and setRestore;
+  - the exports TOW_LIFT, CAR_TYPE_IDS and lookOf.
+- It was cut off right after the write. The code parses (node --check) but has never been run or looked at.
+
+YOUR JOB
+1. Build preview-cars.html + .js first.
+   - Copy what you need from the frozen src/models/preview.js, including its `view=game` mode with the real portrait camera.
+   - Rows: every car type; every state of every method on a few types; setColor at k = 0, 0.33, 0.66 and 1; a setRestore 0..3 row per classic.
+   - A game-camera row that mixes old and new cars, so you can judge silhouettes at real size.
+2. Verify, then fix and polish, every type and every method against cars.txt.
+   - Each new class must be a silhouette you can tell apart from the others and from the five existing types at game-camera size.
+   - The existing damage effects (tyre, oil, battery, engine, paint) must work on every new type.
+   - The five existing types and their damage effects must look exactly as before. Compare with the HEAD / pre-task versions in your preview.
+   - setColor must not recolour another car that shares cached geometry or materials.
+3. Check the rules in cars.txt:
+   - foam only exists after a soap arch;
+   - towed wheels do not spin;
+   - masking covers the glass, lights and wheels but not the panels being painted;
+   - a wet car drips for a few seconds and then is dry;
+   - each effect makes sense while driving and while parked.
+4. Paint colours come from PAINT_COLORS in config.town.js. 'yellow' became 'lime' (0x9bcf3a); check that your colour handling has nothing hard-coded for 'yellow'.
+
+`vehicles` will attach your cars to its tow truck's hitch with `car.setTowed(1)`. Keep the front-axle lift (TOW_LIFT) and the axle position consistent across all types, and write in your report where the front axle sits relative to the car origin for each type.
+
+The full game does not boot until core says so in /tmp/wb-progress/core.md; your preview page is your main tool. Once the game boots, check in the real game that customer cars still look and behave as before.

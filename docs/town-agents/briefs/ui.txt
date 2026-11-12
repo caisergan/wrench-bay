@@ -1,0 +1,15 @@
+YOUR ROLE: `ui` — everything on screen that is not 3D (TOWN.md section 9, with sections 0, 2, 4 and 5 for what the UI has to explain to the player).
+
+YOUR FILES: src/ui/* only.
+
+CONTEXT: the UI is plain DOM + CSS over a three.js canvas, portrait, mobile first, one-thumb play with a floating joystick (anything interactive carries `data-ui` so it does not start the joystick). Read the existing src/ui code and match its language exactly: Fredoka, navy + cream + coral, chunky rounded shapes, the existing modal / sheet / label / toast components. The state helpers and events of TOWN.md section 5 are being written by the `core` agent right now in src/core/state.js: import them defensively (`import * as S from '../core/state.js'` and `S.fameProgress?.()`), so the UI works before and after they land, and build `?uitest` samples that do not need them.
+
+DELIVER everything in TOWN.md section 9. What matters most, in order:
+1. Labels the gameplay agents will call first: 'sale', 'till', 'timer', 'stars', 'call', the 'job' additions (colour canister tiles, gold tiles, bonus ribbon). Unknown kinds must not throw.
+2. `ui.pointer`: the edge-of-screen pointers are how a player on a 17-unit-wide screen finds anything in a town 120 units wide. They must be readable, calm when there are three at once, never under the HUD buttons, the top card or where the thumb rests, and must hide the moment their target is on screen.
+3. `ui.hint`, `ui.banner`, `ui.chip`; fame badge; top card switching to town progress; map button. Fame badge and map button stay hidden until `town:opened` (or `S.townOpen?.()` at boot).
+4. Panels: Fame, Town map (drawn from the config rectangles; it has to make sense of the town at a glance and show what is owned, for sale, locked and why), Pro Gear, Academy, garage complete (no reset), ferry, level-up and "Perfect!" moments.
+5. Town mission pool, icons, sfx.
+The HUD is already busy on a phone. Lay the additions out so that the play area stays clear: check 360 x 740 and 430 x 932.
+
+VERIFY BEFORE REPORTING: `?nogame&uitest` shows every new label kind, pointer kind (with targets on and off screen), chip, hint, banner, panel and moment; go through it at both phone sizes and look at the screenshots; the existing HUD, panels and title screen are unchanged for a save where the town is not open; no console errors.

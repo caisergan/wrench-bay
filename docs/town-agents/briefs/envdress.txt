@@ -1,0 +1,55 @@
+YOUR ROLE: `envdress`. You make the town's streets and harbor feel lived-in: the human-scale dressing on top of the structural world. This is half of the env role in TOWN.md section 8; the other agent is `env`.
+
+YOUR FILES: src/models/env-harbor.js and src/models/env-life.js. Both exist as stubs that already state the call contract; keep it. Edit nothing else.
+- Use these read-only: helpers from env-kit.js (furniture, addSolid / solidRect, ChunkBuilder layers, SignAtlas), streetGeo() from env-streets.js, and createBusStop from props-town.js.
+- If you need a helper that does not exist, write it in your own file. Do not edit env-kit.js.
+
+HOW YOU PLUG IN
+- `env` (in environment.js) calls `buildHarbor(env)` and `buildStreetLife(env)` with `env = { root, S, F, G, signs, rnd, geo }`.
+- S, F and G are ChunkBuilders:
+  - S: solid lit geometry, casts shadows;
+  - F: flat ground paint and decals;
+  - G: glowing parts, such as lamp heads and lit windows.
+- `signs` is the shared SignAtlas: about 15 signs for you; env sizes it.
+- `rnd` is seeded random. `geo` holds the street edges (hz0, hz1, mz0, mz1, wx0 ..., quayZ, hbN).
+- Push static geometry into S / F / G. Moving things (boats bobbing, a flag, a turning wind vane) are separate small meshes added to `env.root` and animated from the `update(dt, t)` you return. Nothing may be allocated per frame.
+- Solid things inside walkable areas (fountain, kiosks, big planters, dumpsters) get registered with addSolid / solidRect. Thin things (lamp posts, signs, bollards) do not.
+- env wires your two calls into environment.js early in its run; watch /tmp/wb-progress/env.md for it. Until then, test with a temporary local page of your own (for example src/models/preview-dress.html + .js, which you may create) that builds a ChunkBuilder set, calls your functions and renders with the game camera. Once env's wiring is in, use `?nogame&cam=x,z` on the real page.
+
+READ FIRST
+- CONTRACTS.md: the art direction.
+- TOWN.md sections 0, 3, 4.10 and 8.
+- src/config.town.js: TOWN (roads, alleys, homeBlock, garden, towApron, water, ferryPlaza, parking, busStops, wrenches), RESCUE.spots, LOUNGE.crossing, PROPERTIES plots.
+- The legacy src/models/environment.js. Its harbor bollards, pier, boats and buoys move to you: copy that code from `git show HEAD:src/models/environment.js` into env-harbor.js, so the view from the garage keeps its harbor. env removes them from environment.js. The quality bar is the legacy lot: how much small, believable detail it has.
+
+DELIVER, one area at a time, each one looked at from the game camera before the next
+1. Harbor St quay, the whole length.
+   - Quay rail with gaps at ladders and gangways, mooring bollards, ladders down to the water.
+   - Moored boats that bob gently: a fishing boat with nets, a sailboat with a mast, small motor launches, a rowboat. Boats lie in the water (TOWN.water: z >= 17), never on land.
+   - A second pier, buoys, stacked fish boxes, crates, coiled nets, benches facing the water, life-ring posts, a small bait / fish stall on the quay side, and a harbor-master hut.
+   - In the distance, visible from the camera at the ends of the quay: a breakwater with a lighthouse, cranes, the far shore.
+   - The ferry plaza (TOWN.ferryPlaza) gets paving details and bollards only. Its centre stays free for the ferry terminal (bmain) and the 'ferry' parking bay.
+2. Street life on every street (Harbor St, Main St, West Ave, East Ave).
+   - Lamp posts at a regular, believable rhythm, benches, hydrants, mailboxes, bins, parking meters next to kerbside parking, planters, bike racks, a newspaper box.
+   - Street-name signs at the four corners, one-way signs pointing the right way.
+   - The two bus stop shelters (createBusStop from props-town.js) at TOWN.busStops, facing the road.
+3. Alleys and back lane. Dumpsters, recycling bins, back doors with a step and a lamp, AC units, meter boxes, pallets, crates, pipes on walls.
+   - Make the golden-wrench spots (TOWN.wrenches, district 'harbor' and 'main') into little nooks worth exploring, for example a dead-end with crates or a gap behind a dumpster.
+   - Leave a 1 m radius around each exact wrench position empty and visible from the camera: gameplay spawns the wrench there.
+4. Garden park (TOWN.garden): paths, lawn, flower beds, trees, a fountain (solid), benches, a statue or a bandstand if it fits. Keep wrench w06, the 'garden' parking bay and the walkway to LOUNGE.crossing clear.
+
+KEPT CLEAR (TOWN.md section 3)
+- Roads, every plot, every pad, every parking bay (3.6 x 2.0), every rescue spot (RESCUE.spots: cars sit there fully on the kerb, so keep 3.6 x 2.0 around each one), the tow apron, facility lanes, 3 m either side of the bus stops, and LOUNGE / WASH / PAINT / VIP areas.
+- On sidewalks, keep a walkable strip of at least 0.8 m free.
+- Things on the south side of a walkable area stay low (under 1 m) or see-through, because the camera looks north from the south.
+
+REAL-WORLD LOGIC
+- Boats float and their mooring lines reach the bollards.
+- Lamps stand on the kerb edge, not in the middle of the sidewalk.
+- One-way arrows match the traffic direction in TOWN.roads.
+- Nothing floats or is sunk into the ground; nothing z-fights.
+
+VERIFY
+- Pass over the whole map from the game camera at phone size (portrait about 420 x 860), with screenshots, and look at them.
+- Draw calls and triangles before and after your dressing (renderer.info).
+- No console errors; your solids match what looks solid.

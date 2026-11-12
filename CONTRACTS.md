@@ -1,5 +1,8 @@
 # Wrench Bay: game design + module contracts
 
+> Mid and late game (the open town, paint shop, VIP club, tow truck, side businesses): see `TOWN.md`. It extends
+> this file; ownership of new files and the agents working on them are listed there.
+
 An original incremental / idle car repair shop game (three.js + Vite, portrait, mobile first). It is the sibling of
 `../noodle-harbor` (an idle ramen bar): same engine, same chunky voxel art direction, same UI language. That project is
 the style reference and a source of code to adapt; read it, do not edit it.

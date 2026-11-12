@@ -3,41 +3,15 @@ import {
   state, save, resetSave, addCash, addGems, buyUpgrade, upgradeCost, shopMult, progress, pendingOffline, claimOffline,
 } from '../core/state.js';
 import { events } from '../core/events.js';
-import { UPGRADES, BOOSTS, SHOP_NAMES, ECONOMY, PLAYER } from '../config.js';
+import { UPGRADES, BOOSTS, SHOP_NAMES, ECONOMY, PLAYER, BUSINESS as C_BUSINESS } from '../config.js';
 import { ICON } from './icons.js';
 import { fmt, html } from './format.js';
 import { sfx, isMuted, setMuted, unlockAudio } from './audio.js';
 import { toast } from './toast.js';
 import { flags, pauseGame, refreshInput } from './uistate.js';
-
-const modals = [];
-function makeModal({ title, icon, cls = '', sticky = false }) {
-  const el = html(`
-    <div class="backdrop ${cls}" data-ui>
-      <div class="panel" data-ui>
-        <div class="panel-head">
-          <span class="ph-icon">${icon || ''}</span><h2>${title}</h2>
-          <button class="x-btn pressable" data-ui aria-label="Close">${ICON.x}</button>
-        </div>
-        <div class="panel-body"></div>
-      </div>
-    </div>`);
-  const m = {
-    el, body: el.querySelector('.panel-body'),
-    onOpen: null, onClose: null,
-    get isOpen() { return el.classList.contains('open'); },
-    open() {
-      modals.forEach((o) => { if (o !== m && o.isOpen && !o.keep) o.close(); });
-      el.classList.add('open'); m.onOpen && m.onOpen();
-    },
-    close() { if (!m.isOpen) return; el.classList.remove('open'); m.onClose && m.onClose(); },
-  };
-  el.querySelector('.x-btn').addEventListener('click', () => m.close());
-  if (!sticky) el.addEventListener('click', (e) => { if (e.target === el) m.close(); });
-  modals.push(m);
-  document.getElementById('ui').appendChild(el);
-  return m;
-}
+import { makeModal } from './modal.js';
+import { buildTownPanels } from './panels-town.js';
+import { T } from './townstate.js';
 
 export function buildPanels(root, hud) {
   // ================= MISSIONS =================
@@ -50,6 +24,44 @@ export function buildPanels(root, hud) {
     { id: 'streak', stat: 'dayStreak', icon: ICON.flame, target: () => 5, text: () => 'Reach a streak of 5' },
   ];
   const MISSION_GEMS = 10;
+  // Town pool (only once the town is open): up to 3 a day, each only if the player owns what it needs.
+  const anyBusiness = () => Object.keys(C_BUSINESS).some((id) => T.owns(id));
+  const TDEFS = [
+    { id: 't-rescue', stat: 'rescues', icon: ICON.tow, target: () => 3, text: () => 'Rescue 3 stranded cars', need: () => T.owns('tow') },
+    { id: 't-respray', stat: 'resprays', icon: ICON.paintShop, target: () => 5, text: () => 'Respray 5 cars', need: () => T.owns('paint') },
+    { id: 't-perfect', stat: 'vipPerfect', icon: ICON.starGold, target: () => 2, text: () => 'Give 2 VIPs a perfect service', need: () => T.owns('vip') },
+    { id: 't-tills', stat: 'tillCollected', icon: ICON.coins, target: () => Math.round(1000 * shopMult()), text: () => `Collect $${fmt(Math.round(1000 * shopMult()))} from your tills`, need: anyBusiness },
+    { id: 't-classic', stat: 'restored', icon: ICON.junk, target: () => 1, text: () => 'Restore a classic car', need: () => T.owns('junkyard') },
+  ].map((d) => ({ ...d, town: true, gems: 15 }));
+  const tillNow = (m) => m.tillSum || 0;
+  const tStat = (d, m) => (d.stat === 'tillCollected' ? tillNow(m) : T.stat(d.stat));
+  const hashDay = () => [...dayKey()].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7);
+  /** The town missions of today (picked once per day among those the player can do). */
+  function townDefs() {
+    if (!T.townOpen()) return [];
+    const m = ensureDay();
+    m.tpick = (m.tpick || []).filter((id) => TDEFS.some((d) => d.id === id));
+    const avail = TDEFS.filter((d) => d.need());
+    const rot = Math.abs(hashDay()) % Math.max(1, avail.length);
+    const order = avail.slice(rot).concat(avail.slice(0, rot));
+    let changed = false;
+    for (const d of order) {
+      if (m.tpick.length >= 3) break;
+      if (!m.tpick.includes(d.id)) { m.tpick.push(d.id); (m.tbase ||= {})[d.id] = tStat(d, m); changed = true; }
+    }
+    if (changed) save();
+    return m.tpick.map((id) => TDEFS.find((d) => d.id === id));
+  }
+  const allDefs = () => MDEFS.concat(townDefs());
+  // coins taken from a till count for the "collect from your tills" mission
+  const lastTill = {};
+  for (const [id, v] of Object.entries(T.tills())) lastTill[id] = v;
+  events.on('till:changed', (e) => {
+    if (!e) return;
+    const prev = lastTill[e.id] || 0;
+    if (e.amount < prev) { const m = ensureDay(); m.tillSum = (m.tillSum || 0) + (prev - e.amount); kickMissions(); }
+    lastTill[e.id] = e.amount;
+  });
 
   const dayKey = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
   function ensureDay() {
@@ -57,7 +69,7 @@ export function buildPanels(root, hud) {
     if (m.day !== dayKey() || !m.base || m.base.vips === undefined) {
       const fresh = m.day !== dayKey();
       m.day = dayKey(); if (fresh || !m.claimed) m.claimed = [];
-      if (fresh) m.dayStreak = 0;
+      if (fresh) { m.dayStreak = 0; m.tpick = []; m.tbase = {}; m.tillSum = 0; }
       m.base = { repaired: state.stats.repaired, cashEarned: state.stats.cashEarned, unlocks: state.stats.unlocks, vips: state.stats.vips };
       save();
     }
@@ -65,6 +77,7 @@ export function buildPanels(root, hud) {
   }
   const prog = (d) => {
     const m = ensureDay();
+    if (d.town) return Math.max(0, Math.min(d.target(), tStat(d, m) - ((m.tbase || {})[d.id] || 0)));
     const v = d.stat === 'dayStreak' ? (m.dayStreak || 0) : (state.stats[d.stat] || 0) - (m.base[d.stat] || 0);
     return Math.max(0, Math.min(d.target(), v));
   };
@@ -77,7 +90,7 @@ export function buildPanels(root, hud) {
     const m = ensureDay();
     const frag = document.createDocumentFragment();
     let claimable = false;
-    for (const d of MDEFS) {
+    for (const d of allDefs()) {
       const p = prog(d), t = d.target();
       const done = p >= t, claimed = m.claimed.includes(d.id);
       if (done && !claimed) claimable = true;
@@ -87,14 +100,15 @@ export function buildPanels(root, hud) {
           <div class="m-mid"><div class="m-text">${d.text()}</div>
             <div class="m-bar"><i style="transform:scaleX(${t ? p / t : 0})"></i><span>${fmt(p)}/${fmt(t)}</span></div></div>
           <button class="btn claim pressable" data-ui ${done && !claimed ? '' : 'disabled'}>
-            ${claimed ? ICON.check : `${ICON.gem}<b>${MISSION_GEMS}</b>`}</button>
+            ${claimed ? ICON.check : `${ICON.gem}<b>${d.gems || MISSION_GEMS}</b>`}</button>
         </div>`);
       row.querySelector('.claim').addEventListener('click', () => {
         const mm = ensureDay();
         if (mm.claimed.includes(d.id) || prog(d) < d.target()) return;
         mm.claimed.push(d.id);
-        addGems(MISSION_GEMS); save(); sfx('unlock');
-        toast(`+${MISSION_GEMS} gems!`);
+        const g = d.gems || MISSION_GEMS;
+        addGems(g); save(); sfx('unlock');
+        toast(`+${g} gems!`);
         renderMissions(); updateBadge();
       });
       frag.appendChild(row);
@@ -104,7 +118,7 @@ export function buildPanels(root, hud) {
   }
   function updateBadge() {
     const m = ensureDay();
-    hud.setBadge(MDEFS.some((d) => !m.claimed.includes(d.id) && prog(d) >= d.target()));
+    hud.setBadge(allDefs().some((d) => !m.claimed.includes(d.id) && prog(d) >= d.target()));
   }
   missions.onOpen = renderMissions;
   let mTimer = 0;
@@ -112,7 +126,7 @@ export function buildPanels(root, hud) {
     if (mTimer) return;
     mTimer = setTimeout(() => { mTimer = 0; updateBadge(); if (missions.isOpen) renderMissions(); }, 250);
   };
-  ['car:repaired', 'cash:changed', 'unlock', 'progress:changed', 'shop:changed'].forEach((e) => events.on(e, kickMissions));
+  ['car:repaired', 'cash:changed', 'unlock', 'progress:changed', 'shop:changed', 'rescue:delivered', 'respray:done', 'vip:done', 'property:changed', 'town:opened', 'project:changed'].forEach((e) => events.on(e, kickMissions));
   updateBadge();
 
   // ================= SHOP =================
@@ -328,7 +342,10 @@ export function buildPanels(root, hud) {
   // back from the background with offline earnings (main.js). Before the first ui:play the handler above shows it.
   events.on('app:resume', () => { if (welcomeShown) setTimeout(() => showWelcome(), 350); });
 
+  const town = buildTownPanels(hud);
+  // Escape hatch for the pause menu: close town panels when the game is paused
   return {
+    ...town,
     showWelcome,
     openMissions() { sfx('click'); missions.open(); },
     openShop() { sfx('click'); shop.open(); },

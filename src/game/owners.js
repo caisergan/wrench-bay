@@ -1,18 +1,18 @@
 // Car owners on foot: pop out of their car in the drop-off lane -> lounge spot -> curb -> hop back in.
 // States: hopOut | toLounge | lounge | toCurb | toCar | boarding | leaving | gone
+// One system per facility. Routes come from overridable methods (loungePath, curbPath, leavePath) so add-ons
+// (the lounge annex) or other facilities can send owners elsewhere without copying this file.
 import * as THREE from 'three';
 import { createCharacter, randomCustomerLook } from '../models/index.js';
-import { LAYOUT as L } from '../config.js';
+import { LAYOUT } from '../config.js';
 import { Walker } from './walker.js';
 import { hop } from './tween.js';
 import { Emote, rand, detach } from './util.js';
 
-const WALK_Z = L.ownerWalkZ;
-
-class Owner extends Walker {
+export class Owner extends Walker {
   constructor(sys, car) {
-    super(createCharacter(randomCustomerLook()), 2.5 * rand(0.92, 1.1), Math.PI);
-    this.sys = sys; this.car = car;
+    super(createCharacter(sys.fac.hooks.ownerLook ? sys.fac.h('ownerLook', car) : randomCustomerLook()), 2.5 * rand(0.92, 1.1), Math.PI);
+    this.sys = sys; this.car = car; this.fac = sys.fac; this.L = sys.fac.L;
     this.emo = new Emote();
     this.spot = sys.takeSpot();
     this.curbIdx = -2;
@@ -31,11 +31,23 @@ class Owner extends Walker {
         if (this.state !== 'hopOut') return;
         if (this.pendingReady) { this.goCurb(); return; }
         this.state = 'toLounge';
-        const s = this.spot;
-        this.path = [{ x: door.x, z: WALK_Z }, { x: s.x, z: WALK_Z }, { x: s.x, z: s.z }];
-        this.idleYaw = Math.PI;
+        this.path = this.loungePath(door, this.spot);
+        this.idleYaw = this.spot.yaw ?? Math.PI;
       },
     });
+  }
+
+  /** Door of the car -> waiting spot (garage: along ownerWalkZ). */
+  loungePath(door, s) {
+    const z = this.L.ownerWalkZ;
+    return [{ x: door.x, z }, { x: s.x, z }, { x: s.x, z: s.z }];
+  }
+  /** Where to wait for the car at the curb (i = place in the curb queue). */
+  curbPath(i) { return [{ x: this.L.ownerCurb.x - i * 0.8, z: this.L.ownerCurb.z }]; }
+  /** Car left without us: walk off along the Harbor St sidewalk. */
+  leavePath() {
+    const sx = this.L.ownerCurb.x + 1.9, sz = LAYOUT.street.sidewalkZ;
+    return [{ x: sx, z: this.pos.z }, { x: sx, z: sz }, { x: sx + 7.8, z: sz }];
   }
 
   emote(kind, t) { this.emo.show(kind, t); }
@@ -84,8 +96,7 @@ class Owner extends Walker {
     this.state = 'leaving';
     this.car = null;
     this.idleYaw = null;
-    const sx = 10.2;
-    this.path = [{ x: sx, z: this.pos.z }, { x: sx, z: L.street.sidewalkZ }, { x: 18, z: L.street.sidewalkZ }];
+    this.path = this.leavePath();
   }
 
   update(dt) {
@@ -97,7 +108,7 @@ class Owner extends Walker {
         const i = this.sys.curb.indexOf(this);
         if (i !== this.curbIdx) {
           this.curbIdx = i;
-          this.path = [{ x: L.ownerCurb.x - i * 0.8, z: L.ownerCurb.z }];
+          this.path = this.curbPath(i);
         }
         break;
       }
@@ -113,19 +124,21 @@ class Owner extends Walker {
   }
 }
 
-export function createOwners(ctx) {
+export function createOwners(ctx, fac) {
+  const L = fac.L;
   const list = [];
-  const spots = L.loungeSpots.map((s, i) => ({ x: s.x, z: s.z, i, taken: false }));
+  const spots = L.loungeSpots.map((s, i) => ({ x: s.x, z: s.z, yaw: s.yaw, i, taken: false }));
   const curb = [];
   let pending = 0;
   let overflow = 0;
 
   const sys = {
-    ctx, list, curb,
+    ctx, fac, list, curb, spots,
     freeSpots() { let n = 0; for (const s of spots) if (!s.taken) n++; return n; },
     /** Room for one more customer (a spot that is neither taken nor promised to a car on its way). */
     canReserve() { return sys.freeSpots() - pending > 0; },
     reserve() { pending++; },
+    unreserve() { if (pending > 0) pending--; },
     takeSpot() {
       if (pending > 0) pending--;
       const free = spots.filter((s) => !s.taken);
@@ -136,12 +149,13 @@ export function createOwners(ctx) {
       }
       // debug spawns can exceed the lounge: stand on the walkway next to it
       const k = overflow++ % 6;
-      return { x: 5.6 - k * 0.6, z: 5.0, overflow: true };
+      const s0 = L.loungeSpots[0];
+      return { x: s0.x - 0.9 - k * 0.6, z: s0.z, overflow: true };
     },
     freeSpot(s) { if (s && !s.overflow) s.taken = false; },
     leaveCurb(o) { const i = curb.indexOf(o); if (i >= 0) curb.splice(i, 1); },
     spawnFor(car) {
-      const o = new Owner(sys, car);
+      const o = new fac.classes.Owner(sys, car);
       car.owner = o;
       list.push(o);
       return o;
@@ -156,6 +170,8 @@ export function createOwners(ctx) {
       const i = list.indexOf(o); if (i >= 0) list.splice(i, 1);
     },
     update(dt) { for (let i = list.length - 1; i >= 0; i--) list[i].update(dt); },
+    /** Swap the waiting spots (e.g. the lounge annex adds seats). Taken spots of walking owners stay valid. */
+    setSpots(newSpots) { spots.length = 0; newSpots.forEach((s, i) => spots.push({ x: s.x, z: s.z, yaw: s.yaw, sit: s.sit, i, taken: false })); },
     dispose() { for (const o of list) o.emo.remove(); list.length = 0; },
   };
   return sys;
