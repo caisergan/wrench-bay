@@ -4,6 +4,7 @@ import { state } from '../core/state.js';
 import { label, floatText } from './labels.js';
 import { pointer, hint, banner, chip } from './guidance.js';
 import { toast } from './toast.js';
+import { payDock } from './paydock.js';
 import { sfx, unlockAudio } from './audio.js';
 import { buildHud } from './hud.js';
 import { buildPanels } from './panels.js';
@@ -22,6 +23,8 @@ export const ui = {
   chip,
   sfx,
   fmt,
+  /** Building pads: details at the bottom of the screen while the player stands on a pay pad (paydock.js). */
+  payDock,
   openUpgrades() { panels && panels.openUpgrades(); },
   closeUpgrades() { panels && panels.closeUpgrades(); },
   showShopComplete(onNext) { panels && panels.showComplete(onNext); },

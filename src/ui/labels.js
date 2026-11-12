@@ -25,13 +25,13 @@ const ANCHOR = {
   info: 'translate(-50%,-100%)',
   station: 'translate(-50%,-100%)',
   emote: 'translate(-50%,-100%)',
-  sale: 'translate(-50%,-100%)',
+  tag: 'translate(-50%,-50%)',
   till: 'translate(-50%,-100%)',
   timer: 'translate(-50%,-50%)',
   stars: 'translate(-50%,-100%)',
   call: 'translate(-50%,-100%)',
 };
-const BAR_KINDS = new Set(['price', 'till', 'sale', 'call']);
+const BAR_KINDS = new Set(['price', 'till', 'tag', 'call']);
 const MAX_JOBS = 4;
 const JOB_STATES = ['need', 'ready', 'done'];
 const EMOTES = { happy: ICON.happy, angry: ICON.angry, wait: ICON.wait, star: ICON.star };
@@ -54,11 +54,12 @@ function build(kind) {
       return html('<div class="wl wl-station"><div class="pill"><span class="st-i"></span><b></b></div></div>');
     case 'emote':
       return html('<div class="wl wl-emote"><div class="bubble"></div></div>');
-    case 'sale':
-      // for-sale / upgrade pad card: name, one-line benefit, price (fills as cash drains in) and the fame it needs
-      return html(`<div class="wl wl-sale"><div class="card-s"><s class="sl-lvl" hidden></s><div class="sl-name"><s class="sl-lock">${ICON.lock}</s><b></b></div>` +
-        `<div class="sl-blurb"></div><div class="sl-foot"><div class="sl-price">${ICON.cash}<em></em></div>` +
-        `<span class="sl-fame">${ICON.star}<em></em></span></div><div class="bar"><i></i></div></div></div>`);
+    case 'tag':
+      // building pad tag: lies ON the pay pad (never above it, where the building is). Icon + price; close by it also
+      // shows the name (+ level). The details are in the pay dock (paydock.js) while the player stands on the pad.
+      return html('<div class="wl wl-tag" data-k="buy"><div class="gt"><span class="gt-i"><span class="gt-ic"></span><span class="gt-badge"></span></span>' +
+        '<span class="gt-name"><b></b><span class="gt-lv"></span></span><span class="gt-sep"></span><span class="gt-p"><em></em></span>' +
+        `<span class="gt-fame">${ICON.star}<em></em></span><span class="bar"><i></i></span></div></div>`);
     case 'till':
       return html(`<div class="wl wl-till"><div class="pill"><s class="tl-i">${ICON.coins}</s><b></b></div><div class="bar"><i></i></div></div>`);
     case 'timer':
@@ -75,8 +76,8 @@ function build(kind) {
 
 function makeLabel(kind) {
   const el = build(kind);
-  const txt = kind === 'emote' || kind === 'stars' || kind === 'sale' ? null : el.querySelector('b');
-  // price / till / sale / call: fill bar (job bubbles show work progress inside the active part tile, see addJobApi)
+  const txt = kind === 'emote' || kind === 'stars' || kind === 'tag' ? null : el.querySelector('b');
+  // price / till / tag / call: fill bar (job bubbles show work progress inside the active part tile, see addJobApi)
   const bar = BAR_KINDS.has(kind) ? el.querySelector('.bar i') : null;
   const L = {
     kind, el, txt, bar, anchor: ANCHOR[kind] || ANCHOR.info,
@@ -87,7 +88,7 @@ function makeLabel(kind) {
       s = String(s ?? '');
       if (s === L.text) return L;
       L.text = s;
-      if (kind === 'max' || kind === 'job' || kind === 'stars' || kind === 'sale') return L;
+      if (kind === 'max' || kind === 'job' || kind === 'stars' || kind === 'tag') return L;
       if (kind === 'call') { txt.textContent = s || 'Rescue call'; return L; }
       if (kind === 'emote') { bubbleEl.innerHTML = EMOTES[s] || EMOTES.happy; bubbleEl.dataset.e = EMOTES[s] ? s : 'happy'; return L; }
       txt.textContent = s;
@@ -116,6 +117,7 @@ function makeLabel(kind) {
       if (!bar) return L;
       bar.style.transform = `scaleX(${p})`;
       if (kind === 'till') el.classList.toggle('full', p >= 0.999);
+      else if (kind === 'tag') el.classList.toggle('part', p > 0.001 && p < 0.999);
       else if (kind === 'call') { el.dataset.b = p < 0.25 ? 'low' : p < 0.55 ? 'mid' : 'hi'; }
       return L;
     },
@@ -139,10 +141,10 @@ function makeLabel(kind) {
   const ringFg = kind === 'timer' ? el.querySelector('.tr-fg') : null;
   const stIcon = kind === 'station' ? el.querySelector('.st-i') : null;
   if (kind === 'job') addJobApi(L, el);
-  else if (kind === 'sale') addSaleApi(L, el);
+  else if (kind === 'tag') addTagApi(L, el);
   else if (kind === 'stars') addStarsApi(L, el);
   // every label answers every setter, so a caller never has to know which kind it holds (unknown kinds must not throw)
-  for (const m of ['setJobs', 'setPatience', 'setVip', 'setBonus', 'setStars', 'setInfo', 'setWork']) if (!L[m]) L[m] = () => L;
+  for (const m of ['setJobs', 'setPatience', 'setVip', 'setBonus', 'setStars', 'setInfo', 'setWork', 'setNear']) if (!L[m]) L[m] = () => L;
   layer.appendChild(el);
   return L;
 }
@@ -251,32 +253,32 @@ function addJobApi(L, el) {
   mood.hidden = true;
 }
 
-// ---- for-sale card: name + one-line benefit + price (the bar fills as cash drains in) + the fame it needs ----
-// info = { name, blurb, price, fame, locked, level }. `level` is the level this purchase brings (1 = the building
-// itself); from 2 on the card is shown as an upgrade. locked = the player's fame is too low: grey card, padlock.
-function addSaleApi(L, el) {
-  const name = el.querySelector('.sl-name b'), blurb = el.querySelector('.sl-blurb');
-  const priceEl = el.querySelector('.sl-price em'), fameEl = el.querySelector('.sl-fame em'), lvl = el.querySelector('.sl-lvl');
-  let last = '';
+// ---- building pad tag: icon + price on the pad; close by (setNear) also the name and the level ----
+// info = { name, icon (ICON key), price, fame, locked, level, reason }. level > 1 = an upgrade (teal, arrow badge).
+// locked: grey with a padlock badge; for reason 'fame' it shows the fame level it needs in a gold star (like the HUD
+// badge) instead of the price. The bar under the price shows a part payment (setProgress), kept while you are away.
+function addTagApi(L, el) {
+  const ic = el.querySelector('.gt-ic'), badge = el.querySelector('.gt-badge'), name = el.querySelector('.gt-name b');
+  const lv = el.querySelector('.gt-lv'), price = el.querySelector('.gt-p em'), fame = el.querySelector('.gt-fame em');
+  let last = '', near = false;
   L.setInfo = (info) => {
     info = info || {};
-    const key = JSON.stringify([info.name, info.blurb, info.price, info.fame, !!info.locked, info.level]);
+    const key = JSON.stringify([info.name, info.icon, info.price, info.fame, !!info.locked, info.level, info.reason]);
     if (key === last) return L;
     last = key;
+    const up = (info.level | 0) > 1, k = info.locked ? 'lock' : up ? 'up' : 'buy';
+    if (el.dataset.k !== k) { el.dataset.k = k; badge.innerHTML = k === 'lock' ? ICON.lock : k === 'up' ? ICON.arrowUp : ''; }
+    el.dataset.r = info.locked ? info.reason || 'fame' : '';
+    ic.innerHTML = ICON[info.icon] || ICON.tag;
     name.textContent = info.name || '';
-    blurb.textContent = info.blurb || '';
-    blurb.hidden = !info.blurb;
-    priceEl.textContent = '$' + fmt(info.price || 0);
-    fameEl.textContent = info.fame ? String(info.fame) : '';
-    el.querySelector('.sl-fame').hidden = !info.fame;
-    const up = (info.level | 0) > 1;
-    lvl.hidden = !up;
-    if (up) lvl.textContent = 'Upgrade Lv ' + info.level;
-    el.classList.toggle('locked', !!info.locked);
-    el.classList.toggle('upgrade', up);
+    lv.textContent = up ? 'Lv ' + info.level : '';
+    lv.hidden = !up;
+    price.textContent = '$' + fmt(info.price || 0);
+    fame.textContent = info.fame ? String(info.fame) : '';
     return L;
   };
-  L.resetKind = () => { last = ''; el.classList.remove('locked', 'upgrade'); name.textContent = ''; blurb.textContent = ''; };
+  L.setNear = (b) => { b = !!b; if (b !== near) { near = b; el.classList.toggle('near', b); } return L; };
+  L.resetKind = () => { last = ''; near = false; el.classList.remove('near', 'part'); el.dataset.k = 'buy'; el.dataset.r = ''; badge.innerHTML = ''; name.textContent = ''; };
 }
 
 // ---- three-star judge for a VIP job: [careful, fast, spotless], each true (earned) | false (lost) | null (pending) ----

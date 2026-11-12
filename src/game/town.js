@@ -17,10 +17,11 @@ import { setCameraBounds } from '../core/engine.js';
 import { events } from '../core/events.js';
 import {
   LAYOUT, TOWN, DISTRICTS, PROPERTIES, SERVICES, BUILD_TIME, PROJECT, PAINT, VIP, LOUNGE, WASH, TOWN_CAR_TYPES, ECONOMY,
+  BUSINESS,
 } from '../config.js';
 import {
   state, isUnlocked, townOpen, openTown, districtOpen, openDistrict, propLevel, nextPropLevel, buyPropLevel, fameLevel,
-  shopMult, save, nextShop,
+  fameProgress, fameMult, owns, shopMult, save, nextShop,
 } from '../core/state.js';
 import { ui } from '../ui/index.js';
 import { tween, ease, popIn } from './tween.js';
@@ -174,24 +175,50 @@ function signPos(id) {
 }
 
 /**
- * 'sale' label (falls back to 'price' while the UI kind is missing). Exposes the PayPad label interface:
- * setRemaining(rem, price), setProgress(k), remove(), plus setInfo(info) and place(x, z).
+ * Building pad tag: a 'tag' label lying on the pad itself (icon + price; close by also the name and the level). It is
+ * never drawn above the pad: the camera looks down from the south, so "above the pad" on screen is the building.
+ * Exposes the PayPad label interface (setRemaining, setProgress, setVisible, setNear, remove) plus setInfo(info).
  */
-function saleLabel(info, x, z) {
-  const pos = new THREE.Vector3(x, 1.25, z);
-  let L = ui.label({ text: '', kind: 'sale', worldPos: pos });
-  const rich = typeof L.setInfo === 'function';
-  if (!rich) { L.remove(); L = ui.label({ text: '', kind: 'price', worldPos: pos }); }
+function padTag(info, x, z) {
+  const L = ui.label({ text: '', kind: 'tag', worldPos: new THREE.Vector3(x, 0.02, z) });
   let cur = { ...info };
   const lab = {
-    setInfo(i) { cur = { ...cur, ...i }; if (rich) L.setInfo(cur); else L.setText((cur.locked ? 'Fame ' + cur.fame + ' ' : '') + '$' + ui.fmt(cur.price || 0)); return lab; },
+    setInfo(i) { cur = { ...cur, ...i }; L.setInfo(cur); return lab; },
     setRemaining(rem) { return lab.setInfo({ price: rem }); },
     setProgress(k) { L.setProgress?.(k); return lab; },
     setVisible(v) { L.setVisible?.(v); return lab; },
+    setNear(b) { L.setNear?.(b); return lab; },
     remove() { L.remove(); },
   };
   lab.setInfo(info);
   return lab;
+}
+
+/** "Heavy wrecker! Faster, better paid rescues" -> { title: 'Heavy wrecker', what: 'faster, better paid rescues' }. */
+function splitLabel(label) {
+  const i = label.indexOf('!');
+  if (i < 0) return { title: '', what: label };
+  const rest = label.slice(i + 1).trim();
+  return { title: label.slice(0, i).trim(), what: rest ? rest[0].toLowerCase() + rest.slice(1) : '' };
+}
+
+/** What the next level of a property gives, for the pay dock: { title, what }. */
+function levelText(id, level) {
+  const p = PROPERTIES[id], L = p.levels[level - 1];
+  if (level <= 1) return { title: '', what: p.blurb };
+  if (L?.label) return splitLabel(L.label);
+  const b = BUSINESS[id];
+  if (b) {
+    const rate = (lv) => '$' + ui.fmt(Math.round(b.income[Math.min(lv, b.income.length) - 1] * shopMult() * fameMult()));
+    return { title: 'Busier', what: `earns ${rate(level)} a minute instead of ${rate(level - 1)}` };
+  }
+  return { title: '', what: p.blurb };
+}
+
+/** Fame needed for a locked pad, as the dock's progress bar. */
+function fameLock(need) {
+  const f = fameProgress();
+  return { lockText: `Fame ${f.level} / ${need}`, lockLeft: `${Math.max(1, need - f.level)} to go`, lockP: Math.min(1, (f.level + f.frac) / need) };
 }
 
 export function createTown(ctx) {
@@ -326,7 +353,33 @@ export function createTown(ctx) {
     const p = PROPERTIES[id], n = nextPropLevel(id);
     if (!n) return null;
     const blurb = n.level > 1 ? (p.levels[n.level - 1].label || p.blurb) : p.blurb;
-    return { name: p.name, blurb, price: n.price, fame: n.fame, locked: n.locked, level: n.level, reason: n.reason };
+    return { name: p.name, icon: p.icon, blurb, price: n.price, fame: n.fame, locked: n.locked, level: n.level, reason: n.reason };
+  }
+  /** Pay dock info for the next level of a property (ui.payDock). */
+  function dockInfo(id) {
+    const p = PROPERTIES[id], n = nextPropLevel(id);
+    if (!n) return null;
+    const up = n.level > 1, t = levelText(id, n.level);
+    const info = {
+      kind: n.locked ? 'lock' : up ? 'up' : 'buy', icon: p.icon, name: p.name, title: t.title, what: t.what,
+      rib: n.locked ? 'LOCKED' : up ? `UPGRADE · LV ${n.level}` : p.kind === 'goal' ? 'TICKET' : 'FOR SALE',
+      levels: p.levels.length, owned: n.level - 1, price: n.price, fame: n.fame, fameOk: fameLevel() >= n.fame,
+    };
+    if (n.reason === 'fame') Object.assign(info, fameLock(n.fame));
+    else if (n.reason === 'all') {
+      // the ferry: every other property bought and the garage finished
+      const ids = Object.keys(PROPERTIES).filter((k) => !PROPERTIES[k].requiresAll);
+      const have = ids.filter(owns).length;
+      Object.assign(info, { lockText: `Owned ${have} / ${ids.length}`, lockLeft: 'and finish the garage', lockP: have / ids.length });
+    }
+    return info;
+  }
+  /** The dock's "Bought!" line. */
+  function doneText(id) {
+    const p = PROPERTIES[id], n = nextPropLevel(id);
+    if (!n || n.level <= 1) return `${p.name} is yours`;
+    const t = levelText(id, n.level);
+    return t.title && t.title !== 'Busier' ? `${t.title}!` : `${p.name} level ${n.level}!`;
   }
 
   /** Make the sale state of every property match the save (signs, pads, buildings). */
@@ -354,17 +407,15 @@ export function createTown(ctx) {
     const id = rec.id, p = rec.def;
     const at = (n.level > 1 && p.upgradePad) || p.pad;
     rec.padLevel = n.level;
-    rec.label = saleLabel(propInfo(id), at.x, at.z);
+    rec.label = padTag(propInfo(id), at.x, at.z);
     rec.pad = new PayPad(ctx, {
       id: 'prop:' + id + ':' + n.level, pos: at, animate, armOnLeave: true,
       price: () => nextPropLevel(id)?.price ?? 0,
       locked: () => !!nextPropLevel(id)?.locked,
-      label: rec.label,
-      onLocked: () => {
-        const nn = nextPropLevel(id);
-        if (!nn) return;
-        ui.toast(nn.reason === 'all' ? 'Own every property and finish the garage first' : `Needs fame level ${nn.fame}`);
-      },
+      label: rec.label, ground: true,
+      dock: () => dockInfo(id),
+      doneText: () => doneText(id),
+      onLocked: (pad) => ui.payDock.nudge(pad.id),     // the dock already says what it needs
       onPaid: () => bought(rec),
     });
     if (n.level === 1 && p.kind !== 'goal') {
@@ -512,7 +563,14 @@ export function createTown(ctx) {
   function gateInfo() {
     const D = DISTRICTS.main;
     const locked = fameLevel() < (D.fame || 0);
-    return { name: D.label, blurb: 'Ring road, parts depot, academy, diner, salvage yard', price: Math.round(D.price * shopMult()), fame: D.fame, locked, level: 1 };
+    return { name: D.label, icon: D.icon, blurb: 'Ring road, parts depot, academy, diner, salvage yard', price: Math.round(D.price * shopMult()), fame: D.fame, locked, level: 1, reason: locked ? 'fame' : null };
+  }
+  function gateDock() {
+    const g = gateInfo();
+    const info = { kind: g.locked ? 'lock' : 'buy', icon: g.icon, name: g.name, title: '', what: g.blurb, rib: g.locked ? 'LOCKED' : 'NEW DISTRICT',
+      levels: 1, owned: 0, price: g.price, fame: g.fame, fameOk: !g.locked };
+    if (g.locked) Object.assign(info, fameLock(g.fame));
+    return info;
   }
   function refreshGate(animate) {
     const D = DISTRICTS.main;
@@ -537,13 +595,15 @@ export function createTown(ctx) {
         gate.booms.push(m);
       }
       const info = gateInfo();
-      gate.label = saleLabel(info, D.pad.x, D.pad.z);
+      gate.label = padTag(info, D.pad.x, D.pad.z);
       gate.pad = new PayPad(ctx, {
         id: 'district:main', pos: D.pad, animate, armOnLeave: true,
         price: () => gateInfo().price,
         locked: () => gateInfo().locked,
-        label: gate.label,
-        onLocked: () => ui.toast(`Needs fame level ${D.fame}`),
+        label: gate.label, ground: true,
+        dock: gateDock,
+        doneText: () => `${D.label} is open`,
+        onLocked: (pad) => ui.payDock.nudge(pad.id),
         onPaid: () => { const at = { x: D.pad.x, z: D.pad.z }; ctx.fx.poof(at, 0xf6c453); openDistrict('main'); },
       });
     } else if (!locked && gate) openGate(animate);
@@ -715,7 +775,7 @@ export function createTown(ctx) {
     if (gate) gate.pad.update(dt);               // paying it opens the district (gate -> null)
     if (gate && ctx.near(gate.pad.pos, 6)) for (const m of gate.panels) m.update?.(dt);
     if (townMode) updateServices(dt);
-    // sale labels / signs follow fame and cash
+    // pad tags / signs follow fame and cash
     labelT -= dt;
     if (labelT <= 0) {
       labelT = 0.3;
@@ -745,6 +805,7 @@ export function createTown(ctx) {
     }
     for (const id in services) if (services[id].on) events.emit('townpad:exit', { kind: services[id].kind });
     if (gate?.label) gate.label.remove();
+    ui.payDock.hide();
     salePtr?.remove(); alertPtr?.remove(); guidePtr?.remove();
     // the world root (and our root inside it) is disposed by world.js; camera back to the legacy clamp
     setCameraBounds(null);

@@ -12,6 +12,8 @@ import { Tag, fmt } from './util.js';
 
 const HALF = 0.85;
 const GRACE = 0.35;
+const NEAR = 3.5;          // ground tags show their name (+ level) within this distance (on foot)
+const DOCK_DWELL = 0.2;    // seconds on a pad before its pay dock slides in (walking across does not flash it)
 // Partial payments persist for the session (keyed by pad id; cleared when moving to the next garage).
 const partial = new Map();
 export function resetPartialPayments() { partial.clear(); }
@@ -28,7 +30,12 @@ export function padPosition(u, fac = null) {
 /**
  * opts: { id (partial-payment key), pos: {x,z}, price: () => n, locked?: () => bool, onLocked?: (pad) => void,
  * label?: Tag-like (default a 'price' label; needs setRemaining?(rem, price), setProgress(k)), onPaid: (pad) => void,
- * animate, armOnLeave? }. Call pad.update(dt) every frame (true = paid this frame); pad.remove() when done.
+ * animate, armOnLeave?,
+ * ground?: the label is a building pad tag lying on the pad: setNear(b) within NEAR, hidden while driving and while
+ *   the player stands on the pad,
+ * dock?: () => ui.payDock info; while the player stands on the pad its details sit at the bottom of the screen,
+ * doneText?: () => string for the dock's "Bought!" moment }.
+ * Call pad.update(dt) every frame (true = paid this frame); pad.remove() when done.
  */
 export class PayPad {
   constructor(ctx, opts) {
@@ -44,6 +51,7 @@ export class PayPad {
     this.grace = GRACE; this.acc = 0; this.tickT = 0; this.shown = null; this.done = false;
     // opts.armOnLeave: a pad that appears under the player only reacts once they have stepped off it
     this.armed = !(opts.armOnLeave && this.playerOn);
+    this.onT = 0; this.payT = 0; this.docked = false; this.isNear = false; this.tagVis = null;
   }
   get price() { return this.opts.price(); }
   get locked() { return !!this.opts.locked?.(); }
@@ -57,7 +65,10 @@ export class PayPad {
   update(dt) {
     if (this.done) return false;
     if (this.ctx.near(this.pos, 2)) this.model.update(dt);
-    if (this.locked !== this.wasLocked) { this.wasLocked = this.locked; this.shown = null; this.model.group.visible = true; }
+    if (this.locked !== this.wasLocked) {
+      this.wasLocked = this.locked; this.shown = null; this.model.group.visible = true;
+      if (this.docked) ui.payDock.show(this.id, this.opts.dock());   // e.g. a fame level-up while standing on it
+    }
     const txt = '$' + fmt(this.remaining);
     if (txt !== this.shown) {
       this.shown = txt;
@@ -65,7 +76,9 @@ export class PayPad {
       const pr = this.paid / Math.max(1, this.price);
       this.model.setProgress(pr); this.tag.setProgress(pr);
     }
-    if (!this.playerOn) { this.grace = GRACE; this.acc = 0; this.lockedT = 0; this.armed = true; return false; }
+    const on = this.playerOn;
+    if (this.opts.dock || this.opts.ground) this.present(dt, on);
+    if (!on) { this.grace = GRACE; this.acc = 0; this.lockedT = 0; this.armed = true; return false; }
     if (!this.armed) return false;
     if (this.grace > 0) { this.grace -= dt; return false; }
     if (this.locked) {
@@ -80,19 +93,44 @@ export class PayPad {
     if (amt >= 1 && trySpend(amt)) {
       this.acc -= amt;
       partial.set(this.id, this.paid + amt);
+      this.payT = 0.25;
       this.tickT -= dt;
       if (this.tickT <= 0) { ui.sfx('pay'); this.tickT = 0.07; }
       if (this.remaining <= 0) {
         this.done = true;
         partial.delete(this.id);
         this.model.setProgress(1);
+        if (this.docked) { this.docked = false; ui.payDock.done(this.id, this.opts.doneText?.()); }
         this.opts.onPaid(this);
         return true;
       }
     }
     return false;
   }
+  /** Building pads: the tag's near state / visibility and the pay dock. */
+  present(dt, on) {
+    const pl = this.ctx.player;
+    this.onT = on && this.armed ? this.onT + dt : 0;
+    this.payT = Math.max(0, this.payT - dt);
+    const dock = !!this.opts.dock && this.onT >= DOCK_DWELL;
+    if (dock !== this.docked) {
+      this.docked = dock;
+      if (dock) ui.payDock.show(this.id, this.opts.dock()); else ui.payDock.hide(this.id);
+    }
+    if (dock) {
+      const rem = this.remaining;
+      ui.payDock.update(this.id, { price: this.price, remaining: rem, paying: this.payT > 0, broke: !this.locked && rem > 0 && state.cash < 1 });
+    }
+    if (this.opts.ground) {
+      const p = pl.pos, foot = pl.onFoot;
+      const near = foot && (p.x - this.pos.x) ** 2 + (p.z - this.pos.z) ** 2 < NEAR * NEAR;
+      if (near !== this.isNear) { this.isNear = near; this.tag.setNear?.(near); }
+      const vis = foot && !on;          // off while driving, and while you stand on it (the dock has the details)
+      if (vis !== this.tagVis) { this.tagVis = vis; this.tag.setVisible?.(vis); }
+    }
+  }
   remove() {
+    if (this.docked) { this.docked = false; ui.payDock.hide(this.id); }
     if (this.ownTag) this.tag.remove();
     const g = this.model.group;
     popOut(g, 0.25, () => { if (g.parent) g.parent.remove(g); });

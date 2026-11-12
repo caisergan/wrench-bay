@@ -39,14 +39,30 @@ export function runTown(ui, V) {
     if (j.prog) { l.setProgress(j.prog); liveJobs.push(l); }
   }
 
-  // for-sale cards: open, nearly paid, locked by fame, upgrade
-  const saleInfo = [
-    { pos: V(-4.4, 2.2, 6), info: { name: 'Car Wash', blurb: 'Every car leaving pays for a wash', price: 3500, fame: 0, level: 1 }, p: 0.0 },
-    { pos: V(0.2, 2.2, 6), info: { name: 'Harbor Lounge', blurb: 'Indoor waiting room: patient customers who tip', price: 6000, fame: 2, level: 1 }, p: 0.62 },
-    { pos: V(4.6, 2.2, 6), info: { name: 'Platinum Club', blurb: 'VIP area: luxury cars, big money', price: 60000, fame: 8, locked: true, level: 1 }, p: 0 },
-    { pos: V(-2.2, 2.2, 10), info: { name: 'Car Wash', blurb: 'Wax & polish: wash pays double', price: 9000, fame: 4, level: 2 }, p: 0.25 },
+  // building pad tags (lie on the pad): buy far / close, part-paid, locked by fame, upgrade close
+  const tagInfo = [
+    { pos: V(-4.4, 0.02, 6), info: { name: 'Car Wash', icon: 'wash', price: 3500, fame: 0, level: 1 }, p: 0.0 },
+    { pos: V(0.2, 0.02, 6), info: { name: 'Harbor Lounge', icon: 'lounge', price: 6000, fame: 2, level: 1 }, p: 0.62, near: true },
+    { pos: V(4.6, 0.02, 6), info: { name: 'Platinum Club', icon: 'crown', price: 60000, fame: 8, locked: true, reason: 'fame', level: 1 }, p: 0, near: true },
+    { pos: V(-2.2, 0.02, 10), info: { name: 'Tow Truck', icon: 'tow', price: 15000, fame: 6, level: 2 }, p: 0.25, near: true },
   ];
-  const sales = saleInfo.map((s) => { const l = ui.label({ kind: 'sale', worldPos: s.pos }); l.setInfo(s.info); l.setProgress(s.p); return l; });
+  const sales = tagInfo.map((s) => { const l = ui.label({ kind: 'tag', worldPos: s.pos }); l.setInfo(s.info); l.setProgress(s.p); l.setNear(!!s.near); return l; });
+  // pay dock samples (cycled by the 'dock' button)
+  const DOCKS = [
+    ['buy', { kind: 'buy', icon: 'wash', name: 'Car Wash', rib: 'FOR SALE', what: 'Every car leaving the garage pays for a wash', levels: 3, owned: 0, price: 3500 }, { price: 3500, remaining: 3500 }],
+    ['up', { kind: 'up', icon: 'tow', name: 'Tow Truck', rib: 'UPGRADE · LV 2', title: 'Heavy wrecker', what: 'faster, better paid rescues', levels: 3, owned: 1, price: 15000, fame: 6, fameOk: true }, { price: 15000, remaining: 6000, paying: true }],
+    ['broke', { kind: 'buy', icon: 'paintShop', name: 'Spray Bay', rib: 'FOR SALE', what: 'Paint shop: respray cars in the colour they ask for', levels: 1, owned: 0, price: 12000, fame: 3, fameOk: true }, { price: 12000, remaining: 7200, broke: true }],
+    ['lock', { kind: 'lock', icon: 'crown', name: 'Platinum Club', rib: 'LOCKED', what: 'VIP area: luxury cars, white-glove service, big money', levels: 1, owned: 0, price: 60000, fame: 8, lockText: 'Fame 4 / 8', lockLeft: '4 to go', lockP: 0.55 }, null],
+  ];
+  let dockI = -1;
+  const nextDock = () => {
+    dockI = (dockI + 1) % (DOCKS.length + 2);
+    if (dockI === DOCKS.length) { ui.payDock.done('dev', 'Heavy wrecker!'); return; }
+    if (dockI === DOCKS.length + 1) { ui.payDock.hide(); return; }
+    const [, info, st] = DOCKS[dockI];
+    ui.payDock.show('dev', info);
+    if (st) ui.payDock.update('dev', st);
+  };
 
   // tills, timers, call, stars
   const till1 = ui.label({ kind: 'till', text: 1240, worldPos: V(-4.5, 0.6, 12.5) });
@@ -142,6 +158,7 @@ export function runTown(ui, V) {
   mk('ptr 6', () => setPtrs(Object.keys(spots)));
   mk('ptr 0', () => setPtrs([]));
   mk('orbit', () => { orbitOn = !orbitOn; orbit.setVisible(orbitOn); });
+  mk('dock', nextDock);
   mk('missions', () => document.querySelector('[data-act="missions"]').click());
   mk('+$50K', () => window.__ui.addCash(50000));
   document.getElementById('ui').appendChild(bar);
