@@ -1,0 +1,340 @@
+// Modal panels: missions, shop, upgrades sheet, pause menu, garage complete, welcome back.
+import {
+  state, save, resetSave, addCash, addGems, buyUpgrade, upgradeCost, shopMult, progress, pendingOffline, claimOffline,
+} from '../core/state.js';
+import { events } from '../core/events.js';
+import { UPGRADES, BOOSTS, SHOP_NAMES, ECONOMY, PLAYER } from '../config.js';
+import { ICON } from './icons.js';
+import { fmt, html } from './format.js';
+import { sfx, isMuted, setMuted, unlockAudio } from './audio.js';
+import { toast } from './toast.js';
+import { flags, pauseGame, refreshInput } from './uistate.js';
+
+const modals = [];
+function makeModal({ title, icon, cls = '', sticky = false }) {
+  const el = html(`
+    <div class="backdrop ${cls}" data-ui>
+      <div class="panel" data-ui>
+        <div class="panel-head">
+          <span class="ph-icon">${icon || ''}</span><h2>${title}</h2>
+          <button class="x-btn pressable" data-ui aria-label="Close">${ICON.x}</button>
+        </div>
+        <div class="panel-body"></div>
+      </div>
+    </div>`);
+  const m = {
+    el, body: el.querySelector('.panel-body'),
+    onOpen: null, onClose: null,
+    get isOpen() { return el.classList.contains('open'); },
+    open() {
+      modals.forEach((o) => { if (o !== m && o.isOpen && !o.keep) o.close(); });
+      el.classList.add('open'); m.onOpen && m.onOpen();
+    },
+    close() { if (!m.isOpen) return; el.classList.remove('open'); m.onClose && m.onClose(); },
+  };
+  el.querySelector('.x-btn').addEventListener('click', () => m.close());
+  if (!sticky) el.addEventListener('click', (e) => { if (e.target === el) m.close(); });
+  modals.push(m);
+  document.getElementById('ui').appendChild(el);
+  return m;
+}
+
+export function buildPanels(root, hud) {
+  // ================= MISSIONS =================
+  const missions = makeModal({ title: 'Daily Missions', icon: ICON.clipboard });
+  const MDEFS = [
+    { id: 'repair', stat: 'repaired', icon: ICON.car, target: () => 15, text: () => 'Repair 15 cars' },
+    { id: 'earn', stat: 'cashEarned', icon: ICON.cash, target: () => 500 * shopMult(), text: () => `Earn $${fmt(500 * shopMult())}` },
+    { id: 'unlock', stat: 'unlocks', icon: ICON.arrowUp, target: () => 2, text: () => 'Unlock 2 things' },
+    { id: 'vip', stat: 'vips', icon: ICON.crown, target: () => 2, text: () => 'Repair 2 VIP cars' },
+    { id: 'streak', stat: 'dayStreak', icon: ICON.flame, target: () => 5, text: () => 'Reach a streak of 5' },
+  ];
+  const MISSION_GEMS = 10;
+
+  const dayKey = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+  function ensureDay() {
+    const m = state.missions;
+    if (m.day !== dayKey() || !m.base || m.base.vips === undefined) {
+      const fresh = m.day !== dayKey();
+      m.day = dayKey(); if (fresh || !m.claimed) m.claimed = [];
+      if (fresh) m.dayStreak = 0;
+      m.base = { repaired: state.stats.repaired, cashEarned: state.stats.cashEarned, unlocks: state.stats.unlocks, vips: state.stats.vips };
+      save();
+    }
+    return m;
+  }
+  const prog = (d) => {
+    const m = ensureDay();
+    const v = d.stat === 'dayStreak' ? (m.dayStreak || 0) : (state.stats[d.stat] || 0) - (m.base[d.stat] || 0);
+    return Math.max(0, Math.min(d.target(), v));
+  };
+  events.on('streak:changed', (e) => {
+    const m = ensureDay();
+    if (e.streak > (m.dayStreak || 0)) { m.dayStreak = e.streak; kickMissions(); }
+  });
+
+  function renderMissions() {
+    const m = ensureDay();
+    const frag = document.createDocumentFragment();
+    let claimable = false;
+    for (const d of MDEFS) {
+      const p = prog(d), t = d.target();
+      const done = p >= t, claimed = m.claimed.includes(d.id);
+      if (done && !claimed) claimable = true;
+      const row = html(`
+        <div class="mrow ${claimed ? 'claimed' : done ? 'done' : ''}">
+          <span class="m-ico">${d.icon}</span>
+          <div class="m-mid"><div class="m-text">${d.text()}</div>
+            <div class="m-bar"><i style="transform:scaleX(${t ? p / t : 0})"></i><span>${fmt(p)}/${fmt(t)}</span></div></div>
+          <button class="btn claim pressable" data-ui ${done && !claimed ? '' : 'disabled'}>
+            ${claimed ? ICON.check : `${ICON.gem}<b>${MISSION_GEMS}</b>`}</button>
+        </div>`);
+      row.querySelector('.claim').addEventListener('click', () => {
+        const mm = ensureDay();
+        if (mm.claimed.includes(d.id) || prog(d) < d.target()) return;
+        mm.claimed.push(d.id);
+        addGems(MISSION_GEMS); save(); sfx('unlock');
+        toast(`+${MISSION_GEMS} gems!`);
+        renderMissions(); updateBadge();
+      });
+      frag.appendChild(row);
+    }
+    missions.body.replaceChildren(frag, html('<p class="hint">Resets every day. Rewards: gems.</p>'));
+    return claimable;
+  }
+  function updateBadge() {
+    const m = ensureDay();
+    hud.setBadge(MDEFS.some((d) => !m.claimed.includes(d.id) && prog(d) >= d.target()));
+  }
+  missions.onOpen = renderMissions;
+  let mTimer = 0;
+  const kickMissions = () => {
+    if (mTimer) return;
+    mTimer = setTimeout(() => { mTimer = 0; updateBadge(); if (missions.isOpen) renderMissions(); }, 250);
+  };
+  ['car:repaired', 'cash:changed', 'unlock', 'progress:changed', 'shop:changed'].forEach((e) => events.on(e, kickMissions));
+  updateBadge();
+
+  // ================= SHOP =================
+  const shop = makeModal({ title: 'Shop', icon: ICON.bag });
+  function giveBoost(kind) {
+    const b = state.boosts, cfg = BOOSTS[kind], now = Date.now();
+    const until = Math.max(now, b[kind + 'Until']) + cfg.duration * 1000;
+    b[kind + 'Until'] = until;
+    b[kind + 'ReadyAt'] = Math.max(b[kind + 'ReadyAt'], until);
+    events.emit('boosts:changed', { ...b });
+    save();
+  }
+  const SHOP = () => {
+    const mult = shopMult();
+    return [
+      { icon: ICON.cash, name: `$${fmt(200 * mult)}`, sub: 'Pocket cash', cost: 10, give: () => addCash(200 * mult), msg: `+$${fmt(200 * mult)}` },
+      { icon: ICON.cash, name: `$${fmt(800 * mult)}`, sub: 'Cash bundle', cost: 30, give: () => addCash(800 * mult), msg: `+$${fmt(800 * mult)}` },
+      { icon: ICON.x2, name: '2x Income', sub: `Instant, ${Math.round(BOOSTS.income.duration / 60)} min`, cost: 15, give: () => giveBoost('income'), msg: '2x Income active!' },
+      { icon: ICON.bolt, name: 'Speed boost', sub: `Instant, ${BOOSTS.speed.duration}s`, cost: 10, give: () => giveBoost('speed'), msg: 'Speed boost active!' },
+    ];
+  };
+  function renderShop() {
+    const frag = document.createDocumentFragment();
+    frag.appendChild(html(`<div class="shop-gems">${ICON.gem}<b>${fmt(state.gems)}</b><span>gems</span></div>`));
+    for (const it of SHOP()) {
+      const can = state.gems >= it.cost;
+      const row = html(`
+        <div class="srow"><span class="m-ico">${it.icon}</span>
+          <div class="m-mid"><div class="m-text">${it.name}</div><div class="m-sub">${it.sub}</div></div>
+          <button class="btn buy pressable" data-ui ${can ? '' : 'disabled'}>${ICON.gem}<b>${it.cost}</b></button></div>`);
+      row.querySelector('.buy').addEventListener('click', () => {
+        if (state.gems < it.cost) { sfx('error'); return; }
+        addGems(-it.cost); it.give(); sfx('cash'); toast(it.msg); save();
+        renderShop();
+      });
+      frag.appendChild(row);
+    }
+    shop.body.replaceChildren(frag);
+  }
+  shop.onOpen = renderShop;
+  events.on('gems:changed', () => { if (shop.isOpen) renderShop(); });
+
+  // ================= UPGRADES SHEET =================
+  const sheet = html(`
+    <div class="sheet" data-ui>
+      <div class="sheet-grab"></div>
+      <div class="sheet-head"><span class="ph-icon">${ICON.arrowUp}</span><h2>Upgrades</h2>
+        <button class="x-btn pressable" data-ui aria-label="Close">${ICON.x}</button></div>
+      <div class="sheet-body"></div>
+    </div>`);
+  root.appendChild(sheet);
+  const sheetBody = sheet.querySelector('.sheet-body');
+  const UP_ICON = { speed: ICON.speed, capacity: ICON.capacity, repair: ICON.wrench, supply: ICON.crate, price: ICON.price };
+  // mirrors upgradeValue() semantics in core/state.js, but for any level
+  const effect = (key, l) => {
+    const u = UPGRADES[key];
+    if (key === 'capacity') return `${PLAYER.carryBase + l * u.per} parts`;
+    if (key === 'supply') return `-${Math.round((1 - Math.pow(1 - u.per, l)) * 100)}% wait`;
+    return `+${Math.round(l * u.per * 100)}%`;
+  };
+  const UP_SUB = { speed: 'walk and drive', capacity: 'carry more parts', repair: 'you and mechanics', supply: 'restocks faster', price: 'pays more per car' };
+  const rows = {};
+  for (const key of Object.keys(UPGRADES)) {
+    const u = UPGRADES[key];
+    const row = html(`
+      <div class="urow"><span class="m-ico">${UP_ICON[key] || ICON.star}</span>
+        <div class="m-mid"><div class="m-text">${u.label}</div>
+          <div class="pips">${'<i></i>'.repeat(u.max)}</div>
+          <div class="m-sub"><span class="u-fx"></span> <em>${UP_SUB[key] || ''}</em></div></div>
+        <button class="btn buy pressable" data-ui></button></div>`);
+    row.querySelector('.buy').addEventListener('click', () => {
+      if (buyUpgrade(key)) {
+        sfx('upgrade');
+        row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash');
+      } else sfx('error');
+    });
+    rows[key] = row;
+    sheetBody.appendChild(row);
+  }
+  function renderSheet() {
+    for (const key of Object.keys(UPGRADES)) {
+      const u = UPGRADES[key], l = state.upgrades[key], row = rows[key];
+      const maxed = l >= u.max, cost = upgradeCost(key);
+      row.querySelectorAll('.pips i').forEach((p, i) => p.classList.toggle('on', i < l));
+      row.querySelector('.u-fx').textContent = maxed ? `${effect(key, l)} (max)` : `${effect(key, l)} \u2192 ${effect(key, l + 1)}`;
+      const btn = row.querySelector('.buy');
+      const html2 = maxed ? '<b>MAX</b>' : `<span class="b-lbl">BUY</span>${ICON.cash}<b>${fmt(cost)}</b>`;
+      if (btn.dataset.h !== html2) { btn.dataset.h = html2; btn.innerHTML = html2; }
+      btn.disabled = maxed || state.cash < cost;
+    }
+  }
+  const sheetCtl = {
+    open() { renderSheet(); sheet.classList.add('open'); },
+    close() { sheet.classList.remove('open'); },
+    get isOpen() { return sheet.classList.contains('open'); },
+  };
+  sheet.querySelector('.x-btn').addEventListener('click', () => sheetCtl.close());
+  events.on('cash:changed', () => { if (sheetCtl.isOpen) renderSheet(); });
+  events.on('upgrades:changed', () => { if (sheetCtl.isOpen) renderSheet(); });
+  events.on('shop:changed', () => { if (sheetCtl.isOpen) renderSheet(); });
+  events.on('upgradepad:enter', () => sheetCtl.open());
+  events.on('upgradepad:exit', () => sheetCtl.close());
+
+  // ================= PAUSE =================
+  const pause = makeModal({ title: 'Paused', icon: ICON.pause, cls: 'pause' });
+  pause.keep = true;
+  let confirming = false;
+  function renderPause() {
+    const frag = document.createDocumentFragment();
+    if (!confirming) {
+      const resume = html(`<button class="btn big teal pressable" data-ui>${ICON.play}<span>Resume</span></button>`);
+      resume.addEventListener('click', () => pause.close());
+      const snd = html(`<button class="btn big cream pressable" data-ui>${isMuted() ? ICON.mute : ICON.sound}<span>Sound: ${isMuted() ? 'Off' : 'On'}</span></button>`);
+      snd.addEventListener('click', () => { setMuted(!isMuted()); unlockAudio(); sfx('click'); renderPause(); });
+      const reset = html(`<button class="btn big coral pressable" data-ui>${ICON.x}<span>Reset progress</span></button>`);
+      reset.addEventListener('click', () => { confirming = true; renderPause(); });
+      frag.append(resume, snd, reset);
+    } else {
+      const q = html('<p class="confirm-q">Erase all progress and start over?</p>');
+      const yes = html('<button class="btn big coral pressable" data-ui><span>Yes, reset</span></button>');
+      yes.addEventListener('click', () => { resetSave(); save(); location.reload(); });
+      const no = html('<button class="btn big cream pressable" data-ui><span>Keep playing</span></button>');
+      no.addEventListener('click', () => { confirming = false; renderPause(); });
+      frag.append(q, yes, no);
+    }
+    pause.body.replaceChildren(frag);
+  }
+  pause.onOpen = () => { confirming = false; renderPause(); pauseGame(true); };
+  pause.onClose = () => pauseGame(false);
+
+  // ================= GARAGE COMPLETE =================
+  const done = makeModal({ title: 'Garage complete!', icon: ICON.star, cls: 'complete', sticky: true });
+  done.keep = true;
+  done.el.querySelector('.x-btn').remove();
+  let onNextCb = null;
+  function showComplete(onNext) {
+    onNextCb = onNext;
+    const p = progress();
+    const nextName = SHOP_NAMES[(p.level + 1) % SHOP_NAMES.length];
+    const ratio = ECONOMY.shopMultiplier;
+    const confetti = Array.from({ length: 26 }, (_, i) => {
+      const c = ['#f26b5b', '#f6c453', '#2a9d8f', '#fff6e6'][i % 4];
+      return `<s style="left:${Math.random() * 100}%;background:${c};animation-delay:${(Math.random() * 1.2).toFixed(2)}s;animation-duration:${(2 + Math.random() * 1.5).toFixed(2)}s"></s>`;
+    }).join('');
+    const body = html(`
+      <div class="celebrate"><div class="confetti">${confetti}</div>
+        <div class="big-star">${ICON.star}</div>
+        <p class="c-name">${p.name}</p>
+        <p class="c-sub">Everything is unlocked. Next up:</p>
+        <p class="c-next">${nextName}</p>
+        <p class="c-mult">Prices and income x${ratio}</p>
+      </div>`);
+    const go = html('<button class="btn big teal pressable pulse" data-ui><span>Open next garage</span></button>');
+    go.addEventListener('click', () => {
+      done.close();
+      const cb = onNextCb; onNextCb = null;
+      sfx('unlock');
+      try { cb && cb(); } finally { events.emit('ui:nextShop'); }
+    });
+    done.body.replaceChildren(body, go);
+    done.open();
+    sfx('unlock');
+  }
+  done.onOpen = () => { flags.complete = true; refreshInput(); };
+  done.onClose = () => { flags.complete = false; refreshInput(); };
+  // ================= WELCOME BACK (offline earnings) =================
+  const welcome = makeModal({ title: 'Welcome back!', icon: ICON.wrench, cls: 'welcome', sticky: true });
+  welcome.keep = true;
+  welcome.el.querySelector('.x-btn').remove();
+  const DOUBLE_GEMS = 10;
+  const away = (sec) => {
+    const h = Math.floor(sec / 3600), m = Math.max(1, Math.round((sec % 3600) / 60));
+    return h ? `${h}h ${m}m` : `${m} min`;
+  };
+  /** info = { amount, seconds }; omit to use pendingOffline(). A passed-in info is a preview (pays cash directly). */
+  function showWelcome(info) {
+    const preview = !!info;
+    info = info || pendingOffline();
+    if (!info || welcome.isOpen) return false;
+    const body = html(`
+      <div class="wb">
+        <p class="wb-sub">Your crew kept the garage running while you were away</p>
+        <div class="wb-amt">${ICON.cash}<b>$${fmt(info.amount)}</b></div>
+        <p class="wb-away">Away for ${away(info.seconds)}</p>
+      </div>`);
+    const take = html(`<button class="btn big teal pressable pulse" data-ui>${ICON.cash}<span>Collect</span></button>`);
+    const dbl = html(`<button class="btn big coral pressable" data-ui><span>Double for</span>${ICON.gem}<b>${DOUBLE_GEMS}</b></button>`);
+    dbl.disabled = state.gems < DOUBLE_GEMS;
+    const pay = (mult) => {
+      const amt = preview ? (addCash(Math.round(info.amount * mult)), Math.round(info.amount * mult)) : claimOffline(mult);
+      welcome.close();
+      sfx('cash'); toast(`+$${fmt(amt)}`);
+    };
+    take.addEventListener('click', () => pay(1));
+    dbl.addEventListener('click', () => {
+      if (state.gems < DOUBLE_GEMS) { sfx('error'); return; }
+      addGems(-DOUBLE_GEMS); pay(2);
+    });
+    welcome.body.replaceChildren(body, take, dbl);
+    welcome.open();
+    sfx('unlock');
+    return true;
+  }
+  welcome.onOpen = () => { flags.welcome = true; refreshInput(); };
+  welcome.onClose = () => { flags.welcome = false; refreshInput(); };
+  // shown once after the title is dismissed (or right away for returning players: index.js emits ui:play)
+  let welcomeShown = false;
+  events.on('ui:play', () => {
+    if (welcomeShown) return;
+    welcomeShown = true;
+    if (pendingOffline()) setTimeout(() => showWelcome(), 350);
+  });
+
+  return {
+    showWelcome,
+    openMissions() { sfx('click'); missions.open(); },
+    openShop() { sfx('click'); shop.open(); },
+    openPause() { pause.open(); },
+    openUpgrades: () => sheetCtl.open(),
+    closeUpgrades: () => sheetCtl.close(),
+    showComplete,
+    isPauseOpen: () => pause.isOpen,
+    closePause: () => pause.close(),
+  };
+}
