@@ -1,13 +1,23 @@
 // WebAudio synthesised SFX. No audio files.
+import { haptic, persist } from '../core/platform.js';
+
 const KEY = 'wrench-bay-sound';
 let ctx = null, master = null, noiseBuf = null;
-let muted = false;
-try { muted = localStorage.getItem(KEY) === 'off'; } catch { /* ignore */ }
+// Read lazily: in the iOS app saved settings are restored into localStorage after this module loads.
+let muted = null;
+function readMuted() {
+  if (muted === null) {
+    try { muted = localStorage.getItem(KEY) === 'off'; } catch { muted = false; }
+  }
+  return muted;
+}
 
 function ensure() {
   if (ctx) return ctx;
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return null;
+  // iOS: play as "ambient" audio – obeys the silent switch and mixes with the player's own music.
+  try { if (navigator.audioSession) navigator.audioSession.type = 'ambient'; } catch { /* ignore */ }
   ctx = new AC();
   master = ctx.createGain();
   master.gain.value = 0.55;
@@ -27,10 +37,21 @@ export function unlockAudio() {
   if (c && c.state !== 'running') c.resume().catch(() => {});
 }
 
-export const isMuted = () => muted;
+/** Pause the audio clock while the game is in the background. */
+export function suspendAudio() {
+  if (ctx && ctx.state === 'running') ctx.suspend().catch(() => {});
+}
+/** Resume after suspendAudio(). If iOS still blocks it, the next tap resumes it (unlockAudio). */
+export function resumeAudio() {
+  if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {});
+}
+
+export const isMuted = () => readMuted();
 export function setMuted(m) {
   muted = !!m;
-  try { localStorage.setItem(KEY, muted ? 'off' : 'on'); } catch { /* ignore */ }
+  const v = muted ? 'off' : 'on';
+  try { localStorage.setItem(KEY, v); } catch { /* ignore */ }
+  persist(KEY, v);
 }
 
 // tone(freq, dur, {type, vol, to (end freq), at (delay s), a (attack s)})
@@ -135,12 +156,13 @@ const MIN_GAP = { pickup: 60, pay: 60, coin: 45, drop: 50, cash: 80, click: 40, 
 const last = {};
 
 export function sfx(name) {
-  if (muted) return;
   const fn = SOUNDS[name];
   if (!fn) return;
   const now = performance.now();
   if (now - (last[name] || 0) < (MIN_GAP[name] || 30)) return;
   last[name] = now;
+  haptic(name); // iOS app only; independent of the sound setting
+  if (readMuted()) return;
   if (!ensure()) return;
   if (ctx.state !== 'running') { ctx.resume().catch(() => {}); if (ctx.state !== 'running') return; }
   try { fn(jit(name === 'pay' ? 0.1 : 0.05)); } catch { /* ignore */ }

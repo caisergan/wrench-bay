@@ -1,5 +1,6 @@
 // Persistent game state + helpers. All mutations go through these functions so the UI gets events.
 import { events } from './events.js';
+import { persist } from './platform.js';
 import { ECONOMY, UNLOCKS, UPGRADES, SHOP_NAMES, PROBLEMS, PART_TYPES, BOOSTS } from '../config.js';
 
 const SAVE_KEY = 'wrench-bay-save-v1';
@@ -40,12 +41,15 @@ let wiped = false;
 export function save() {
   if (wiped) return;
   state.lastSeen = Date.now();
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch { /* ignore */ }
+  const json = JSON.stringify(state);
+  try { localStorage.setItem(SAVE_KEY, json); } catch { /* ignore */ }
+  persist(SAVE_KEY, json);
 }
 /** Erase the save. Nothing is written again until the page reloads (callers reload right after). */
 export function resetSave() {
   wiped = true;
   try { localStorage.removeItem(SAVE_KEY); } catch { /* ignore */ }
+  persist(SAVE_KEY, null);
   Object.assign(state, fresh());
 }
 
@@ -170,6 +174,14 @@ function computeOffline() {
   const amount = Math.round(offlineRate() * seconds);
   if (seconds >= 60 && amount > 0) offline = { amount, seconds };
 }
+/**
+ * Re-check offline earnings when the app returns from the background (on iOS the app is usually suspended
+ * rather than closed, so load() does not run again). Keeps an unclaimed amount. Returns pendingOffline().
+ */
+export function refreshOffline() {
+  if (!offline) computeOffline();
+  return offline;
+}
 /** { amount, seconds } earned while the game was closed, or null. */
 export const pendingOffline = () => offline;
 /** Pays out the offline earnings (multiplier 2 = "double it" for gems). Returns the amount paid. */
@@ -195,6 +207,7 @@ export function nextShop() {
   events.emit('progress:changed', progress());
 }
 
-// autosave
-setInterval(save, 5000);
+// autosave. Skipped while hidden: the game does not run in the background, and lastSeen must stay at the moment
+// the player left so that time counts as offline earnings. (main.js also saves when the game is hidden.)
+setInterval(() => { if (!document.hidden) save(); }, 5000);
 window.addEventListener('beforeunload', save);
