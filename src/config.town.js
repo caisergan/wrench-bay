@@ -105,7 +105,7 @@ export const TOWN = {
 export const DISTRICTS = {
   harbor: { label: 'Harbor Street' },
   main: {
-    label: 'Main Street', price: 20000, fame: 5,
+    label: 'Main Street', price: 20000, fame: 5, icon: 'map',
     pad: { x: -15.0, z: -16.6 },                                // west alley, just before the hoarding
     // While locked the player cannot pass this box. Hoarding fence along its south edge, boom gates on the avenues.
     noGo: { minX: -61, maxX: 61, minZ: -37.6, maxZ: -18.3 },
@@ -158,10 +158,11 @@ export const PEDESTRIANS = { max: 12, speed: 1.9, activeRadius: 40 };
 // Everything the player can buy in town. levels[0] = buying it, later entries = upgrades (pay pad reappears).
 // plot = land reserved for it (environment keeps it clear; gameplay spawns the building from models).
 // pad = for-sale / upgrade pay pad. kind: 'vehicle' | 'addon' | 'facility' | 'project' | 'business' | 'goal'.
+// icon = ui ICON key for the pad's ground tag and pay dock (src/ui/icons.js).
 // NPC-run places (no price): see SERVICES.
 export const PROPERTIES = {
   tow: {
-    name: 'Tow Truck', kind: 'vehicle', district: 'harbor',
+    name: 'Tow Truck', kind: 'vehicle', district: 'harbor', icon: 'tow',
     blurb: 'Answer rescue calls around town',
     plot: { minX: -13.4, maxX: -10.0, minZ: -5.6, maxZ: 1.0 }, pad: { x: -11.7, z: 5.4 },
     levels: [
@@ -171,7 +172,7 @@ export const PROPERTIES = {
     ],
   },
   wash: {
-    name: 'Car Wash', kind: 'addon', district: 'harbor',
+    name: 'Car Wash', kind: 'addon', district: 'harbor', icon: 'wash',
     blurb: 'Every car leaving the garage pays for a wash',
     // drive-through on the north part of the garden block (WASH); the rest of the garden stays a park
     plot: { minX: 15.0, maxX: 23.6, minZ: 1.8, maxZ: 5.6 }, pad: { x: 16.4, z: 7.3 },
@@ -182,7 +183,7 @@ export const PROPERTIES = {
     ],
   },
   lounge: {
-    name: 'Harbor Lounge', kind: 'addon', district: 'harbor',
+    name: 'Harbor Lounge', kind: 'addon', district: 'harbor', icon: 'lounge',
     blurb: 'Indoor waiting room: patient customers who tip',
     plot: { minX: 11.4, maxX: 23.4, minZ: -9.8, maxZ: 0.6 }, pad: { x: 15.0, z: -1.6 }, upgradePad: { x: 21.6, z: -1.2 },
     levels: [
@@ -191,25 +192,25 @@ export const PROPERTIES = {
     ],
   },
   paint: {
-    name: 'Spray Bay', kind: 'facility', district: 'harbor',
+    name: 'Spray Bay', kind: 'facility', district: 'harbor', icon: 'paintShop',
     blurb: 'Paint shop: respray cars in the colour they ask for',
     plot: { minX: -43.5, maxX: -17.5, minZ: -12.5, maxZ: 11.0 }, pad: { x: -30.5, z: 5.0 },
     levels: [{ price: 12000, fame: 3, label: 'Spray Bay paint shop open!' }],
   },
   vip: {
-    name: 'Platinum Club', kind: 'facility', district: 'harbor',
+    name: 'Platinum Club', kind: 'facility', district: 'harbor', icon: 'crown',
     blurb: 'VIP area: luxury cars, white-glove service, big money',
     plot: { minX: 27.6, maxX: 44.6, minZ: -12.5, maxZ: 11.0 }, pad: { x: 36.0, z: 5.0 },
     levels: [{ price: 60000, fame: 8, label: 'Platinum Club open! VIPs have their own entrance' }],
   },
   junkyard: {
-    name: 'Rust & Gold Salvage', kind: 'project', district: 'main',
+    name: 'Rust & Gold Salvage', kind: 'project', district: 'main', icon: 'junk',
     blurb: 'Buy wrecks, restore them, sell them for a fortune',
     plot: { minX: -44.5, maxX: -25.5, minZ: -37.5, maxZ: -25.1 }, pad: { x: -35.0, z: -26.4 },
     levels: [{ price: 18000, fame: 6, label: 'Salvage yard is yours! Pick a wreck to restore' }],
   },
   diner: {
-    name: 'The Greasy Spoon', kind: 'business', district: 'main',
+    name: 'The Greasy Spoon', kind: 'business', district: 'main', icon: 'diner',
     blurb: 'Diner: earns by itself. Bring lunch to your crew',
     plot: { minX: -7.5, maxX: 6.5, minZ: -37.5, maxZ: -25.1 }, pad: { x: 3.4, z: -26.4 },
     levels: [
@@ -218,13 +219,13 @@ export const PROPERTIES = {
     ],
   },
   showroom: {
-    name: 'Bay Classics', kind: 'project', district: 'main',
+    name: 'Bay Classics', kind: 'project', district: 'main', icon: 'showroom',
     blurb: 'Showroom: restored classics sell for much more',
     plot: { minX: 23.5, maxX: 44.5, minZ: -37.5, maxZ: -25.1 }, pad: { x: 34.0, z: -26.4 },
     levels: [{ price: 80000, fame: 10, label: 'Bay Classics showroom open!' }],
   },
   gas: {
-    name: 'Pump & Go', kind: 'business', district: 'harbor',
+    name: 'Pump & Go', kind: 'business', district: 'harbor', icon: 'pump',
     blurb: 'Gas station: earns by itself, sends you customers',
     plot: { minX: -61, maxX: -51.1, minZ: -7.0, maxZ: 11.0 }, pad: { x: -52.6, z: 9.4 },
     levels: [
@@ -233,7 +234,7 @@ export const PROPERTIES = {
     ],
   },
   quickfit: {
-    name: 'Quick-Fit Express', kind: 'business', district: 'harbor',
+    name: 'Quick-Fit Express', kind: 'business', district: 'harbor', icon: 'quickfit',
     blurb: 'Your second workshop, run by its own crew',
     plot: { minX: 51.1, maxX: 61, minZ: -7.0, maxZ: 11.0 }, pad: { x: 52.6, z: 9.4 },
     levels: [
@@ -242,7 +243,7 @@ export const PROPERTIES = {
     ],
   },
   ferry: {
-    name: 'Ferry Ticket', kind: 'goal', district: 'harbor',
+    name: 'Ferry Ticket', kind: 'goal', district: 'harbor', icon: 'ferry',
     blurb: 'Sail to the next town: everything there is worth 3x',
     plot: { minX: 50.5, maxX: 61, minZ: 15.5, maxZ: 23.5 }, pad: { x: 56.0, z: 20.0 },
     requiresAll: true,          // every other property at level >= 1 and the garage complete

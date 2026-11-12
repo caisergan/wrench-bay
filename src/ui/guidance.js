@@ -34,7 +34,7 @@ const MIN_GAP = 62;         // pointers closer than this are pushed apart along 
 
 const all = [];
 let seq = 0;
-const zones = { t: 0, hudBottom: 118, stackBottom: 0, leftColBottom: 0, rightColBottom: 0, leftColRight: 84, rightColLeft: 0 };
+const zones = { t: 0, hudBottom: 118, stackBottom: 0, leftColBottom: 0, rightColBottom: 0, leftColRight: 84, rightColLeft: 0, dockTop: 0 };
 
 function measure(W) {
   const rr = root.getBoundingClientRect();
@@ -50,6 +50,9 @@ function measure(W) {
   zones.rightColBottom = rc && rc.height ? rc.bottom - rr.top : 0;
   zones.leftColRight = lc && lc.width ? lc.right - rr.left : 84;
   zones.rightColLeft = rc && rc.width ? rc.left - rr.left : W - 84;
+  // the pay dock (standing on a building pad) sits at the bottom: pointers move up above it meanwhile
+  const dk = q('.paydock.in');
+  zones.dockTop = dk && dk.height ? dk.top - rr.top : 0;
 }
 
 export function pointer(opts = {}) {
@@ -88,7 +91,7 @@ function updatePointers(dt) {
   if (tMeasure <= 0) { tMeasure = 0.25; measure(W); }
   const hud = root.querySelector('.hud');
   const hudAway = !hud || hud.classList.contains('away');
-  const L = SIDE, R = W - SIDE, B = H - BOTTOM;
+  const L = SIDE, R = W - SIDE, B = zones.dockTop ? Math.min(H - BOTTOM, zones.dockTop - 34) : H - BOTTOM;
   const T = Math.max(zones.hudBottom + 18, zones.stackBottom + 12);
   const topX0 = Math.max(zones.leftColRight, 0) + 30, topX1 = Math.min(zones.rightColLeft, W) - 30;
   const cx = W / 2, cy = H * 0.5;

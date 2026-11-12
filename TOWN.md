@@ -59,7 +59,7 @@ town (the old 3x reset, now earned).
 | New places that play the same | Each facility has its own twist (see pillar 2) and its own short unlock chain. |
 | Leaving home feels like losing money | Shop runs live; a pointer shows when a customer at home is about to lose patience; no hard fail anywhere (late = less money, never a loss). |
 | Late game fully automated, nothing to do | Project cars (hands-on by design), town events, the collection, the ferry goal. |
-| Not knowing what a building does before paying | Every for-sale label shows name, one-line benefit, price and fame needed. |
+| Not knowing what a building does before paying | Every building pad shows its icon and price on the pad (its name and level when you walk up); standing on it opens the pay dock with what you get, the price and the fame needed. |
 
 ## 2. Progression
 Fame levels (section 4.2) and cash gate things together. Prices are base prices (x `shopMult()` like the rest).
@@ -125,8 +125,10 @@ arrival is one) and open for-sale plots. Fame counts from the first repair of a 
 
 ### 4.3 Properties: for sale -> building site -> built -> upgrades
 - Every `PROPERTIES` entry whose district is open shows its plot. Not owned: an empty lot (environment) with a
-  **for-sale sign** and a pay pad at `pad`; a `sale` label with name, blurb, price, fame. Fame too low: the sign
-  shows a padlock + star level, the pad does not take money.
+  **for-sale sign** and a pay pad at `pad`; a `tag` label lying on the pad (icon + price; within 3.5 m also name +
+  level) and, while the player stands on it, the pay dock at the bottom of the screen (name, level dots, what you
+  get, price bar, fame). Nothing is drawn above the pad: on screen that is the building. Fame too low: the sign
+  shows a padlock + star level, the tag and dock turn grey with the fame needed, the pad does not take money.
 - Paying works exactly like garage pads (stand on it, cash drains, partial payments kept for the session).
 - Paid: a **building site** appears on the plot for `BUILD_TIME` (scaffold, tarps, dust, hammering sfx), then the
   building pops in with poof + confetti, `unlock` sfx, toast (`levels[i].label`). Loading a save shows the
@@ -432,8 +434,8 @@ every character: `setSpraying(bool)` (spray gun, sweeping arm), `setPolishing(bo
 - Before the town opens the player never sees past the lot, but the town is simply there.
 
 ## 9. UI contract — owner: `ui` agent (`src/ui/*`)
-- Labels (`ui.label`): `'sale'` (`setInfo({ name, blurb, price, fame, locked, level })`, price fill via
-  `setProgress`), `'till'` (cash icon, amount text, bar towards the cap), `'timer'` (ring that empties,
+- Labels (`ui.label`): `'tag'` (building pad tag lying on the pad: `setInfo({ name, icon, price, fame, locked, level,
+  reason })`, `setNear(bool)` adds the name + level, part payment via `setProgress`), `'till'` (cash icon, amount text, bar towards the cap), `'timer'` (ring that empties,
   `setProgress`), `'stars'` (`setStars([careful, fast, spotless])`, each `true | false | null` = pending),
   `'call'` (phone icon + countdown bar). `'job'` gains: entries `{ type: 'spray', color: '#rrggbb', state }`
   (canister tile in that colour), `{ gold: true }` (gold tile), `setBonus(text | null)` (small ribbon: "Rescue
@@ -441,6 +443,9 @@ every character: `setSpraying(bool)` (spray gun, sweeping arm), `setPolishing(bo
 - `ui.pointer({ kind, icon?, text?, worldPos }) -> { setPos, setText, setVisible, remove }`: arrow + chip at the
   screen edge pointing at an off-screen world position, hidden while that position is on screen. Kinds:
   `'rescue' | 'vehicle' | 'sale' | 'cash' | 'alert' | 'goal'`. Must not cover the HUD buttons or the joystick.
+- `ui.payDock` (`paydock.js`): a building pad's details at the bottom of the screen while the player stands on it.
+  `show(id, info)`, `update(id, { price, remaining, paying, broke })`, `nudge(id)` (locked buzz), `done(id, text)`
+  ("Bought!" then away), `hide(id?)`. Display only: it never takes touches. Pointers move above it while it is up.
 - `ui.hint(text | null)` (pill under the top card; replaces the fixed driving hint), `ui.banner(text, seconds)`
   (town events), `ui.chip(id, { icon, text, until? } | null)` (stackable small status chips: rescue countdown,
   crew buff, event timer).
@@ -633,8 +638,10 @@ registerFacility({
 
 ### 6a.4 Pay pads
 `new PayPad(ctx, { id, pos: {x, z}, price: () => n, locked?: () => bool, onLocked?, label?, onPaid(pad), animate,
-armOnLeave? })` (`pads.js`): the yellow pad; drains cash while the player stands on it; partial payments kept for the
-session under `id`. Call `pad.update(dt)` each frame (returns true the frame it is paid), `pad.remove()`.
+armOnLeave?, ground?, dock?: () => info, doneText?: () => text })` (`pads.js`): the yellow pad; drains cash while the
+player stands on it; partial payments kept for the session under `id`. Building pads pass `ground` (the label is a
+`tag`: near state within 3.5 m, hidden while driving or standing on the pad) and `dock` (the pay dock while standing
+on it, after a 0.2 s pause). Call `pad.update(dt)` each frame (returns true the frame it is paid), `pad.remove()`.
 `pad.remaining`, `pad.price`, `pad.locked`, `pad.pos`. For chains use `createChainPads` (done by the facility).
 
 ### 6a.5 Town: `ctx.town` (`town.js`)
@@ -642,8 +649,8 @@ session under `id`. Call `pad.update(dt)` each frame (returns true the frame it 
   The moment: chain barriers on the lot edges drop, `gate` sfx, toast, confetti; `ctx.bounds` = `TOWN.bounds`,
   camera follows inside `TOWN.camClamp`, static solids added (hall walls + pillars, `TOWN.fillers`, `TOWN.water`,
   `M.townSolids()`, Main Street `noGo` while locked, every building's walls). Before that nothing changes.
-- Properties: every `PROPERTIES` entry of an open district shows a for-sale sign + pay pad + `sale` label (fame
-  lock: padlock sign, pad buzzes, toast "Needs fame level N"). Paid: `buyPropLevel` (emits `property:changed`),
+- Properties: every `PROPERTIES` entry of an open district shows a for-sale sign + pay pad + `tag` label + pay dock
+  (fame lock: padlock sign, grey tag + dock with the fame needed, pad buzzes, the dock shakes). Paid: `buyPropLevel` (emits `property:changed`),
   building site for `BUILD_TIME`, then the building pops in (poof, confetti, toast `levels[0].label`), then its
   facility + property systems are created. Later levels: the pad returns at `upgradePad ?? pad`; buying one calls
   `onLevel(level)` on the systems (and rebuilds levelled models). A loaded save shows finished buildings at once.
@@ -654,8 +661,8 @@ session under `id`. Call `pad.update(dt)` each frame (returns true the frame it 
 - `ctx.town.building(id)` (model API of a property or service building, or null), `prop(id)` (record, 6a.1),
   `plot(id)`, `padPos(id)`, `open`, `districtOpen(id)`, `setGuide(target | null)`, `guideTarget`, `buy(id)` (debug:
   next level without paying, same path as a purchase), `root`.
-- Main Street gate: hoarding panels, two boom gates, `noGo` obstacle, pay pad in the west alley (`sale` label, fame
-  lock). Paid -> `openDistrict('main')` -> panels fall away one after another, booms lift, Main Street plots show
+- Main Street gate: hoarding panels, two boom gates, `noGo` obstacle, pay pad in the west alley (`tag` label + pay
+  dock, fame lock). Paid -> `openDistrict('main')` -> panels fall away one after another, booms lift, Main Street plots show
   their signs, depot + academy appear with their teal pads (`townpad:enter / exit { kind: 'pro' | 'academy' }`
   after a 0.4 s pause on them; the UI opens / closes the Pro Gear / Academy sheets on those).
 - The ferry: its terminal stands on the plot from the start (scenery); the ticket pad is locked until
