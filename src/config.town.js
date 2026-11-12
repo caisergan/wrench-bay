@@ -415,12 +415,16 @@ export const PAINT = {
 
   // economy
   spawnInterval: 11, spawnIntervalPerBay: 3,                    // seconds between paint customers
+  spawnPerColor: 0.03,                                          // each colour stocked beyond 3: 3% shorter interval
+  sameColorDist: 70,                                            // RGB distance under which a colour counts as the car's own
   patience: 75,
   cans: { default: 2, pickup: 3, van: 3, suv: 3, camper: 3, limo: 3 },   // canisters per car type
   pricePerCan: 55, work: 2.4, restock: 3.4, stationMax: 4,
   cure: 6.0, cureIR: 3.0,                                       // seconds under the lamps after spraying
+  curtainUp: 1.0,                                               // seconds after curing before the car may back out
   premiumMult: 1.6,                                             // gold / purple jobs
   stripeChance: 0.3, stripeMult: 1.5,                           // two-tone: +1 canister of a second colour
+  offlineCarTime: 24,                                           // offline: seconds one painter + booth needs per car
 };
 // Unlock chain inside the paint shop (pay pads, the next VISIBLE_PADS shown; same grammar as UNLOCKS).
 // type: 'tank' (key = colour) | 'bay' (index) | 'painter' (index) | 'preptech' | 'irlamps' | 'stripes'
