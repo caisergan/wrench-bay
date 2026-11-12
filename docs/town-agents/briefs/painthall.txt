@@ -1,0 +1,275 @@
+YOUR ROLE: `painthall` — build the Spray Bay paint shop BUILDING: the hall, the spray booth and the paint tanks.
+Design by the lead (2026-11-13). Read this whole file before writing code.
+
+WHY THIS EXISTS
+The player bought the Spray Bay and got an empty plot: buying clears the vacant-lot dressing (env-plots.js), and the
+"building" that replaces it is createPaintHall(), still a stub that returns an empty group. createSprayBooth and
+createPaintTank are plain grey boxes. You replace all three with the real thing. The paint shop GAMEPLAY
+(src/game/paint.js, brief paintshop.txt) does not exist yet and is not your job, so the hall must look complete
+and believable on its own (bought, no booths or tanks yet), and also with booths and tanks standing in it.
+
+YOUR FILES
+- src/models/buildings-home.js: replace the three stubs createPaintHall, createSprayBooth, createPaintTank in the
+  "STUBS" block (append the real factories above the `// ==== STUBS` marker, then delete the stub line).
+- src/models/props-town.js: you may ADD helpers / floorTex kinds. Do not rename or change existing exports (bmain
+  imports them).
+- src/models/preview-town.html + .js: the `focus=paint` view and the game view for the paint plot.
+- src/models/index.js: only if you add an export.
+- Read-only for you: src/config.town.js (PAINT, PAINT.decor, PAINT_COLORS, PAINT_UNLOCKS, MANAGERS, TOWN.parking:
+  the lead already put every position you need there; if a number is wrong, say so in your report and pick the
+  reading that serves the design), everything else.
+Read first: TOWN.md sections 0, 3, 4.8 and 7; CONTRACTS.md art direction; then createLoungeAnnex / loungeShell and
+createTowShed in buildings-home.js (your style and quality reference, and the way of working: geo2(), Builder,
+merged vertex-coloured meshes, glow builder for lit bits, separate small meshes only for moving parts) and the
+shared helpers at the top of props-town.js (hallShell, wallWindow, roofSign, signTex, floorPlane, glassPane, face,
+canvasTex, plant, flat, mixHex, TC).
+
+THE CAMERA (decides the design; check everything from it)
+- Game camera: offset (0, 29, 17.3) from the player, fov 44, portrait phone (~390 x 844). It looks north and
+  down at ~59 degrees. On a phone you see ~14 m across, so never the whole 21.4 m hall at once: every part of the
+  hall must read on its own (west end, middle, east end).
+- Rule of thumb: an object of height h hides the ground about 0.6 x h NORTH of it. Tall things at the back wall
+  hide only the back lane; anything tall in the forecourt or over a booth hides what is just north of it.
+- Visible faces: tops, south (+z) faces, and the side faces that point towards the screen centre. North faces
+  are never seen. The hall's EAST OUTER wall is seen from the alley / tow shed (that is the view in the player's
+  screenshot); the west outer wall from West Avenue.
+- No roofs over anything gameplay uses (house rule: enterable buildings have 2.6 m walls, no roof, open south).
+
+ART FAMILY
+Same chunky low-poly family as the garage (navy walls, coral trim, mustard accents, cream), lounge (teal + wood)
+and tow shed (steel + mustard). The Spray Bay's own identity: a bright, clean paint shop.
+- Walls (hallShell on PAINT.walls): upper panels alternating 0xf3eee4 / 0xe9e3d7 (bright: paint shops are white
+  inside for colour judging), wainscot alternating slate 0x46525e / 0x4f5b67 (dark, hides overspray), trim
+  TC.STEEL, base TC.DARK, cap TC.NAVY_D, pillars TC.NAVY_L with mustard cap, pillar lamps on.
+- Signature: a "spectrum band" on top of every wall cap and pillar cap: 0.55 m blocks cycling the eight
+  PAINT_COLORS hexes in config order (iterate the keys, never hard-code), 0.07 tall. It is the hall's livery and
+  must read from the camera as "the paint shop" at a glance.
+- Text: Fredoka via canvasTex/signTex, house style (cream / navy / coral shadow / mustard border) unless stated.
+
+1. createPaintHall() -> { group, update(dt) }   (WORLD coordinates, group.userData.world = true,
+   group.userData.centre = plot centre, group.userData.solids = boxes, as createLoungeAnnex does)
+   W = PAINT.walls (inner faces x -41.2..-19.8, z -11.4..1.2, H 2.6, T 0.4), D = PAINT.decor.
+
+1a. Shell and floor
+- hallShell with the palette above; front (south) fully open, front pillars at both corners.
+- Floor: floorPlane over W in a light grey epoxy (existing 'epoxy' kind is fine, or add a 'paintfloor' kind: light
+  grey 0xdadfe2 with sparse fine speckles), minus the colour lab footprint (it has its own floor).
+- Trench drain across the open front: steel grate strip 0.25 wide, flush, from W.minX to the colour lab, at
+  z = W.maxZ - 0.2. Every hall has one at its door; it also frames the opening.
+- Hall floor markings: ONE transparent canvas overlay plane over W (about 40 px/m), y 0.016, holding:
+  dashed safety-yellow walkway lines at PAINT.staffLaneZ +/- 0.55 for the full width; a hatched drip-tray outline
+  (2.0 x 1.3, yellow/black hatch border, slightly darker inside) under EVERY station position (all eight, also the
+  unbought ones: it reads as "a tank goes here"); "BOOTH 1" / "BOOTH 2" stencils centred on each bay x at
+  z = W.maxZ - 0.75; two short yellow lead-in lines continuing each booth's glass walls (bay.x +/- boothHalfW) from
+  boothZ[1] to W.maxZ. Nothing else on the floor (pads and labels draw over it).
+
+1b. Back wall (what the player looks at while fetching paint)
+- Colour plates: one per PAINT.stations key, centred on the station x, y 1.88..2.24, 1.7 x 0.34, background = the
+  colour hex, text = PAINT_COLORS[key].label (cream on dark colours, navy on white / lime / gold), a small star on
+  the two premium colours. Draw all eight on ONE transparent canvas face spanning the back wall (one draw call).
+- Paint supply manifold: steel pipe 0.08 thick at y D.manifoldY, z = W.minZ + 0.12, from the first to the last
+  station x (+/- 0.9), wall brackets every 1.25 m; at each station x a short down-stub with a red hand-wheel valve
+  (the tank's own supply pipe meets it there, see 3). Unbought spots read as ready plumbing.
+- Blue compressed-air line (0.06, 0x3b7dd8) at y D.airLineY along the back wall, the west wall and the north half of
+  the east wall, brackets every 1.25 m. It comes in over the west wall top at z = D.dryer.z + 0.6 from the plant
+  yard (1e). One drop on the west wall at z -6.0: filter-regulator (small bowls), a coiled yellow hose on a hook.
+- Sign: roofSign on top of the back wall at D.sign.x, size D.sign.w x D.sign.h, board TC.NAVY, no bulbs. Canvas:
+  cream background, "SPRAY BAY" in big navy Fredoka with a coral shadow, a small line "PAINT & BODY" under it, and
+  on the left a spray-gun silhouette whose fan of spray is eight rays in the PAINT_COLORS hexes. Must be readable
+  on a phone from the forecourt.
+
+1c. Exhaust stacks (behind the back wall, outside the hall)
+- At each D.stacks entry: a fan housing box at ground (1.0 x 0.9 tall x 0.65 deep, galvanised TC.STEEL, a motor on
+  its side, a duct stub through the wall), a round stack r D.stackR rising to D.stackH, two wall brackets, an
+  open top with a fan wheel 0.25 below the rim (separate mesh, spins slowly and steadily in update: extraction
+  always runs). They are the booths' downdraft exhausts (ducts run under the floor), the building's tallest
+  silhouette, and stay inside the plot (z >= -12.5).
+
+1d. West end: painters' corner (inside, along the west wall)
+- D.lockers: three tall PPE lockers (0.6 wide each, 0.45 deep, 1.9 tall, slate with cream doors, vent slots, one
+  door with a respirator sticker), against the wall.
+- D.suitRack: wall hooks with three white paint suits hanging (hood, arms) and two half-mask respirators. Depth
+  <= 0.3 from the wall.
+- D.gunWash: spray-gun washer cabinet (0.9 x 0.6 x 1.0, steel, lid slightly open, a gun inside, solvent drum
+  beside it is NOT allowed: keep its footprint).
+- D.maskTrolley: masking-paper trolley facing east (towards booth 1): steel frame, three brown paper rolls of
+  different widths, a tape roll on the cutter bar.
+- A fire extinguisher on the inner face of each front pillar and one beside the colour lab door, a red "NO
+  SMOKING" and a blue "RESPIRATOR ZONE" plate on the west wall above the lockers, an eye-wash station on the west
+  wall near z -9.8 (wall-mounted, depth <= 0.2).
+- Keep clear: painter pad (-39.8, -4.8), staff idle spots, booth 1's west glass.
+
+1e. Plant yard (outside the west wall, x -43.4 .. -41.7)
+- A low concrete plinth under the yard. Front of each unit faces +x (the wall) or +z; the camera sees tops.
+- D.compressor: sound-proofed compressor cabinet (1.0 x 1.4 x 1.2 tall, navy with a cream stripe), louvres, a fan
+  grille on top with a fan visible through it (separate mesh). update(): the compressor cycles, runs ~7 s, rests
+  ~12 s (fan spins only while running, a tiny 1-2 mm shudder, never a jump).
+- D.receiver: horizontal air receiver tank (r 0.32, 1.8 long along z, on two saddles, red-orange 0xc9503f is fine
+  or cream), pressure gauge, safety valve, drain valve.
+- D.dryer: refrigerated air dryer box (0.7 x 0.7 x 0.9, white with a grey grille).
+- D.flammables: yellow flammable-liquids cabinet (1.1 wide x 0.6 deep x 1.4 tall, red flame diamond on its south
+  face, two doors, a small vent).
+- Pipework: receiver -> dryer -> up the outside of the west wall -> over the cap (above the spectrum band) -> joins
+  the blue air line inside. A small "COMPRESSED AIR" plate on the compressor.
+
+1f. Colour lab (front-east corner, D.colourLab, solid, not enterable)
+- Walls on its west, north and south sides: 0.9 slate base + aluminium-framed glass to 2.3 (glassPane, a few
+  panes); its east side is the hall's east wall. Door (D.doorW wide, closed glass door) in the west wall at
+  z = D.doorZ. Its south glass faces the forecourt like a shop window: on it, a window decal "COLOUR LAB" and a row
+  of the eight colour swatches (face, facing +z, ~1.6 m up) so waiting customers can see the menu.
+- Inside, readable from above through the open top: a mixing bank against the east wall (steel rack, 0.6 deep,
+  3 shelves, ~36 small tint tins with coloured lids in a full spectrum incl. pastels, an agitator bar across each
+  shelf); a counter along the north side (0.6 deep, 0.95 tall) with a digital scale with a tin on it, a monitor +
+  keyboard, a colour spectrophotometer, a colour fan deck spread in an arc of eight strips; a daylight
+  colour-matching box (small white-glowing cabinet) at the counter's west end; a stool; a white floor.
+
+1g. Waste drum (PAINT.scrapBin, solid 0.9 x 0.9)
+- A red 200 l drum on a yellow spill pallet, a yellow funnel lid, a hazard label, a "WASTE PAINT ONLY" plate on
+  the colour lab's north wall facing the drum. Gameplay dumps wrong canisters here (fac.scrap), nothing else.
+- The manager's safe (MANAGERS.paint.safe, placed by gameplay) stands north of it against the east wall: keep its
+  0.95 x 0.8 footprint clear.
+
+1h. Forecourt (PAINT.forecourt; the environment already paves it)
+- ONE transparent canvas overlay plane over the forecourt (~40 px/m, y 0.014) holding all markings:
+  entry: "PAINT IN" + arrow north at x = carEntry x, z ~9.6, a turn arrow east at the corner; queue: dashed yellow
+  slot outlines (3.2 x 1.9) at every queueSlot on queueLaneZ with slot numbers, small east arrows between them;
+  exit lane: white edge lines at exitLaneZ +/- 1.0 from x -38 to the exit, east arrows; pickup: yellow hatched
+  box with "PICK-UP" at pickupStop; "EXIT" + arrow south at carExit[0].x, z ~6.5. Leave the paint parking bay
+  (TOWN.parking 'paint', 3.6 x 2.0 at x -38.5, z 4.7; gameplay draws it) free of markings.
+- Waiting shelter (D.shelter): a low timber deck island (0.07 high, like the garage patio) over its rectangle;
+  two slim steel posts, one at each END (x = minX - 0.05 and maxX + 0.05, z = postZ) and NONE on its south or north
+  edge (owners walk in along ownerWalkZ and out north to ownerCurb); a cantilevered roof at D.roofY made of a
+  CLEAR polycarbonate panel (glassMat-like, tinted very lightly) in a coral frame, so the waiting customers stay
+  visible from the camera; a thin fascia on the roof's south edge reading "WAITING · PICK-UP" (faces +z); a
+  two-seat bench along the east edge facing west (back rest outwards, x ~ -20.5, z 4.8..6.0); a planter at the
+  west end north corner only if it clears loungeSpots by 0.4.
+- D.prepDesk: prep tech's podium (0.6 x 0.45, 1.05 tall, faces +z) with a key cabinet on top (rows of key tags
+  in the paint colours) and a clipboard.
+- D.planters: low planter boxes (1.4 x 0.5, 0.45 tall, slate with lime/teal shrubs and a few flowers) at
+  D.planterZ along the forecourt's south edge. They leave gaps for walking and both driveways free.
+
+1i. East outer wall (seen from the alley and the tow shed)
+- A painted mural on the outer face (plane facing +x just outside x = W.maxX + T, z -10.0 .. 0.0, y 0.45..2.35):
+  big "SPRAY BAY" lettering, paint splashes / a drip line in the eight colours, a small "ENTRANCE" with an arrow
+  pointing south (towards the forecourt). Bold and clean, not graffiti chaos. Check it from the camera at the tow
+  shed (tx -12) and at the alley: it is what the player saw as "the empty lot".
+- A drainpipe at each end of the east and west outer walls.
+
+1j. update(dt): stack fans, compressor cycle. Nothing else animates in the hall.
+1k. solids (world boxes): hallSolids(W) walls; colour lab footprint; waste drum; lockers; gun washer; mask trolley;
+   prep desk; shelter posts and bench; planters; plant yard units; stack housings. NOTHING on lanes, pads, zones.
+1l. Budget: hall <= 22 draw calls (lit merged + glow merged + floor + 2 overlays + sign + plates + mural + glass
+   panes + animated meshes). Geometry cached (geo2), no per-frame allocation.
+
+2. createSprayBooth(index = 0) -> { group, setLamp(state), setTimer(k), setHaze(hex | null), setIR(bool),
+   update(dt) }   (ORIGIN = bay centre, the car's centre; front +z = the south mouth the car drives in through)
+   Read the size from the config: half width PAINT.boothHalfW (1.8), glass from z0 = PAINT.boothZ[0] - bay.z
+   (-3.6) to z1 = PAINT.boothZ[1] - bay.z (+2.6), with bay = PAINT.bays[0] (all bays share the same z).
+   The car (CAR box 1.5 x 2.8) stands at the origin, nose to -z. The painter works at the NORTH (personnel) end,
+   inside the glass (work zone centre z = PAINT.workOffsetZ = -2.5, r 1.15). The south end is the vehicle door.
+- Floor: a downdraft grate deck 3.5 x 6.1 (dark steel 0x3a4048 with a lighter grid, flush, top <= 0.03) with steel
+  kerb angles on the edges; faint overspray blotches in a few paint colours (15-20 % mixed into the grey) near
+  the edges; a yellow/black hazard strip across both mouths.
+- Side walls (x = +/- halfW): steel kick plate 0..0.35 with a row of dark exhaust-filter slots (the extraction
+  intake), white powder-coated posts (TC.CREAM_L) at both ends and the middle up to 2.25, a top rail, glass
+  panes (glassMat) 0.35..2.2 between the posts. Light overspray speckle on the kick plates.
+- Light boxes: on each top rail, running the full length, a lamp housing 0.3 wide x 0.18 tall tilted ~25 deg
+  inwards with a glowing lens on its top AND inner faces (real booth fittings are glass-topped boxes; from above
+  you see the lens). Separate lens mesh per side, material swapped per state (shared materials; add a crisp
+  white to LAMP if needed).
+- South mouth: a roller box across the top (x +/- halfW, y 2.25..2.45, z = z1) and a clear PVC curtain below it
+  (a light blue-tinted transparent plane with faint vertical strip lines, canvas alpha texture). It ROLLS DOWN
+  (0.8 s, scale/position the plane from the roller) when setLamp('spray') or 'cure', and ROLLS UP for 'idle' and
+  'done' (the car can then reverse out). Never down while a car drives through: gameplay only sets spray / cure
+  with the car parked.
+- North end: open. No header beam (it would hide the painter).
+- Control column at the north-west, outside the glass: centre (x = -(halfW + 0.25), z = z0 + 0.6), i.e. world
+  z -6.4, clear of the staff lane; 0.32 x 0.32 x 2.3, slate + cream. On its south face, tilted back ~30 deg towards the camera: the cure
+  timer, a round 12-segment ring (canvas texture per lit-segment count 0..12, cached and shared by all booths,
+  swap the map, ONE mesh) and above it a plate with the booth number (index + 1). On top: a status beacon
+  (cylinder, material swap). On its west side: an air-hose reel with a coiled hose and an empty gun holster (the
+  painter's own gun is on the character).
+- States (setLamp):
+    'idle'  lenses dim cool white, beacon grey, curtain up, IR panels dark, timer ring empty.
+    'spray' lenses bright white, beacon amber, curtain down.
+    'cure'  lenses warm amber (the booth bakes), beacon orange-red, curtain down; with setIR(true) the IR panels
+            glow heat-orange with a slow 0.9..1 pulse.
+    'done'  lenses bright white, beacon green (three quick blinks, then steady), curtain up, IR dark.
+- setTimer(k): lights round(k * 12) segments, clockwise from 12 o'clock, mustard on dark.
+- setHaze(hex | null): an overspray haze volume inside the glass (x +/- 1.7, y 0.3..2.0, z z0+0.1..z1-0.1),
+  MeshBasicMaterial, transparent, opacity eases to ~0.14 in that colour over 0.5 s, and back to 0 (then hidden)
+  with null. Real overspray fog in a booth: low, soft, never hides the car's colour change.
+- setIR(on): shows the infra-red curing arrays (the 'irlamps' upgrade): on each side, two emitter panels
+  (0.9 x 0.5, gold reflector box with three red element tubes) on short arms from the posts, inside the glass at
+  x +/- 1.55, y 1.5..2.0, angled in; they only glow during 'cure'. Off: not present.
+- group.userData.obstacles = local boxes for the two glass walls (+/- 0.08 thick, z0..z1) and the control column,
+  so gameplay's bayObstacles hook can use them.
+- Budget: <= 14 draw calls per booth.
+
+3. createPaintTank(colorId) -> { group, partAnchor, setProgress(k), update(dt) }   (station API; ORIGIN on the
+   floor at the station position, front +z; footprint PAINT.stationSize 1.9 x 1.2; height <= 1.9 so the colour
+   plate above stays visible)
+- Skid: steel frame 1.8 x 1.1 x 0.1 with a grated drip tray top.
+- Vessel: vertical cylinder r 0.44 centred at (0, -0.12), y 0.12..1.42, BODY IN THE PAINT COLOUR, two steel hoop
+  bands, a slightly darker bottom rim; domed lid in the colour, lighter by ~12 %, with a glossy highlight crescent;
+  the lid top must say the colour from the camera at a glance.
+  white: white body, dark steel bands, a navy ring on the lid. black (Midnight): glossy black body, CHROME bands,
+  a cream ring on the lid, a blue-grey highlight crescent (it must read as black paint, not as a dark machine).
+  gold / purple (premium): faceted body alternating two tones (gold TC.GOLD / TC.GOLD_L; purple 0x8e5bd1 /
+  0xb48ae8 with a magenta crescent), a GOLD hoop band instead of steel, a cream star badge on the lid, and a small
+  glint (glow cross) that flashes every 2-3 s.
+- Agitator: steel bridge across the lid, a motor housing on it, a small fan cap on top that spins (separate mesh).
+- Fill station, front-right: pump unit (0.36 x 0.5 x 0.42, blue-grey) fed by a pipe from the vessel's bottom
+  outlet; a gooseneck from the pump to a nozzle above a small grated fill plate at (0.68, 0.42, 0.40); on the pump
+  top a slot with a fill bar (ONE mesh, scale.x = k, in the paint colour).
+- setProgress(k) = restock progress (stations.js: 0..1, 1 = idle / full). While 0 < k < 1: a canister of this
+  colour (reuse createPart('spray:' + key) from props.js, or its cached geometry) stands on the fill plate with
+  the nozzle lowered onto it, the pump motor hums (tiny shudder), the fill bar grows; at k >= 1 or k <= 0 the plate
+  is empty and the nozzle up. That is how a tank logically makes the canisters the player takes.
+- Canister shelf and partAnchor, front-left: a grated shelf 0.42 x 0.42 on short legs at (-0.66, 0.45, 0.28);
+  partAnchor at (-0.66, 0.47, 0.28). The stack (stationMax 4) grows up from it and must not touch the vessel.
+- Supply pipe: from the lid's back edge up to y PAINT.decor.manifoldY and back to the manifold, i.e. to local
+  z = (PAINT.walls.minZ + 0.12) - station z (all stations share z; read it from the config), ending in a flange
+  that meets the hall's valve stub.
+- Budget: <= 6 draw calls per tank (8 tanks stand in one view).
+
+4. KEEP CLEAR (check with numbers, not by eye; a node script like the lead's check is fine)
+Station footprints and pickup zones (station z + stationPickupOffsetZ, r stationZoneRadius); booth footprints
+(x +/- boothHalfW, boothZ) + control columns; work zones (bay + workOffsetZ, r workRadius); staff spots; cash
+piles (bay + cashOffset, r 0.8); staff lane (staffLaneZ +/- 0.45, whole width); unlock pads (PAINT_UNLOCKS .pad, r
+0.9) and bay pads (bay centre); queue lane (queueLaneZ +/- 1.0) and the entry path (carEntry, +/- 1.0); exit lane
+(exitLaneZ +/- 1.0), the reverse-out paths (bay.x +/- 1.0 from boothZ[1] to exitLaneZ + 1) and carExit (+/- 1.0);
+owner walk line (ownerWalkZ +/- 0.3), loungeSpots (r 0.35), ownerCurb, pickupStop, valetStand; the paint parking
+bay; the manager safe footprint; the waste drum's trigger (scrapBin, radius scrapBinRadius + 0.5) must not cover
+any of the above. The lead checked every D position against these: if your sizes push something into a zone,
+shrink the thing, never the zone.
+
+5. REAL-WORLD LOGIC (the owner rejects anything that could not happen; TOWN.md 0 and visual-realism memory)
+- Every object reads as its real object from the game camera, not as a coloured box: tanks look like paint
+  vessels with an agitator and a filler, the booth like a paint booth (glass, lights, grate, curtain), the lab like
+  a mixing room.
+- Air reaches the hall from the compressor by a visible pipe; paint reaches the tanks by the manifold; exhaust
+  leaves by the stacks. Nothing floats; every wall item has a bracket; nothing clips through another thing.
+- The curtain only moves when the car is parked; the haze stays inside the glass; lights change with the state.
+
+6. VERIFY BEFORE REPORTING (phone viewport 390 x 844, mobile)
+- Preview `?focus=paint`: the hall alone, the booth in all four states with IR off and on, timer 0 / 0.5 / 1,
+  haze on; the eight tanks at progress 0, 0.5, 1. Fix the preview's game view so it clears the paint plot's
+  vacant dressing (setPlotCleared('paint', true) or equivalent) and places booths and tanks at PAINT.bays /
+  PAINT.stations, then look at it at tx -36, -30.5, -24, -12 (the tow shed: the player's screenshot) and tz 2 / -4.
+- Real game: http://localhost:5190/?save=painthall then in the console __game.openTown(); __game.giveFame(5);
+  __game.buy('paint'); wait 4 s; __game.tp({ x: -30.5, z: 2 }). The hall must stand with no vacant dressing
+  under it and no console errors. Also run ?facilitytest&save=painthall2 with the paint shop bought: the test
+  facility's cars must still arrive along the entry, queue, drive into the bays, reverse out and leave without
+  hitting any of your solids (its garage-looking lifts / stations on the paint spots are expected).
+- Look at every screenshot yourself. Then check draw calls with the in-game perf overlay near the paint shop.
+
+7. PROCESS
+- Progress file (mandatory, first minutes): docs/town-agents/progress/painthall.md. Update after every finished
+  factory / area with: done + verified, in progress, next, known issues.
+- Build in this order, one piece at a time, node --check after each edit, look at it, then the next:
+  tank -> booth -> hall shell + floor + back wall + sign -> stacks + plant yard -> west corner -> colour lab +
+  waste drum -> forecourt + shelter -> east mural -> preview game view + real-game checks.
+- Do not commit, stash, reset or switch branches. Do not run npm install. Do not edit gameplay files.
+- Your last message is the report: what you built, files touched, how you verified it (what you saw), what is
+  unfinished, and anything another owner must change. Also write it to docs/town-agents/reports/painthall.md.

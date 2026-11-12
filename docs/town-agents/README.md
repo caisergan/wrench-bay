@@ -20,7 +20,8 @@ From now on, agents write their progress and reports here (`docs/town-agents/pro
 | envdress | Sonnet | env-harbor.js, env-life.js | **Mostly done.** Harbor, street furniture, alleys and the garden park are built. Left: checking the unviewed areas on the real page, the bins and meters, re-running the solids check. |
 | cars | Opus | cars.js, leak.js, preview-cars.* | **Mostly done.** All 21 new types plus the methods; the existing cars are unchanged (256/256). Left: browser checks of some types and states, a full repair in the game. |
 | vehicles | Sonnet | vehicles.js, preview-vehicles.* | **Done.** Tow truck (2 looks), 7 traffic vehicles, ferry. |
-| bhome | Opus | buildings-home.js, props-town.js, preview-town.* | **Partial.** Done and checked: the town kit (13 pieces), turntable, tow shed (3 levels), wash arches and kiosk (3 tiers), lounge annex (2 tiers). Still stubs: the paint hall, spray booth, paint tanks, and the whole VIP set. |
+| bhome | Opus | buildings-home.js, props-town.js, preview-town.* | **Partial.** Done and checked: the town kit (13 pieces), turntable, tow shed (3 levels), wash arches and kiosk (3 tiers), lounge annex (2 tiers). Still stubs: the whole VIP set (the paint set moved to `painthall`). |
+| painthall | Opus | the paint stubs in buildings-home.js, props-town.js (additions), preview-town.* | **Done** (2026-11-13), reviewed by the lead. Spray Bay hall, spray booth (4 states, IR, haze, curtain), paint tanks (8 colours, filler). Booths and tanks show in the game only once `paintshop` gameplay exists. Report `reports/painthall.md`. |
 | bmain | Sonnet | buildings-main.js, preview-main.* | **Done.** All 8 Main Street and corner buildings, with levels. |
 | people | Sonnet | characters.js, fx.js, props.js, critters.js | **Done** (first run). |
 | ui | Sonnet | src/ui/* | **Done** (first run). |

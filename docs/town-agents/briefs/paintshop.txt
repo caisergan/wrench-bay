@@ -3,3 +3,15 @@ YOUR ROLE: `paintshop` — the Spray Bay paint shop (TOWN.md section 4.8; config
 Build it as a facility on the framework described in TOWN.md section 6a: own customers and lane, spray booths as bays with the mask -> spray -> cure -> done sequence, paint tanks as stations dispensing colour canisters, waiting customers, painters and the prep tech as staff, the 11-step unlock chain with its pads, payout via resprayPayout, shared streak, offline contribution.
 
 What makes this place its own game and must come through in play: reading which colour a customer wants and fetching exactly that; the colour visibly sweeping over the car while you spray (car.setColor with progress, mist fx, spray sfx, the character's spraying pose); and the cure timer that frees you to start another car, so two booths become a juggling act. Customers never ask for the colour their car already has, nor for a colour you do not stock. Stripe jobs (after the stripe kit) need the body colour first, then one canister of the stripe colour. Wrong canisters can be scrapped at a bin inside the hall.
+
+ADDENDUM (lead, 2026-11-13): the building is designed in painthall.txt and built by the `painthall` role. Use it:
+- bayModel: createSprayBooth(index). Booths are 6.1 long now (PAINT.boothZ [-6.9, -0.8]): the painter works at the
+  open north end inside the glass. bayObstacles: map booth.group.userData.obstacles (local) to world.
+- Booth states: setLamp('idle') when free / car arriving; 'spray' from the first canister sprayed (the clear curtain
+  rolls down behind the car, so never while the car is still moving); 'cure' + setTimer(k) while curing; 'done' when
+  finished (curtain up) before the car reverses out. setHaze(hex) while someone sprays, setHaze(null) when they stop.
+  setIR(true) on every booth (also on load and on the second booth when it is built) once 'irlamps' is unlocked.
+- Wrong canisters: the layout now has scrapBin / scrapBinRadius (waste drum, drawn by the hall), so fac.scrap works.
+- Tanks: createPaintTank(key); stations.js already drives setProgress (a canister fills on the tank's filler).
+- MANAGERS.paint.safe moved to (-20.4, -6.4).
+- Queue slots moved west to x -28.0 / -31.6 / -35.2, prep tech stand + desk to x -25.0, prep tech pad to (-25.0, 6.2): the default valet route (slot -> x + 0.4) now clears the desk, the shelter and the waiting spots, so no pathToBay override is needed.
