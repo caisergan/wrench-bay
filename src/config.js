@@ -215,3 +215,6 @@ export const BOOSTS = {
 };
 
 export const SHOP_NAMES = ['Wrench Bay', 'Piston Pier', 'Gearbox Grove', 'Turbo Terrace'];
+
+// Harbor Town expansion (layout, properties, economy): see TOWN.md
+export * from './config.town.js';

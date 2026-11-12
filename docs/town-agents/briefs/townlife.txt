@@ -1,0 +1,7 @@
+YOUR ROLE: `townlife` — what makes the town feel inhabited (TOWN.md section 4.10; config TRAFFIC, TRAFFIC_TYPES, PEDESTRIANS, TOWN.wrenches, TOWN.roads). YOUR FILES: src/game/traffic.js, src/game/pedestrians.js, src/game/wrenches.js (new).
+
+Traffic: vehicles on the one-way roads (through traffic from tunnel to tunnel on Harbor Street; the ring and Main Street once that district is open), spawned and removed out of sight, keeping distance, taking corners smoothly, braking for the player on foot and in a vehicle, for towed cars, for customer cars turning into and out of the facilities' driveways, for people on crossings; the bus stopping at bus stops with its doors open. Expose a small road-following API (lane paths, "drive from A to B along the roads") because the rescue dispatcher and later the side businesses' visiting cars will use it; describe it in your report. Traffic must never block a customer's way in or out of a facility for more than a moment and never deadlock: soak-test at timeScale 8 for many minutes with the garage busy.
+
+Pedestrians: people strolling between places, sitting on benches, pausing at shop fronts, stepping aside for vehicles; varied looks; only near the player. Gulls on the quay that fly off when approached and come back. Golden wrenches: placement, pickup moment, counter, the set reward and the golden cap, saved.
+
+Performance is your responsibility here more than anyone's: measure frame time on the busiest street with everything on and report it.

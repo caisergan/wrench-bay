@@ -1,0 +1,49 @@
+RESUME CONTEXT for `core`. Your role file is /tmp/wb-briefs/core.txt; this adds to it.
+
+WHAT YOUR PREDECESSOR LEFT (none of it has been run in a browser yet):
+- Step 1: the state.js additions (state.town, fame, properties, payout helpers, events) look complete. Check them.
+- Most of step 3:
+  - src/game/facility.js: layout normalisation, GARAGE_DEF hooks, createFacility.
+  - Facility-parameterised versions of cars.js, lifts.js (a generic `Bay`), stations.js, owners.js, staff.js and extras.js.
+  - pads.js: a generic PayPad plus chain pads for any facility.
+  - player.js: customer cars plus a player-vehicle mode.
+  - The camera API in core/engine.js.
+  - world.js: the ctx fields, facilities and feature systems.
+  - registry.js: registerSystem / registerPropertySystem / registerFacility.
+  - features.js and pointers.js.
+- It was cut off just before writing src/game/town.js. world.js and features.js already import three files that do not exist: src/game/town.js, src/game/vehicles.js and src/game/facilitytest.js. The game therefore does not boot, and six other agents are waiting for it.
+
+ORDER NOW
+0. Make the game boot, as fast as possible (target: your first 15 minutes).
+   - Write minimal town.js, vehicles.js and facilitytest.js with the shapes world.js expects.
+   - Load http://localhost:5190/?autoplay&save=coretest and fix whatever the refactor broke until a fresh save plays.
+   - Then write "GAME BOOTS" with the time at the top of /tmp/wb-progress/core.md.
+1. Regression pass on the refactor. This is the riskiest part of the whole expansion: the garage must play exactly as before.
+   - Run a fresh save with ?autoplay at __game.timeScale = 4 until valet + mechanics; an old-style save (state without `town`); and the shop:changed rebuild.
+   - Compare against the pre-expansion game. The original tree is backed up at /tmp/wrench-bay-pre-town-2026-11-12.tgz. Extract it to /tmp/wb-orig if you want to diff files or run it side by side on another port (`npx vite --port 5199` from there; never touch port 5190's server).
+   - Customers, valet, mechanics, stations, cash piles, upgrades, unlock pads, streaks, missions and offline earnings must all behave the same.
+2. Then finish the rest of core.txt:
+   - step 2, open world, plus step 4, properties / districts / Main Street gate, in town.js;
+   - step 5, player vehicles, parking and the tow truck backing into its shed, in vehicles.js;
+   - the ?facilitytest instance;
+   - step 6, ctx and debug helpers;
+   - step 7, section "6a. Gameplay API (as built)" at the end of TOWN.md.
+   Write 6a early as a skeleton and fill it in as you go: the five wave-1 gameplay agents start from it the moment you report.
+
+WHAT THE OTHER ROLES PROVIDE OR ASKED OF YOU
+- ui (done):
+  - Asks you to add `buyManager(id)` to state.js. The Academy currently falls back to spending cash, pushing onto state.town.managers and emitting `manager:hired`.
+  - Asks you to call `ui.hint(null)` when the player leaves a vehicle, and to emit `rescue:call` with `{ spot }` set to a RESCUE.spots id. Put the latter in 6a for the rescue agent.
+  - Your predecessor wrote src/game/pointers.js, a priority cap over ui.pointer, while ui also built pointer priority and capping. Keep one coherent path and document it in 6a.
+- Models:
+  - For every M.createX, keep the `M.createX ?? fallback` pattern.
+  - Building factories follow the placement rule in common2.txt item 7 (`group.userData.world`).
+  - buildings-home.js, buildings-main.js and vehicles.js are stubs being replaced right now; cars.js is being verified right now.
+  - Call `M.townSolids?.()` defensively: env adds it to models/index.js during this run.
+- Config: you own config.js and config.town.js again. The lead changed paint 'yellow' to 'lime' and added TOWN.busStops. Keep both.
+
+WHEN YOU REPORT
+The lead launches the wave-1 agents (rescue, paint shop, wash + lounge, VIP club, town life) from your report and section 6a. Be exact about:
+- what works and how you verified it;
+- what is stubbed;
+- which hooks each of those five features should use.

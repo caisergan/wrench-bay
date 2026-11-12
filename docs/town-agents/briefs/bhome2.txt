@@ -1,0 +1,31 @@
+RESUME CONTEXT AND ROLE CHANGE for the buildings role. Your role file is /tmp/wb-briefs/buildings.txt; this narrows it and adds to it.
+
+THE BUILDINGS ROLE IS NOW SPLIT
+- You are `bhome`. YOUR FILES: src/models/buildings-home.js, src/models/props-town.js, src/models/preview-town.html + .js. In index.js, change only your own export lines.
+- A second agent, `bmain`, builds src/models/buildings-main.js in parallel: salvage yard, depot, diner, academy, showroom, gas station, Quick-Fit and ferry terminal. It has its own preview page. That is step 6 of buildings.txt.
+- bmain imports your shared helpers from props-town.js read-only: geo, solidGroup, canvasTex, faceMat, face, decal, signTex, roofSign, glassMat, glassTintMat, glassPane, onRender, flat, mixHex, floorTex, floorPlane, hallShell, wallWindow, plant, tireFlat, tireUp, TC, PI, R90, FONT and css. Do not rename them, remove them or change their signatures. You may add new ones.
+- createTurntable is also wanted by bmain for the showroom. Write it early and keep its API stable: `{ group, platform, setAngle, setGlow, update }`.
+
+WHAT YOUR PREDECESSOR LEFT
+- It exported stubs for every factory.
+- It wrote the town kit in props-town.js: all 13 factories. It checked them in its preview at `?focus=kit` and fixed the for-sale sign text.
+- It wrote preview-town.html + .js, with `?focus=kit|site|wash|lounge|paint|vip|main|biz`, `view=game` and `&cam`, `&z`, `&labels`.
+- It studied the garage hall in environment.js.
+- It was cut off while writing buildings-home.js "in one go". Nothing of that was saved; the file is still the 21-line stub.
+
+YOUR JOB, in this order
+1. Finish step 1: verify the whole kit from the game camera, including the construction site at footprints from 3 x 6 up to 26 x 23.
+2. Steps 2-5 of buildings.txt:
+   - the tow shed (levels);
+   - the wash arches and kiosk (three tiers);
+   - the lounge annex (two tiers);
+   - the paint hall, spray booth and paint tanks for all eight colours;
+   - the VIP set: hall, bar, gold lift, premium cabinet, turntable, red carpet, paparazzi wall, host stand.
+3. Placement rule, in common2.txt item 7:
+   - Property buildings are built in world coordinates from the config and set `group.userData.world = true`: tow shed, wash arches, lounge annex, paint hall, VIP hall.
+   - Equipment is built at the origin with its front facing +z: booth, tank, gold lift, cabinet, turntable, carpet, bar, paparazzi wall, host stand, kiosk.
+4. Write buildings-home.js factory by factory. Append one, run node --check, look at it, then write the next. A cut-off must never lose more than one factory.
+
+NOTES
+- Paint colours: PAINT_COLORS 'yellow' is now 'lime' (0x9bcf3a), and PAINT.stations has a `lime` key. Always iterate the config keys.
+- The full game does not boot until core says so in /tmp/wb-progress/core.md. Your preview page with view=game is your main tool. After it boots, check the buildings in the game with `__game.buy(id)` once core reports that helper.

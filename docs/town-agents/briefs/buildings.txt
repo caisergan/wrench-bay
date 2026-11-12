@@ -1,0 +1,20 @@
+YOUR ROLE: `buildings` — every building and town prop that gameplay spawns (TOWN.md section 7 "Home-block buildings", "Town kit" and "Main Street + corners", with sections 0, 3 and all of section 4 for what each building is for and what happens in it).
+
+YOUR FILES: new src/models/buildings-home.js, src/models/props-town.js, src/models/buildings-main.js and your own preview page (new src/models/preview-town.html + .js; existing preview.js / preview.html are frozen, copy what you need). In src/models/index.js add only your own export lines. Existing models (props.js, environment.js) are the style reference; read how createPartStation, createLift and the garage hall in environment.js are built and match their level of detail and their way of working (voxel.js Builder, merged geometry, shared materials, animated bits as separate small meshes).
+
+FIRST, within your first minutes: export a stub for every factory in those three sections (a plain box or slab of the right footprint, with the documented return shape and no-op methods) from index.js. The `core` agent starts spawning these while you work; a missing export breaks the whole game.
+
+THEN replace the stubs with the real thing in this order, each verified from the game camera before the next:
+1. Town kit: for-sale sign (sale and locked states), construction site (reads as a building site at any footprint from 3 x 6 to 26 x 23), hoarding panel, boom gate, chain barrier, parking bay, drop ring, golden wrench, tip tray, coin stack, safe, crew table, bus stop.
+2. Tow shed (levels), car wash arches + kiosk (three tiers; soap, brushes, rinse / blower in that order along the drive direction, +z; nozzles and brushes only act while a car is under them).
+3. Lounge annex (two tiers): it must be a room you want to walk into. Furniture exactly at the LOUNGE positions.
+4. Paint hall, spray booth, paint tanks for all eight colours (colour readable at a glance from the camera, also for the two premium ones).
+5. VIP hall, bar, gold lift, premium cabinet, turntable, red carpet, paparazzi wall, host stand: clearly the most luxurious place in town, still the same art family.
+6. Main Street and corners: salvage yard, depot, diner (5 levels), academy, showroom, gas station (5 levels), Quick-Fit (5 levels), ferry terminal. Levels must change the silhouette, not just a colour.
+Fixed interior positions come from src/config.town.js (LOUNGE, PAINT, VIP, PROJECT, WASH, BUSINESS, VISITS): buildings that have them are built in world coordinates so they line up with gameplay; read the config, never copy numbers out of it.
+
+Camera facts that decide the design (TOWN.md section 3): the camera looks north from high up; enterable buildings have 2.6 m walls, no roof and an open south side; nothing may hide the floor areas gameplay uses (work zones, lanes, seats, pads). Signs with invented names go where the camera can read them (top of the back wall, like the garage's sign).
+
+The owner of this game is strict about real-world logic (TOWN.md section 0): each thing must read as the real object and behave as it would.
+
+VERIFY BEFORE REPORTING: your preview page shows every factory at every level / tier / state, and a `view=game` style mode places the home-block buildings at their real positions under the real game camera (with or without the environment); go through all of it at phone size and look at the screenshots; check nothing overlaps the positions gameplay uses; the base game still runs with no console errors.

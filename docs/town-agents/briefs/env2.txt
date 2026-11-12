@@ -1,0 +1,45 @@
+RESUME CONTEXT AND ROLE CHANGE for `env`. Your role file is /tmp/wb-briefs/env.txt; this narrows it and adds to it.
+
+THE ENV ROLE IS NOW SPLIT IN TWO
+- You are `env`: structure plus integration.
+- A second agent, `envdress`, works in parallel on src/models/env-harbor.js and src/models/env-life.js only. It owns:
+  - the harbor front: quay rail, bollards, ladders, piers, moored boats, buoys, nets and crates, benches facing the water, a lighthouse / cranes / far shore, and ferry plaza dressing;
+  - street furniture on every street: lamps, benches, hydrants, mailboxes, meters, bins, planters, bike racks, street-name and one-way signs, and the bus stop shelters at TOWN.busStops;
+  - dressing for the alleys and the back lane;
+  - the garden park.
+
+YOUR FILES
+- src/models/environment.js, env-kit.js and env-streets.js.
+- Any new src/models/env-*.js except env-harbor.js and env-life.js (for example env-terrain.js).
+- The townSolids export in src/models/index.js: change only the `buildEnvironment` export line to `export { buildEnvironment, townSolids } from './environment.js';`.
+
+WHAT YOU DELIVER
+1. Ground, water surface and the quay's structural edge (slab and wall where land meets water at TOWN.water).
+2. Roads, sidewalks, kerbs, lane markings with one-way arrows the right way round, zebra crossings (including LOUNGE.crossing), parking bays at TOWN.parking, kerb rescue bays at RESCUE.spots, and empty-lot bases on every plot.
+3. Tunnel mouths at both ends of both streets. They must really hide a car spawning inside.
+4. Terrain and hills, and filler buildings on TOWN.fillers. The fillers include the Main Street corner shop fronts, with awnings and invented names.
+5. Everything beyond the bounds, so no world edge shows from anywhere inside TOWN.camClamp.
+6. The legacy-lot relocations (TOWN.md section 8).
+7. Chunking and performance, plus `townSolids()`.
+8. Integrating envdress's modules.
+
+INTEGRATION CONTRACT WITH envdress
+Both stub files already exist and export these functions, so static imports work.
+- In buildEnvironment, once your S / F / G layers and the SignAtlas exist, build
+  `const env = { root, S, F, G, signs, rnd, geo: streetGeo() };`
+- Call `buildHarbor(env)` and `buildStreetLife(env)`, each inside its own try/catch that does console.error. A bug in their file mid-edit must never take the world down.
+- Keep what they return and call `.update?.(dt, t)` on it from the environment's update.
+- Build the layers and the SignAtlas only after both calls have returned.
+- Do this in your first 30 minutes and say so in /tmp/wb-progress/env.md, so envdress can see its work in the game.
+- The SignAtlas has 32 cells and silently wraps when they run out. Size it for both of you; envdress needs about 15 signs.
+- Do not rename or remove existing exports of env-kit.js (envdress imports its furniture helpers and addSolid / solidRect). You may add exports.
+- The legacy harbor dressing in environment.js (bollards, the pier, the three boats, the buoys) moves to envdress, which copies it into env-harbor.js from `git show HEAD:src/models/environment.js`. Remove it from environment.js when you rebuild that part. The water plane and its animation stay yours.
+
+WHAT YOUR PREDECESSOR LEFT
+- env-kit.js: textures, the ChunkBuilder with layers S / F / G, the solids registry, SignAtlas, and furniture and building() helpers.
+- env-streets.js: the ground layer.
+- Neither file has ever been run, and environment.js has not been touched.
+- It was about to write a terrain / tunnels module.
+- Check both files in the browser first (`?nogame&cam=x,z`), then continue in the order of env.txt.
+
+Note: the full game does not boot until core says so in /tmp/wb-progress/core.md. `?nogame` is all you need for most of your work.

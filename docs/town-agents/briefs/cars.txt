@@ -1,0 +1,20 @@
+YOUR ROLE: `cars` — every new vehicle and the new car behaviours (TOWN.md section 7 "Cars" and "Vehicles", plus sections 0, 4.5, 4.6, 4.8, 4.9, 4.11 for what they are used for).
+
+YOUR FILES: src/models/cars.js, src/models/leak.js, new src/models/vehicles.js, and your own preview page (new src/models/preview-cars.html + .js; the existing preview.js / preview.html are frozen, copy what you need from them). In src/models/index.js add only your own export lines.
+
+FIRST, within your first minutes: make every new method exist as a harmless no-op on the cars createCar returns today, and export stub factories (plain boxes of the right size, right return shape) for createTowTruck, createTrafficVehicle and createFerry from index.js. Other agents start calling these while you work; a missing export breaks the whole game for everyone.
+
+THEN build, in this order, each verified from the game camera before the next:
+1. The tow truck (two visibly different levels), with boom, hook, beacon, hitch point.
+2. The car methods that gameplay needs first: setTowed, setHazard, setDirt, setFoam, setWet, setColor (the nose-to-tail sweep must look like paint going on, with the old colour still behind the front), setMasked, setStripe, setGloss per side.
+3. Six new customer classes (TOWN_CAR_TYPES): each a silhouette you can tell from the others and from the five existing ones at game-camera size. All existing damage effects (tyre, oil, battery, engine, paint) must work on them.
+4. Four VIP club cars (VIP_CAR_TYPES): obviously expensive without copying any real car.
+5. Seven traffic vehicles (TRAFFIC_TYPES) at the sizes in the config; the bus needs doors that can open at a stop.
+6. Six classics (CLASSICS) with setRestore stages 0 to 3: the wreck stage must read as a wreck from the camera (rust, flat tyres, missing parts), the last stage as a show car.
+7. The ferry (big enough to carry a few cars, ramp that lowers onto the quay at TOWN.ferryPlaza).
+
+The owner of this game is strict about real-world logic (read TOWN.md section 0 and the existing damage effects in cars.js / leak.js, which were reworked for exactly that reason): foam does not appear on a dry car without a soap arch, a towed car's lifted wheels do not spin, masking covers glass and lights and not the panels being painted, wet cars drip for a moment and then are dry. Decide how each effect behaves while the car is moving and while it is parked.
+
+Performance: the game shows ~14 cars at once on a phone. Keep the existing approach (cached merged geometry per look, shared materials, overlays toggled, nothing allocated per frame). setColor on one car must not recolour another that shares cached geometry.
+
+VERIFY BEFORE REPORTING: your preview page shows every vehicle and every state, including a row seen from the real game camera (the existing preview has a `view=game` mode to copy); walk through all of it at phone size and look at the screenshots; the base game still runs with no console errors and existing cars look as before.
