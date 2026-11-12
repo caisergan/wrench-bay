@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wrench Bay · Building pads proposal</title>
+<link rel="stylesheet" href="./proposal.css">
+</head>
+<body>
+<main>
+  <header class="hero">
+    <span class="kicker">Proposal · building pads</span>
+    <h1>Building pads that never cover the building</h1>
+    <p class="lede">
+      Today every property pad carries a big card that floats <em>above</em> the pad. The camera looks down from the
+      south, so "above the pad" on screen is the building behind it: the card sits on the door, the parking bay and
+      the signs. The fix: the price is printed on the pad, the name appears only when you walk up, and the details
+      open at the bottom of the screen while you stand on the pad.
+    </p>
+  </header>
+
+  <!-- 1. problem -->
+  <section>
+    <h2><span class="n">1</span>What goes wrong today</h2>
+    <div class="row">
+      <figure class="shot">
+        <div class="phone" data-img="img/user-report.png" data-w="858" data-h="1740"></div>
+        <figcaption><b>Your report.</b> Before you buy: the card stands on the shed's lot and the For Sale sign.</figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="phone" data-img="img/tow-before.jpg" data-callouts="tow"></div>
+        <figcaption><b>After you buy.</b> The upgrade card covers the shed door, the truck's parking bay and its way out.</figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="phone" data-img="img/garden-before.jpg" data-callouts="garden"></div>
+        <figcaption><b>Two pads in view.</b> The Lounge and Car Wash cards cover both "Coming soon" signs, from across the street.</figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="phone" data-img="img/vip-before.jpg" data-callouts="vip"></div>
+        <figcaption><b>Locked.</b> The grey card hides the club's own For Sale sign, and "Fame 8" spills off the card.</figcaption>
+      </figure>
+    </div>
+    <ul class="facts">
+      <li><b>Wrong side.</b> The card's tail points at the pad and the body grows up the screen, which is always the building.</li>
+      <li><b>Always full size.</b> About 130 × 120 px, over a quarter of the screen width, from any distance, even when you only walk past.</li>
+      <li><b>Upgrades say little.</b> Same card plus a small "Upgrade Lv 2" ribbon: no current level, no levels left, no "what changes".</li>
+      <li><b>Small bug.</b> The fame line ("Fame 6") wraps and runs out of the card's right edge on every card that needs fame.</li>
+    </ul>
+  </section>
+
+  <!-- 2. design -->
+  <section>
+    <h2><span class="n">2</span>The design: show more the closer you get</h2>
+    <p class="sub">Same tow shed, same pad, three distances. Nothing ever sits above the pad on screen.</p>
+    <div class="row">
+      <figure class="shot">
+        <div class="phone" data-scene="towFar"></div>
+        <figcaption><span class="step">Far</span><b>Price tag on the pad.</b> A small pill printed on the pad itself: building icon and price. It covers the pad, nothing else.</figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="phone" data-scene="towNear"></div>
+        <figcaption><span class="step">Within 3.5 m</span><b>The tag gets its name.</b> It widens sideways ("Tow Truck · Lv 2"), still one line and still on the ground.</figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="phone" data-scene="towOn"></div>
+        <figcaption><span class="step">On the pad</span><b>Details dock at the bottom.</b> Name, level dots, what you get, and the price bar that fills as your cash drains in.</figcaption>
+      </figure>
+      <figure class="shot play">
+        <div class="phone" data-scene="flow"></div>
+        <figcaption><span class="step live">Live</span><b>The whole walk-up.</b> Far, close, stand, pay, bought. Loops.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 3. other buildings -->
+  <section>
+    <h2><span class="n">3</span>The same rules on every building</h2>
+    <div class="pairs">
+      <div class="pair">
+        <figure class="shot"><div class="phone" data-img="img/garden-before.jpg"></div><figcaption class="before">Two full cards.</figcaption></figure>
+        <figure class="shot"><div class="phone" data-scene="garden"></div><figcaption class="after">The Lounge is far, so it shows only icon and price. The Car Wash is close, so it shows its name. Both signs stay readable.</figcaption></figure>
+      </div>
+      <div class="pair">
+        <figure class="shot"><div class="phone" data-img="img/vip-before.jpg"></div><figcaption class="before">Locked card over the sign.</figcaption></figure>
+        <figure class="shot"><div class="phone" data-scene="vipNear"></div><figcaption class="after">A locked tag in grey with a padlock and the fame it needs.</figcaption></figure>
+        <figure class="shot"><div class="phone" data-scene="vipOn"></div><figcaption class="after">On the locked pad: the dock says what you need and how far you are. The pad buzzes and takes no money, as today.</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. states -->
+  <section>
+    <h2><span class="n">4</span>Every state</h2>
+    <h3>Tag on the pad</h3>
+    <div class="tagrow" id="tags"></div>
+    <h3 class="gap">Dock while you stand on the pad</h3>
+    <div class="dockrow" id="docks"></div>
+  </section>
+
+  <!-- 5. rules -->
+  <section class="two">
+    <div>
+      <h2><span class="n">5</span>Rules</h2>
+      <ol class="rules">
+        <li><b>Nothing above the pad.</b> The tag is centred on the pad and only grows sideways. No pad UI may reach up the screen.</li>
+        <li><b>Detail follows intent.</b> Far: icon + price. Within 3.5 m: + name and level. On the pad: the dock with everything.</li>
+        <li><b>The dock never takes touches.</b> Paying stays "stand on the pad". Dragging anywhere still walks you off.</li>
+        <li><b>Tags hide while you drive.</b> Pads only work on foot, and a tag must never float over a car driving across the pad.</li>
+        <li><b>Colour = kind.</b> Mustard: buy. Teal with an arrow: upgrade. Grey with a padlock: locked. Green: bought.</li>
+        <li><b>Pads stay floor paint.</b> They stay where they are, at each lot's front edge; the For Sale and Coming Soon signs stay the in-world cue.</li>
+        <li><b>The guide pointers make room.</b> While the dock is up, the bottom edge pointers move above it.</li>
+      </ol>
+    </div>
+    <div>
+      <h2><span class="n">6</span>What it touches</h2>
+      <ul class="files">
+        <li><code>src/ui/labels.js</code>: new <code>tag</code> label (icon, price, near state, kinds), replaces the <code>sale</code> card</li>
+        <li><code>src/ui/paydock.js</code> (new): the bottom dock: show, progress, bought, hide</li>
+        <li><code>src/ui/ui.css</code>: tag + dock styles; the old card styles go</li>
+        <li><code>src/game/pads.js</code>: PayPad reports near / on / paying to its label and the dock</li>
+        <li><code>src/game/town.js</code>: property and Main Street gate pads use the tag; hide while driving</li>
+        <li><code>src/config.town.js</code>: an icon per property, a short title + perk per level (diner, gas and Quick-Fit levels 2 to 5 have no text yet)</li>
+        <li><code>src/ui/guidance.js</code>: lift the bottom pointers while the dock is up</li>
+      </ul>
+      <div class="later">
+        <b>Later, optional:</b> the garage, Spray Bay and Platinum Club hire pads ("$25" pills) already work this way at a distance. They could get the same icon and the dock ("Mechanic #2 · works a lift for you").
+      </div>
+    </div>
+  </section>
+</main>
+<script type="module" src="./proposal.js"></script>
+</body>
+</html>
