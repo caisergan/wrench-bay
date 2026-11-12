@@ -10,8 +10,10 @@ const _p = new THREE.Vector3();
 
 export class CashPile {
   /** (x,y,z) world position of the pile centre. */
-  constructor(ctx, x, y, z, { scale = 1, cap = 24, radius = 1.2 } = {}) {
+  /** make: optional factory for one bundle (default createCashStack; the wash uses coin stacks). */
+  constructor(ctx, x, y, z, { scale = 1, cap = 24, radius = 1.2, make = null } = {}) {
     this.ctx = ctx; this.scale = scale; this.cap = cap; this.radius = radius;
+    this.make = make || createCashStack;
     this.group = new THREE.Group();
     this.group.position.set(x, y, z);
     ctx.root.add(this.group);
@@ -32,7 +34,7 @@ export class CashPile {
   /** Add `value` to the pile; if `from` (world pos) is given a bundle hops in from there. */
   add(value, from, delay = 0) {
     if (!from) { this._land(value, null); return; }
-    const b = createCashStack();
+    const b = this.make();
     b.scale.setScalar(this.scale);
     this.ctx.root.add(b);
     b.position.copy(from);
@@ -49,7 +51,7 @@ export class CashPile {
   _land(value, b) {
     this.amount += value;
     if (this.bundles.length >= this.cap) { detach(b); return; }
-    if (!b) { b = createCashStack(); popIn(b, this.scale, 0.3); }
+    if (!b) { b = this.make(); popIn(b, this.scale, 0.3); }
     b.visible = true;
     const i = this.bundles.length;
     this.group.add(b);

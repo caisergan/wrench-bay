@@ -13,7 +13,8 @@
 //  z=-18.9 +----+ . . . . . . . . . back lane . . . . . . . . . . . +----+
 //          |fill| paint shop  |a| tow |  GARAGE  | lounge |a|  VIP  |fill|
 //          |    |  (hall +    |l| shed|  (home   | annex  |l|  club |    |   home block (all face south)
-//          | gas|  forecourt) |l|     |   lot)   | garden |l|       |q.fit
+//          | gas|  forecourt) |l|     |   lot)   |wash >>>|l|       |q.fit   wash: drive-through heading east,
+//          |    |             |l|     |          |  park  |l|       |        out via the east alley (WASH)
 //  z=11    +----+---------------------------------------------------+----+
 //  z=13.6  ====================== HARBOR STREET (one-way, east) ==========    <- district 'harbor'
 //  z=16.7  ~~~~~~~~~~~~~~~~~~~~~~~~ quay, water ~~~~~~~~~~~~~~~~~~~ [ferry]
@@ -47,7 +48,7 @@ export const TOWN = {
   },
   // Home block between the two streets and the two avenues.
   homeBlock: { minX: -44.9, maxX: 44.9, minZ: -18.9, maxZ: 11.0 },
-  // Decorative park east of the exit driveway (benches, fountain; walkable).
+  // Block east of the exit driveway: the car wash (WASH, north part) and a small park (south part, walkable).
   garden: { minX: 15.4, maxX: 23.6, minZ: 2.4, maxZ: 10.8 },
   // Extra paving between the forecourt and the west alley: the tow truck's way in and out. Keep it empty.
   towApron: { minX: -13.5, maxX: -9.6, minZ: 1.0, maxZ: 6.4 },
@@ -88,7 +89,7 @@ export const TOWN = {
   wrenches: [
     { id: 'w01', x: 2.0,   z: -15.6, d: 'harbor' }, { id: 'w02', x: -30.0, z: -15.2, d: 'harbor' },
     { id: 'w03', x: 38.0,  z: -15.6, d: 'harbor' }, { id: 'w04', x: -15.0, z: -8.0,  d: 'harbor' },
-    { id: 'w05', x: 25.7,  z: -6.0,  d: 'harbor' }, { id: 'w06', x: 20.4,  z: 5.6,   d: 'harbor' },
+    { id: 'w05', x: 25.7,  z: -6.0,  d: 'harbor' }, { id: 'w06', x: 15.95, z: 10.2,  d: 'harbor' },
     { id: 'w07', x: -26.0, z: 16.1,  d: 'harbor' }, { id: 'w08', x: 8.0,   z: 16.1,  d: 'harbor' },
     { id: 'w09', x: 40.0,  z: 16.1,  d: 'harbor' }, { id: 'w10', x: -58.2, z: 9.6,   d: 'harbor' },
     { id: 'w11', x: 58.6,  z: -5.6,  d: 'harbor' }, { id: 'w12', x: 59.2,  z: 22.2,  d: 'harbor' },
@@ -172,7 +173,8 @@ export const PROPERTIES = {
   wash: {
     name: 'Car Wash', kind: 'addon', district: 'harbor',
     blurb: 'Every car leaving the garage pays for a wash',
-    plot: { minX: 11.9, maxX: 15.1, minZ: 4.6, maxZ: 10.0 }, pad: { x: 16.4, z: 7.3 },
+    // drive-through on the north part of the garden block (WASH); the rest of the garden stays a park
+    plot: { minX: 15.0, maxX: 23.6, minZ: 1.8, maxZ: 5.6 }, pad: { x: 16.4, z: 7.3 },
     levels: [
       { price: 3500, fame: 0, label: 'Car wash open!' },
       { price: 9000, fame: 4, label: 'Wax & polish! Wash pays double' },
@@ -279,14 +281,33 @@ export const RESCUE = {
   ],
 };
 
-// ---------------------------------------------------------------- car wash (on the garage exit driveway, x = 13.5)
+// ---------------------------------------------------------------- car wash "Suds & Shine" (drive-through, garden block)
+// Its own building on the north part of the garden block, east of the garage exit driveway. Cars drive through it
+// heading east (+x), so the camera sees the whole sequence side-on, left to right. A washing car leaves its lift as
+// usual, picks its owner up at LAYOUT.pickupStop, then carries on east past the exit driveway (x 13.5) to the pay
+// kiosk, rolls slowly through soap -> brushes -> rinse -> blower, leaves at the east end into the east alley and
+// turns south to Harbor St (then east like every leaving car). Cars that do not wash take the exit driveway as before.
 export const WASH = {
-  x: 13.5, archZ: { soap: 5.4, brush: 7.2, dryer: 9.0 },
-  zone: { minX: 12.4, maxX: 14.6, minZ: 4.6, maxZ: 9.9 },      // cars slow down to slowSpeed in here
-  slowSpeed: 2.4,
+  laneZ: 3.7,                                   // tunnel axis (car centre line, heading +x)
+  // pickupStop -> kiosk: along the exit lane, past the exit driveway, a gentle shift north onto the tunnel axis
+  approach: [{ x: 12.2, z: 3.0 }, { x: 14.6, z: 3.3 }, { x: 16.4, z: 3.7 }],
+  kioskStop: { x: 16.4, z: 3.7 },               // car centre while the driver pays (window at the kiosk)
+  kiosk: { x: 16.3, z: 2.32 },                  // pay terminal on the driver's side (north; front faces the car, +z)
+  payTime: 1.3,                                 // seconds stopped at the kiosk
+  // x of each stage along the lane, in drive order (the model and the car effects both read these)
+  stations: { soap: 18.6, brush: 19.85, rinse: 20.95, dryer: 22.15 },
+  tunnel: { minX: 17.7, maxX: 22.9, halfW: 1.55, height: 2.75 },   // open steel gantry, see-through roof
+  slowSpeed: 1.15,                              // m/s through the tunnel
+  gap: 3.7,                                     // a car enters the tunnel only when the one ahead is this far on
+  // tunnel exit -> east alley -> Harbor St lane (then east along it to TOWN.edge.eastX)
+  exit: [{ x: 23.8, z: 3.7 }, { x: 25.0, z: 4.1 }, { x: 25.7, z: 5.4 }, { x: 25.7, z: 10.4 }, { x: 26.7, z: 12.8 }],
+  // walk-blocking parts are the model's own solids; this is the drive lane (kept clear by the environment)
+  zone: { minX: 14.6, maxX: 23.6, minZ: 2.6, maxZ: 4.8 },
   fee: [18, 40, 80],            // by tier; x car tier x price upgrade x shopMult x fame
-  dirtyChance: 0.6,             // share of arriving cars that are visibly dirty (setDirt 0.3 .. 1)
-  pile: { x: 15.7, z: 10.3 },   // coins land here
+  dirtyChance: 0.6,             // share of arriving garage cars that are visibly dirty (setDirt 0.3 .. 1)
+  cleanCarsFromLevel: 2,        // level 1: only dirty cars take a wash; from this level every leaving car does
+  pile: { x: 23.05, z: 6.35 },  // coins land here (south of the tunnel exit, on the park side)
+  vacuums: [{ x: 17.15, z: 9.0 }, { x: 21.85, z: 9.0 }],   // coin-op vacuum pillars either side of the garden P bay
 };
 
 // ---------------------------------------------------------------- waiting lounge (annex east of the hall)

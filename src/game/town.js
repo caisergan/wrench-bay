@@ -107,13 +107,9 @@ function defaultSolids(id) {
     case 'lounge': return hallWalls(LOUNGE.walls, LOUNGE.walls.thickness);
     case 'paint': return hallWalls(PAINT.walls, PAINT.walls.thickness);
     case 'vip': return hallWalls(VIP.walls, VIP.walls.thickness);
-    case 'wash': {   // arch posts either side of the exit driveway
-      const out = [];
-      for (const k in WASH.archZ) {
-        const z = WASH.archZ[k];
-        out.push(box(WASH.zone.minX - 0.45, WASH.zone.minX - 0.1, z - 0.2, z + 0.2), box(WASH.zone.maxX + 0.1, WASH.zone.maxX + 0.45, z - 0.2, z + 0.2));
-      }
-      return out;
+    case 'wash': {   // drive-through gantry (the model reports its own solids; this is the fallback)
+      const T = WASH.tunnel, zN = WASH.laneZ - T.halfW;
+      return [box(T.minX, T.maxX, zN - 0.15, zN + 0.05)];
     }
     case 'showroom': {
       const w = PROJECT.showroom.walls, d = PROJECT.showroom.door, t = 0.3;
@@ -412,10 +408,8 @@ export function createTown(ctx) {
   /** Building site on the plot for BUILD_TIME, then the building pops in. */
   function startSite(rec) {
     const id = rec.id, plot = rec.def.plot;
-    const parts = id === 'wash'
-      // the wash arches stand over the exit driveway: scaffold towers either side, the lane stays open
-      ? [{ minX: plot.minX - 0.5, maxX: WASH.zone.minX - 0.05, minZ: plot.minZ, maxZ: plot.maxZ }, { minX: WASH.zone.maxX + 0.05, maxX: plot.maxX + 0.5, minZ: plot.minZ, maxZ: plot.maxZ }]
-      : [plot];
+    // the wash has its own plot now (drive-through on the garden block): one site like every other property
+    const parts = [plot];
     const sites = [];
     for (const r of parts) {
       const w = r.maxX - r.minX, d = r.maxZ - r.minZ, c = centre(r);

@@ -138,9 +138,12 @@ export function buildStreets(root, { S, F }, signs, rnd) {
   const pp = PROPERTIES.paint.plot, vp = PROPERTIES.vip.plot;
   lot('gravel', pp, pp.minZ, 1.2); lot('concrete', pp, 1.2, pp.maxZ);
   lot('gravel', vp, vp.minZ, 1.2); lot('concrete', vp, 1.2, vp.maxZ);
-  // car wash sits on the garage exit driveway: the whole strip east of the forecourt is driveway concrete
+  // the strip east of the forecourt is driveway concrete (exit driveway + the wash approach lane); the car wash has
+  // its own plot on the north part of the garden block (the park is south of it)
   const wp = PROPERTIES.wash.plot;
-  root.add(surface('concrete', L.forecourt.maxX, TOWN.garden.minX, PROPERTIES.lounge.plot.maxZ, HB.maxZ, Y.lot));
+  root.add(surface('concrete', L.forecourt.maxX, wp.minX, PROPERTIES.lounge.plot.maxZ, wp.maxZ, Y.lot));
+  root.add(surface('concrete', L.forecourt.maxX, TOWN.garden.minX, wp.maxZ, HB.maxZ, Y.lot));
+  lot('alley', wp);
   lot('concrete', PROPERTIES.gas.plot);
   lot('concrete', PROPERTIES.quickfit.plot);
   lot('plaza', PROPERTIES.ferry.plot, PROPERTIES.ferry.plot.minZ + 0, PROPERTIES.ferry.plot.maxZ);
@@ -151,7 +154,7 @@ export function buildStreets(root, { S, F }, signs, rnd) {
   lot('concrete', SERVICES.academy.plot);
   // garden lawn
   const GD = TOWN.garden;
-  root.add(surface('lawn', GD.minX, GD.maxX, GD.minZ, GD.maxZ, Y.lot));
+  root.add(surface('lawn', GD.minX, GD.maxX, wp.maxZ, GD.maxZ, Y.lot));
   // grass verge west of the paint plot
   root.add(surface('lawn', HB.minX, pp.minX, A.back.maxZ, HB.maxZ, Y.lot));
   // forecourt paving of the Main Street corner shops
