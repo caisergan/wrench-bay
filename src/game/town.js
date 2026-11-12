@@ -218,6 +218,19 @@ export function createTown(ctx) {
     };
   }
 
+  // Vacant-plot dressing (environment, env-plots.js): shown while a plot is unbuilt; its solids block walking in town
+  // mode. The environment outlives this world (shop:changed), so every plot starts vacant here and the refreshes
+  // below clear the owned ones.
+  const dressSolids = {};
+  function setVacant(id, vacant) {
+    M.setPlotCleared?.(id, !vacant);
+    const have = dressSolids[id];
+    if (vacant && townMode && !have) dressSolids[id] = (M.plotSolids?.(id) || []).map((b) => ctx.solids.add(b));
+    else if ((!vacant || !townMode) && have) { for (const b of have) ctx.solids.remove(b); delete dressSolids[id]; }
+  }
+  for (const id in PROPERTIES) M.setPlotCleared?.(id, false);
+  for (const id in SERVICES) M.setPlotCleared?.(id, false);
+
   const town = {
     root,
     get open() { return townOpen(); },
@@ -322,6 +335,7 @@ export function createTown(ctx) {
       const rec = recs[id], p = rec.def;
       const visible = townOpen() && districtOpen(p.district);
       const lvl = propLevel(id);
+      setVacant(id, !(lvl > 0 || rec.site || rec.building));
       if (!visible) { clearSale(rec); continue; }
       // the building (loaded saves show it at once); the ferry terminal stands there from the start
       if ((lvl > 0 || p.kind === 'goal') && !rec.building && !rec.site) spawnBuilding(rec, lvl, animate && lvl > 0);
@@ -408,6 +422,7 @@ export function createTown(ctx) {
   /** Building site on the plot for BUILD_TIME, then the building pops in. */
   function startSite(rec) {
     const id = rec.id, plot = rec.def.plot;
+    setVacant(id, false);                    // the old lot is cleared the moment it is bought
     // the wash has its own plot now (drive-through on the garden block): one site like every other property
     const parts = [plot];
     const sites = [];
@@ -568,6 +583,7 @@ export function createTown(ctx) {
     const want = townOpen() && districtOpen('main');
     for (const id in SERVICES) {
       const S = SERVICES[id];
+      setVacant(id, !want && !services[id]);
       if (!want || services[id]) continue;
       const building = buildingModel(id, 1);
       placeBuilding(building, S.plot);

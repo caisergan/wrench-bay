@@ -40,13 +40,6 @@ function sharedTex(key, make) {
   if (!t) { t = make(); t.wrapS = t.wrapT = THREE.RepeatWrapping; texCache.set(key, t); }
   return t;
 }
-function texFor(key, make, rx, ry) {
-  const base = sharedTex(key, make);
-  const t = base.clone();
-  t.needsUpdate = true;
-  t.repeat.set(rx, ry);
-  return t;
-}
 
 export function asphaltTex(repeat) {
   return canvasTex(256, 256, (g, w, h) => {
@@ -58,90 +51,340 @@ export function asphaltTex(repeat) {
     }
   }, repeat);
 }
-function alleyCanvas() {
-  return canvasTex(256, 256, (g, w, h) => {
-    const rnd = mulberry32(31);
-    g.fillStyle = '#6d717c'; g.fillRect(0, 0, w, h);
-    for (let k = 0; k < 7; k++) {         // repair patches
-      g.fillStyle = rnd() > 0.5 ? 'rgba(40,44,52,0.28)' : 'rgba(150,150,150,0.16)';
-      g.fillRect(rnd() * w, rnd() * h, 30 + rnd() * 70, 20 + rnd() * 50);
+
+// ------------------------------------------------------------------ ground textures at real scale (polish)
+// One large tileable texture per ground kind, drawn at real scale (TEX_M metres per texture). surface() bakes UVs in
+// WORLD space and cuts every rectangle along a CELL m grid; each cell gets its own offset (snapped to the joint grid
+// where the kind has one) and mirror flip, so joints run on seamlessly between surfaces while the details never
+// repeat in a visible rhythm. All pieces of a kind in one ~30 m chunk merge into one mesh with one shared material
+// (flushSurfaces(root) builds them once every module has added its surfaces).
+const TEX_M = { concrete: 16, asphalt: 16, alley: 16, gravel: 12, plaza: 6, lawn: 8, meadow: 12 };
+// Per-cell offset + flip only where a joint grid hides the cell border: the cell is a multiple of the slab / paver
+// bond and the offset snaps to it, so every cell border falls on a joint. Kinds without joints map continuously and
+// get their large-scale variation from the macro term in groundMat's shader instead (no seams, no repeat).
+const CELL = { concrete: 16, plaza: 12 };
+const QUANT = { concrete: [1 / 8, 1 / 6], plaza: [1 / 10, 2 / 15] };
+const NOFLIP_V = new Set(['plaza']);
+// macro tone variation per kind: gain on the blurred two-scale sample (0 = off)
+const MACRO = { concrete: 2.2, asphalt: 2.6, alley: 2.4, gravel: 3.0, plaza: 1.6, lawn: 2.4, meadow: 1.5 };
+const rgba = (hex, a) => { const c = new THREE.Color(hex); return `rgba(${(c.r * 255) | 0},${(c.g * 255) | 0},${(c.b * 255) | 0},${a})`; };
+
+/** Soft round blotches, wrapped so the texture tiles. */
+function blotches(g, rnd, w, h, n, r0, r1, hex, a0, a1) {
+  for (let k = 0; k < n; k++) {
+    const x = rnd() * w, y = rnd() * h, r = r0 + rnd() * (r1 - r0), a = a0 + rnd() * (a1 - a0);
+    for (const ox of [-w, 0, w]) for (const oy of [-h, 0, h]) {
+      const cx = x + ox, cy = y + oy;
+      if (cx + r < 0 || cx - r > w || cy + r < 0 || cy - r > h) continue;
+      const gr = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+      gr.addColorStop(0, rgba(hex, a)); gr.addColorStop(0.6, rgba(hex, a * 0.55)); gr.addColorStop(1, rgba(hex, 0));
+      g.fillStyle = gr; g.fillRect(cx - r, cy - r, r * 2, r * 2);
     }
-    for (let k = 0; k < 600; k++) {
-      g.fillStyle = rnd() > 0.5 ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.1)';
-      g.fillRect(rnd() * w, rnd() * h, 2 + rnd() * 3, 2 + rnd() * 3);
-    }
-    g.strokeStyle = 'rgba(30,32,38,0.45)'; g.lineWidth = 1.6;
-    for (let k = 0; k < 6; k++) {         // cracks
-      let x = rnd() * w, y = rnd() * h;
-      g.beginPath(); g.moveTo(x, y);
-      for (let s = 0; s < 6; s++) { x += (rnd() - 0.5) * 34; y += (rnd() - 0.3) * 26; g.lineTo(x, y); }
-      g.stroke();
-    }
-  });
+  }
 }
-function gravelCanvas() {
-  return canvasTex(256, 256, (g, w, h) => {
-    const rnd = mulberry32(41);
-    g.fillStyle = '#c9bea8'; g.fillRect(0, 0, w, h);
-    for (let k = 0; k < 2600; k++) {
-      const r = rnd();
-      g.fillStyle = r > 0.66 ? 'rgba(255,255,255,0.28)' : r > 0.33 ? 'rgba(110,95,70,0.25)' : 'rgba(150,140,120,0.35)';
-      g.fillRect(rnd() * w, rnd() * h, 2 + rnd() * 3, 2 + rnd() * 2);
-    }
-    for (let k = 0; k < 16; k++) {        // weed tufts (flat)
-      const x = rnd() * w, y = rnd() * h;
-      for (let i = 0; i < 9; i++) { g.fillStyle = i % 2 ? 'rgba(86,150,90,0.75)' : 'rgba(120,175,95,0.7)'; g.fillRect(x + (rnd() - 0.5) * 16, y + (rnd() - 0.5) * 12, 3, 5); }
-    }
-    for (let k = 0; k < 4; k++) {         // puddle stains
-      g.fillStyle = 'rgba(120,105,80,0.18)';
-      g.beginPath(); g.ellipse(rnd() * w, rnd() * h, 14 + rnd() * 20, 8 + rnd() * 12, rnd() * 3, 0, 7); g.fill();
-    }
-  });
+/** Tiny square specks (grain, aggregate). */
+function specks(g, rnd, x0, y0, w, h, n, cols, s0 = 1, s1 = 2) {
+  for (let k = 0; k < n; k++) {
+    g.fillStyle = cols[(rnd() * cols.length) | 0];
+    const s = s0 + ((rnd() * (s1 - s0 + 1)) | 0);
+    g.fillRect(x0 + ((rnd() * w) | 0), y0 + ((rnd() * h) | 0), s, s);
+  }
 }
-function oldConcreteCanvas() {
-  return canvasTex(256, 256, (g, w, h) => {
-    const rnd = mulberry32(51), n = 2, s = w / n;
-    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-      g.fillStyle = '#' + mixHex(0xc9c3b6, 0xb4ad9e, rnd()).getHexString();
-      g.fillRect(i * s, j * s, s, s);
-      for (let k = 0; k < 140; k++) {
-        g.fillStyle = rnd() > 0.5 ? 'rgba(255,255,255,0.1)' : 'rgba(80,70,50,0.08)';
-        g.fillRect(i * s + rnd() * s, j * s + rnd() * s, 2 + rnd() * 4, 2 + rnd() * 4);
+/** Wrapped polyline crack from (x, y): hairline, jittered, sometimes with a short branch. */
+function crack(g, rnd, w, h, x, y, len, ang, style, lw = 1) {
+  const pts = [[x, y]];
+  let cx = x, cy = y, a = ang;
+  const steps = Math.max(3, Math.round(len / 9));
+  for (let i = 0; i < steps; i++) { a += (rnd() - 0.5) * 0.9; cx += Math.cos(a) * len / steps; cy += Math.sin(a) * len / steps; pts.push([cx, cy]); }
+  const br = rnd() < 0.45 ? (1 + ((rnd() * (pts.length - 2)) | 0)) : -1;
+  const brA = a + (rnd() < 0.5 ? 1 : -1) * (0.7 + rnd() * 0.6), brL = len * (0.25 + rnd() * 0.25);
+  g.strokeStyle = style; g.lineWidth = lw; g.lineCap = 'round'; g.lineJoin = 'round';
+  for (const ox of [-w, 0, w]) for (const oy of [-h, 0, h]) {
+    g.beginPath(); g.moveTo(pts[0][0] + ox, pts[0][1] + oy);
+    for (const [px, py] of pts) g.lineTo(px + ox, py + oy);
+    if (br > 0) { const [bx, by] = pts[br]; g.moveTo(bx + ox, by + oy); g.lineTo(bx + ox + Math.cos(brA) * brL, by + oy + Math.sin(brA) * brL); }
+    g.stroke();
+  }
+}
+/** Little tufts of weed (2 px blades) around x, y. */
+function weeds(g, rnd, x, y, n, spread = 5) {
+  for (let i = 0; i < n; i++) {
+    g.fillStyle = pick(rnd, ['rgba(88,146,78,0.9)', 'rgba(118,172,88,0.85)', 'rgba(70,120,66,0.85)']);
+    g.fillRect(x + (rnd() - 0.5) * spread * 2, y + (rnd() - 0.5) * spread * 2, 2, 2 + ((rnd() * 2) | 0));
+  }
+}
+
+/** Yard / lot concrete: 2.0 x 2.67 m slabs with thin saw-cut joints, a few replaced slabs, hairline cracks. */
+function concreteCanvas() {
+  return canvasTex(1024, 1024, (g, w, h) => {
+    const rnd = mulberry32(5101), cols = 8, rows = 6, pw = w / cols, ph = h / rows;
+    for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+      const x = i * pw, y = j * ph, replaced = rnd() < 0.09;
+      const base = replaced ? mixHex(0xd9d5ca, 0xcfcabd, rnd()) : mixHex(0xcac4b6, 0xbcb5a6, rnd());
+      g.fillStyle = '#' + base.getHexString(); g.fillRect(x, y, pw, ph);
+      g.save(); g.beginPath(); g.rect(x, y, pw, ph); g.clip();
+      // cure / wear mottling inside the slab
+      for (let k = 0; k < (replaced ? 2 : 4); k++) {
+        const bx = x + rnd() * pw, by = y + rnd() * ph, r = 20 + rnd() * 50, dark = rnd() < 0.55;
+        const gr = g.createRadialGradient(bx, by, 0, bx, by, r);
+        gr.addColorStop(0, dark ? 'rgba(96,86,66,0.07)' : 'rgba(255,255,250,0.08)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = gr; g.fillRect(bx - r, by - r, r * 2, r * 2);
       }
-      g.fillStyle = 'rgba(70,60,45,0.4)'; g.fillRect(i * s, j * s, s, 3); g.fillRect(i * s, j * s, 3, s);
-      // weeds in the joints
-      for (let k = 0; k < 5; k++) { g.fillStyle = 'rgba(95,160,95,0.8)'; g.fillRect(i * s + rnd() * s, j * s, 4, 4); g.fillRect(i * s, j * s + rnd() * s, 4, 4); }
+      specks(g, rnd, x, y, pw, ph, replaced ? 90 : 230, ['rgba(255,255,255,0.13)', 'rgba(90,80,62,0.11)', 'rgba(140,132,118,0.16)']);
+      if (!replaced && rnd() < 0.3) {                      // hairline crack, often from a corner or an edge
+        const fromCorner = rnd() < 0.5;
+        const sx = fromCorner ? x + (rnd() < 0.5 ? 2 : pw - 2) : x + pw * (0.2 + rnd() * 0.6);
+        const sy = fromCorner ? y + (rnd() < 0.5 ? 2 : ph - 2) : y + (rnd() < 0.5 ? 2 : ph - 2);
+        const ang = Math.atan2(y + ph / 2 - sy, x + pw / 2 - sx) + (rnd() - 0.5) * 0.8;
+        crack(g, rnd, w, h, sx, sy, 26 + rnd() * 50, ang, 'rgba(74,66,54,0.42)', 1);
+      }
+      if (rnd() < 0.08) {                                  // an old rust drip / bolt mark
+        const gr = g.createRadialGradient(x + pw * rnd(), y + ph * rnd(), 0, x + pw / 2, y + ph / 2, 12);
+        gr.addColorStop(0, 'rgba(150,92,52,0.22)'); gr.addColorStop(1, 'rgba(150,92,52,0)');
+        g.fillStyle = gr; g.fillRect(x, y, pw, ph);
+      }
+      g.restore();
+      if (replaced) { g.strokeStyle = 'rgba(120,112,98,0.35)'; g.lineWidth = 1; g.strokeRect(x + 2.5, y + 2.5, pw - 5, ph - 5); }
     }
-    g.strokeStyle = 'rgba(60,52,40,0.45)'; g.lineWidth = 1.5;
-    for (let k = 0; k < 5; k++) {
-      let x = rnd() * w, y = rnd() * h;
-      g.beginPath(); g.moveTo(x, y);
-      for (let st = 0; st < 5; st++) { x += (rnd() - 0.5) * 40; y += (rnd() - 0.5) * 40; g.lineTo(x, y); }
-      g.stroke();
+    // saw-cut joints (about 3 cm) with a light lip
+    g.fillStyle = 'rgba(78,70,56,0.55)';
+    for (let i = 0; i <= cols; i++) g.fillRect(Math.round(i * pw) - 1, 0, 2, h);
+    for (let j = 0; j <= rows; j++) g.fillRect(0, Math.round(j * ph) - 1, w, 2);
+    g.fillStyle = 'rgba(255,255,255,0.12)';
+    for (let i = 0; i < cols; i++) g.fillRect(Math.round(i * pw) + 1, 0, 1, h);
+    for (let j = 0; j < rows; j++) g.fillRect(0, Math.round(j * ph) + 1, w, 1);
+    // weeds in a few joint stretches
+    for (let k = 0; k < 14; k++) {
+      const vert = rnd() < 0.5;
+      const jx = vert ? Math.round(((rnd() * cols) | 0) * pw) : rnd() * w, jy = vert ? rnd() * h : Math.round(((rnd() * rows) | 0) * ph);
+      for (let t = 0; t < 3; t++) weeds(g, rnd, jx + (vert ? 0 : t * 4), jy + (vert ? t * 4 : 0), 3, 1.5);
     }
-    g.fillStyle = 'rgba(60,55,50,0.16)';
-    for (let k = 0; k < 3; k++) { g.beginPath(); g.ellipse(rnd() * w, rnd() * h, 10 + rnd() * 18, 7 + rnd() * 10, rnd() * 3, 0, 7); g.fill(); }
+    blotches(g, rnd, w, h, 3, 14, 26, 0x3c3a38, 0.08, 0.14);      // a couple of faint old stains
   });
 }
+/** Loose gravel / hardcore: fine grain, a few pebbles, compacted and dusty patches. */
+function gravelCanvas() {
+  return canvasTex(1024, 1024, (g, w, h) => {
+    const rnd = mulberry32(4107);
+    g.fillStyle = '#c2b8a3'; g.fillRect(0, 0, w, h);
+    blotches(g, rnd, w, h, 26, 50, 140, 0x8c806a, 0.07, 0.15);     // compacted / damp
+    blotches(g, rnd, w, h, 18, 40, 110, 0xfffaf0, 0.06, 0.12);     // dry dust
+    specks(g, rnd, 0, 0, w, h, 26000, ['rgba(255,255,255,0.32)', 'rgba(112,100,82,0.32)', 'rgba(156,146,128,0.42)', 'rgba(92,86,78,0.3)', 'rgba(214,206,188,0.5)'], 1, 2);
+    for (let k = 0; k < 420; k++) {                    // pebbles: light top-left, shade bottom-right
+      const x = rnd() * w, y = rnd() * h, s = 3 + ((rnd() * 2) | 0);
+      g.fillStyle = pick(rnd, ['#d8cfbd', '#b9ae99', '#a59a86', '#cfc6b3']); g.fillRect(x, y, s, s);
+      g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(x, y, s - 1, 1);
+      g.fillStyle = 'rgba(70,60,48,0.35)'; g.fillRect(x + 1, y + s, s, 1);
+    }
+    for (let k = 0; k < 9; k++) weeds(g, rnd, rnd() * w, rnd() * h, 7, 4);
+  });
+}
+/** Street asphalt: fine aggregate, worn and patched tone, sealed cracks ("tar snakes"). */
+function asphaltCanvas() {
+  return canvasTex(1024, 1024, (g, w, h) => {
+    const rnd = mulberry32(3301);
+    g.fillStyle = css(P.street); g.fillRect(0, 0, w, h);
+    blotches(g, rnd, w, h, 22, 60, 170, 0xffffff, 0.025, 0.05);
+    blotches(g, rnd, w, h, 18, 50, 140, 0x000000, 0.04, 0.07);
+    specks(g, rnd, 0, 0, w, h, 30000, ['rgba(255,255,255,0.08)', 'rgba(0,0,0,0.1)', 'rgba(210,212,218,0.14)'], 1, 1);
+    specks(g, rnd, 0, 0, w, h, 1600, ['rgba(220,222,228,0.16)', 'rgba(30,32,38,0.18)'], 2, 2);
+    for (let k = 0; k < 7; k++) crack(g, rnd, w, h, rnd() * w, rnd() * h, 70 + rnd() * 140, rnd() * PI * 2, 'rgba(28,30,36,0.5)', 2.5);
+    for (let k = 0; k < 6; k++) crack(g, rnd, w, h, rnd() * w, rnd() * h, 30 + rnd() * 50, rnd() * PI * 2, 'rgba(36,38,44,0.32)', 1);
+  });
+}
+/** Service-lane asphalt: older and lighter, rectangular repair patches, crack networks, weeds in the cracks. */
+function alleyCanvas() {
+  return canvasTex(1024, 1024, (g, w, h) => {
+    const rnd = mulberry32(3907);
+    g.fillStyle = '#6e727c'; g.fillRect(0, 0, w, h);
+    blotches(g, rnd, w, h, 24, 50, 150, 0xffffff, 0.03, 0.06);
+    blotches(g, rnd, w, h, 16, 40, 120, 0x000000, 0.04, 0.08);
+    specks(g, rnd, 0, 0, w, h, 28000, ['rgba(255,255,255,0.08)', 'rgba(0,0,0,0.1)', 'rgba(200,200,205,0.14)'], 1, 1);
+    for (let k = 0; k < 9; k++) {                       // repair patches (newer, darker, crisp edges)
+      const pw = 50 + rnd() * 120, ph = 30 + rnd() * 80, x = rnd() * (w - pw), y = rnd() * (h - ph);
+      g.fillStyle = rnd() < 0.7 ? 'rgba(46,49,57,0.32)' : 'rgba(150,150,150,0.14)'; g.fillRect(x, y, pw, ph);
+      specks(g, rnd, x, y, pw, ph, (pw * ph / 14) | 0, ['rgba(255,255,255,0.06)', 'rgba(0,0,0,0.08)'], 1, 1);
+      g.strokeStyle = 'rgba(30,32,38,0.4)'; g.lineWidth = 1.5; g.strokeRect(x, y, pw, ph);
+    }
+    for (let k = 0; k < 5; k++) {                       // crack networks with weeds
+      const x = rnd() * w, y = rnd() * h;
+      for (let t = 0; t < 4; t++) crack(g, rnd, w, h, x + (rnd() - 0.5) * 30, y + (rnd() - 0.5) * 30, 24 + rnd() * 40, rnd() * PI * 2, 'rgba(32,34,40,0.45)', 1);
+      if (rnd() < 0.7) weeds(g, rnd, x, y, 6, 6);
+    }
+    for (let k = 0; k < 5; k++) crack(g, rnd, w, h, rnd() * w, rnd() * h, 60 + rnd() * 120, rnd() * PI * 2, 'rgba(26,28,34,0.5)', 2.5);
+  });
+}
+/** Concrete pavers 0.6 x 0.4 m in running bond: tone per paver, bevel, a few replaced ones, weeds in joints. */
 function plazaCanvas() {
-  return canvasTex(256, 256, (g, w, h) => {
-    const rnd = mulberry32(61), n = 8, s = w / n;
-    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-      const off = (j % 2) * s / 2;
-      g.fillStyle = '#' + mixHex(0xe8dcc4, 0xd2c3a6, rnd()).getHexString();
-      g.fillRect(i * s + off, j * s, s, s); g.fillRect(i * s + off - w, j * s, s, s);
-      g.fillStyle = 'rgba(120,100,70,0.35)'; g.fillRect(i * s + off, j * s, 2, s); g.fillRect(i * s + off - w, j * s, 2, s);
+  return canvasTex(512, 512, (g, w, h) => {
+    const rnd = mulberry32(6203), cols = 10, rows = 15, pw = w / cols, ph = h / rows;
+    g.fillStyle = '#9c8a6c'; g.fillRect(0, 0, w, h);
+    for (let j = 0; j < rows; j++) {
+      const off = (j % 2) * pw / 2;
+      for (let i = -1; i < cols; i++) {
+        const x = i * pw + off, y = j * ph;
+        const odd = rnd() < 0.06;
+        g.fillStyle = '#' + (odd ? mixHex(0xcfc2a6, 0xc4b597, rnd()) : mixHex(0xe6dac1, 0xd6c8ab, rnd())).getHexString();
+        g.fillRect(x + 1, y + 1, pw - 1.5, ph - 1.5);
+        g.fillStyle = 'rgba(255,255,255,0.22)'; g.fillRect(x + 1, y + 1, pw - 1.5, 1);
+        g.fillStyle = 'rgba(90,72,48,0.18)'; g.fillRect(x + 1, y + ph - 1.5, pw - 1.5, 1);
+        specks(g, rnd, x + 1, y + 1, pw - 2, ph - 2, 14, ['rgba(255,255,255,0.12)', 'rgba(110,92,64,0.1)'], 1, 1);
+      }
     }
-    for (let j = 0; j < n; j++) { g.fillStyle = 'rgba(120,100,70,0.35)'; g.fillRect(0, j * s, w, 2); }
+    for (let k = 0; k < 10; k++) weeds(g, rnd, ((rnd() * cols) | 0) * pw, ((rnd() * rows) | 0) * ph, 3, 2);
+    blotches(g, rnd, w, h, 3, 10, 20, 0x5a5048, 0.08, 0.13);
   });
 }
+/** Kept lawn: soft 1 m mowing stripes, lush and dry patches, clover, a few daisies. */
 function lawnCanvas() {
-  return canvasTex(256, 256, (g, w, h) => {
-    const rnd = mulberry32(71);
-    for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#79c47f' : '#6fba76'; g.fillRect(0, i * 32, w, 32); }
-    for (let k = 0; k < 900; k++) { g.fillStyle = rnd() > 0.5 ? 'rgba(255,255,255,0.09)' : 'rgba(30,90,40,0.12)'; g.fillRect(rnd() * w, rnd() * h, 2, 3); }
-    for (let k = 0; k < 10; k++) { g.fillStyle = pick(rnd, ['#fff6e6', '#f6c453', '#f26b5b']); g.fillRect(rnd() * w, rnd() * h, 3, 3); }
+  return canvasTex(512, 512, (g, w, h) => {
+    const rnd = mulberry32(7109);
+    for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#78c27e' : '#70bb77'; g.fillRect(0, i * 64, w, 64); }
+    blotches(g, rnd, w, h, 10, 30, 80, 0x3f8f52, 0.08, 0.16);
+    blotches(g, rnd, w, h, 6, 25, 60, 0xc9c27a, 0.08, 0.14);
+    for (let k = 0; k < 7000; k++) { g.fillStyle = pick(rnd, ['rgba(255,255,255,0.09)', 'rgba(30,90,40,0.14)', 'rgba(150,210,120,0.16)']); g.fillRect(rnd() * w, rnd() * h, 1, 2 + ((rnd() * 2) | 0)); }
+    for (let k = 0; k < 14; k++) { const x = rnd() * w, y = rnd() * h; for (let i = 0; i < 6; i++) { g.fillStyle = 'rgba(70,140,72,0.5)'; g.fillRect(x + (rnd() - 0.5) * 10, y + (rnd() - 0.5) * 10, 3, 2); } }
+    for (let k = 0; k < 16; k++) { const x = rnd() * w, y = rnd() * h; g.fillStyle = '#fbf6ea'; g.fillRect(x, y, 2, 2); g.fillStyle = '#f2c94c'; g.fillRect(x + 0.5, y + 0.5, 1, 1); }
   });
+}
+/** Unmown grass for vacant lots: blotchy greens, dry patches, bare earth, drifts of wildflowers. */
+function meadowCanvas() {
+  return canvasTex(1024, 1024, (g, w, h) => {
+    const rnd = mulberry32(8111);
+    g.fillStyle = '#82bf74'; g.fillRect(0, 0, w, h);
+    blotches(g, rnd, w, h, 26, 60, 160, 0x4f9a58, 0.08, 0.16);
+    blotches(g, rnd, w, h, 18, 50, 130, 0xc8c676, 0.10, 0.2);
+    blotches(g, rnd, w, h, 7, 16, 40, 0xa58a62, 0.22, 0.36);
+    for (let k = 0; k < 30000; k++) {
+      g.fillStyle = pick(rnd, ['rgba(52,112,58,0.35)', 'rgba(150,200,110,0.3)', 'rgba(96,160,84,0.35)', 'rgba(200,200,120,0.25)']);
+      g.fillRect(rnd() * w, rnd() * h, 1, 2 + ((rnd() * 3) | 0));
+    }
+    for (let k = 0; k < 22; k++) {                      // wildflower drifts
+      const x = rnd() * w, y = rnd() * h, col = pick(rnd, ['#fbf6ea', '#f6c453', '#f26b5b', '#b9a3e3', '#f2a0c4']);
+      for (let i = 0; i < 18; i++) { g.fillStyle = col; g.fillRect(x + (rnd() - 0.5) * 46, y + (rnd() - 0.5) * 30, 2, 2); }
+    }
+  });
+}
+
+const TEX = { asphalt: asphaltCanvas, alley: alleyCanvas, gravel: gravelCanvas, concrete: concreteCanvas, plaza: plazaCanvas, lawn: lawnCanvas, meadow: meadowCanvas };
+const surfMats = new Map();
+/** Mean luminance of a canvas texture (reference for the macro term). */
+function meanLum(t) {
+  const c = t.image, n = 64, k = document.createElement('canvas');
+  k.width = k.height = n;
+  const g = k.getContext('2d'); g.drawImage(c, 0, 0, n, n);
+  const d = g.getImageData(0, 0, n, n).data;
+  let sum = 0;
+  for (let i = 0; i < d.length; i += 4) sum += (d[i] + d[i + 1] + d[i + 2]) / 765;
+  return sum / (n * n);
+}
+/**
+ * Shared ground material of a kind (world-space UVs; the texture repeats). Its shader multiplies in a macro tone
+ * taken from two very blurred samples of the same texture at other scales / orientations, so large areas vary
+ * softly over tens of metres instead of repeating every tile.
+ */
+export function groundMat(kind) {
+  let m = surfMats.get(kind);
+  if (!m) {
+    const t = sharedTex('ground|' + kind, TEX[kind]);
+    t.anisotropy = 8;
+    m = new THREE.MeshLambertMaterial({ map: t });
+    const gain = MACRO[kind] || 0;
+    if (gain) {
+      const ref = meanLum(t).toFixed(4);
+      m.onBeforeCompile = (sh) => {
+        sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `
+#ifdef USE_MAP
+  vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+  vec3 macA = texture2D( map, vMapUv * 0.173 + vec2( 0.37, 0.61 ), 6.0 ).rgb;
+  vec3 macB = texture2D( map, vMapUv.yx * 0.071 + vec2( 0.13, 0.29 ), 7.0 ).rgb;
+  float macL = dot( macA + macB, vec3( 0.16667 ) );
+  sampledDiffuseColor.rgb *= clamp( 1.0 + ( macL - ${ref} ) * ${gain.toFixed(2)}, 0.84, 1.16 );
+  diffuseColor *= sampledDiffuseColor;
+#endif`);
+      };
+      m.customProgramCacheKey = () => 'ground|' + kind;
+    }
+    surfMats.set(kind, m);
+  }
+  return m;
+}
+function hash3(a, b, c) {
+  let h = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) + Math.imul(c | 0, 2246822519)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+const KIND_SALT = { asphalt: 11, alley: 23, gravel: 37, concrete: 41, plaza: 53, lawn: 67, meadow: 79 };
+/** Adds one ground quad x0..x1 / z0..z1 at height y to the geometry arrays, world-space UVs, cut into CELL cells. */
+function pushGround(arr, kind, x0, x1, z0, z1, y) {
+  const tm = TEX_M[kind], q = QUANT[kind] || [0, 0], salt = KIND_SALT[kind];
+  const C = CELL[kind] || 1e5;
+  const snap = (v, k) => (k ? Math.floor(v / k) * k : v);
+  for (let cx = Math.floor(x0 / C); cx * C < x1 - 1e-6; cx++) {
+    for (let cz = Math.floor(z0 / C); cz * C < z1 - 1e-6; cz++) {
+      const xa = Math.max(x0, cx * C), xb = Math.min(x1, (cx + 1) * C);
+      const za = Math.max(z0, cz * C), zb = Math.min(z1, (cz + 1) * C);
+      if (xb - xa < 1e-4 || zb - za < 1e-4) continue;
+      const cellular = !!CELL[kind];
+      const fu = !cellular || hash3(cx, cz, salt) < 0.5 ? 1 : -1;
+      const fv = !cellular || NOFLIP_V.has(kind) ? 1 : (hash3(cz, cx, salt + 1) < 0.5 ? 1 : -1);
+      const ou = cellular ? snap(hash3(cx + 7, cz, salt + 2), q[0]) : 0, ov = cellular ? snap(hash3(cx, cz + 7, salt + 3), q[1]) : 0;
+      const k = arr.pos.length / 3;
+      for (const [x, z] of [[xa, za], [xb, za], [xb, zb], [xa, zb]]) {
+        arr.pos.push(x, y, z); arr.nor.push(0, 1, 0);
+        arr.uv.push(fu * x / tm + ou, -fv * z / tm + ov);
+      }
+      arr.idx.push(k, k + 3, k + 2, k, k + 2, k + 1);
+    }
+  }
+}
+function groundGeo(arr) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(arr.pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(arr.nor, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(arr.uv, 2));
+  geo.setIndex(arr.idx);
+  geo.computeBoundingSphere(); geo.computeBoundingBox();
+  return geo;
+}
+const groundBatch = new Map();      // kind|60 m chunk -> arrays (ground is cheap per triangle: big chunks, few calls)
+/**
+ * Textured ground rectangle (receives shadows). Queued into the shared ground batch: the meshes appear when
+ * flushSurfaces(root) runs (environment.js does that after every area). Returns an empty placeholder so callers can
+ * keep doing root.add(surface(...)).
+ */
+export function surface(kind, x0, x1, z0, z1, y) {
+  const C = 60;
+  for (let cx = Math.floor(x0 / C); cx * C < x1 - 1e-6; cx++) {
+    for (let cz = Math.floor(z0 / C); cz * C < z1 - 1e-6; cz++) {
+      const xa = Math.max(x0, cx * C), xb = Math.min(x1, (cx + 1) * C), za = Math.max(z0, cz * C), zb = Math.min(z1, (cz + 1) * C);
+      if (xb - xa < 1e-4 || zb - za < 1e-4) continue;
+      const key = kind + '|' + cx + ',' + cz;
+      let arr = groundBatch.get(key);
+      if (!arr) { arr = { kind, pos: [], nor: [], uv: [], idx: [] }; groundBatch.set(key, arr); }
+      pushGround(arr, kind, xa, xb, za, zb, y);
+    }
+  }
+  return new THREE.Object3D();
+}
+/** Builds the queued ground: one mesh per kind per 60 m chunk. Returns the number of meshes. */
+export function flushSurfaces(root) {
+  let n = 0;
+  for (const arr of groundBatch.values()) {
+    const m = new THREE.Mesh(groundGeo(arr), groundMat(arr.kind));
+    m.receiveShadow = true; m.castShadow = false; m.matrixAutoUpdate = false;
+    root.add(m); n++;
+  }
+  groundBatch.clear();
+  return n;
+}
+/** A standalone ground mesh (world-space UVs, shared material), e.g. for a plot dressing that can be hidden. */
+export function surfaceMesh(kind, x0, x1, z0, z1, y) {
+  const arr = { pos: [], nor: [], uv: [], idx: [] };
+  pushGround(arr, kind, x0, x1, z0, z1, y);
+  const m = new THREE.Mesh(groundGeo(arr), groundMat(kind));
+  m.receiveShadow = true; m.castShadow = false;
+  return m;
 }
 export function waterTex() {
   return canvasTex(256, 256, (g, w, h) => {
@@ -154,15 +397,6 @@ export function waterTex() {
       g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + l / 2, y - 3, x + l, y); g.stroke();
     }
   }, [14, 8]);
-}
-
-const TEX = { asphalt: () => asphaltTex(null), alley: alleyCanvas, gravel: gravelCanvas, concrete: oldConcreteCanvas, plaza: plazaCanvas, lawn: lawnCanvas };
-const TILE = { asphalt: [4, 1.9], alley: [6, 6], gravel: [5, 5], concrete: [6, 6], plaza: [6, 6], lawn: [8, 8] };
-/** Textured ground rectangle (receive shadows) of a given surface kind. */
-export function surface(kind, x0, x1, z0, z1, y) {
-  const w = x1 - x0, d = z1 - z0, [tx, tz] = TILE[kind];
-  const mat = new THREE.MeshLambertMaterial({ map: texFor(kind, TEX[kind], w / tx, d / tz) });
-  return plane(w, d, (x0 + x1) / 2, y, (z0 + z1) / 2, mat);
 }
 
 // ------------------------------------------------------------------ basic helpers
@@ -215,6 +449,8 @@ export class ChunkBuilder {
   box(w, h, d, c, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) { this._b(x, y, z).box(w, h, d, c, x, y, z, rx, ry, rz); return this; }
   cyl(rt, rb, h, c, x = 0, y = 0, z = 0, seg = 8, rx = 0, ry = 0, rz = 0) { this._b(x, y, z).cyl(rt, rb, h, c, x, y, z, seg, rx, ry, rz); return this; }
   shape(shp, depth, c, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) { this._b(x, y, z).shape(shp, depth, c, x, y, z, rx, ry, rz); return this; }
+  quad(w, d, c, x = 0, y = 0, z = 0, ry = 0) { quad(this._b(x, y, z), w, d, c, x, y, z, ry); return this; }
+  disc(r, c, x = 0, y = 0, z = 0, seg = 10) { disc(this._b(x, y, z), r, c, x, y, z, seg); return this; }
   /** Adds one mesh per chunk to parent. Returns the number of meshes. */
   build(parent, mat = litMat, opts = {}) {
     let n = 0;
@@ -228,6 +464,25 @@ export class ChunkBuilder {
     return n;
   }
 }
+
+/** Flat horizontal quad w x d facing up (2 triangles), centre x,z at height y, yaw ry. Builder or ChunkBuilder. */
+export function quad(b, w, d, c, x, y, z, ry = 0) {
+  if (b instanceof ChunkBuilder) return b.quad(w, d, c, x, y, z, ry);
+  const g = new THREE.PlaneGeometry(w, d);
+  g.rotateX(-PI / 2);
+  b._add(g, c, x, y, z, 0, ry, 0);
+  return b;
+}
+/** Flat disc facing up (seg triangles). Builder or ChunkBuilder. */
+export function disc(b, r, c, x, y, z, seg = 10) {
+  if (b instanceof ChunkBuilder) return b.disc(r, c, x, y, z, seg);
+  const g = new THREE.CircleGeometry(r, seg);
+  g.rotateX(-PI / 2);
+  b._add(g, c, x, y, z, 0, 0, 0);
+  return b;
+}
+/** Flat decal from x0..x1 / z0..z1 with its top at y (a quad: cheaper than a thin box). */
+export const flatTop = (b, x0, x1, z0, z1, y, c) => quad(b, x1 - x0, z1 - z0, c, (x0 + x1) / 2, y, (z0 + z1) / 2);
 
 /** The three standard layers every area builds into. */
 export function layers() {
@@ -533,8 +788,8 @@ export function drainGrate(F, x, z, ry = 0) {
   F.pop();
 }
 export function stain(F, x, z, r, c = 0x4c5058, y = Y.mark) {
-  F.cyl(r, r, 0.006, c, x, y, z, 10);
-  F.cyl(r * 0.55, r * 0.55, 0.006, mix(c, 0x000000, 0.15), x + r * 0.2, y + 0.004, z - r * 0.1, 8);
+  disc(F, r, c, x, y + 0.006, z, 10);
+  disc(F, r * 0.55, mix(c, 0x000000, 0.15), x + r * 0.2, y + 0.008, z - r * 0.1, 8);
 }
 
 // ------------------------------------------------------------------ buildings

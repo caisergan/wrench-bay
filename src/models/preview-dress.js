@@ -6,7 +6,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { PALETTE as P, LAYOUT as L } from '../config.js';
 import { TOWN, PROPERTIES, SERVICES } from '../config.town.js';
 import { litMat, glowMat, mulberry32 } from './voxel.js';
-import { ChunkBuilder, SignAtlas, waterTex, solids } from './env-kit.js';
+import { ChunkBuilder, SignAtlas, waterTex, solids, flushSurfaces } from './env-kit.js';
 import { buildStreets, streetGeo } from './env-streets.js';
 import { buildHarbor } from './env-harbor.js';
 import { buildStreetLife } from './env-life.js';
@@ -38,6 +38,7 @@ const rnd = mulberry32(7);
 const signs = new SignAtlas();
 const base = { S: new ChunkBuilder(), F: new ChunkBuilder(), G: new ChunkBuilder() };
 const geo = buildStreets(root, base, signs, mulberry32(11));
+flushSurfaces(root);                       // the ground is batched (env-kit surface): build it now
 const baseTris = () => renderer.info.render.triangles;
 
 // water + a quay lip standing in for what env builds (quay slab at walk height up to the water edge, wall to the water)

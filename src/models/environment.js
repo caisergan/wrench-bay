@@ -9,7 +9,7 @@ import { TOWN } from '../config.town.js';
 import { Builder, litMat, glowMat, mesh, polygon, mulberry32 } from './voxel.js';
 import {
   PI, CREAM, PAINTW as PAINT, CORAL, NAVY, FONT, css, mixHex, canvasTex, waterTex, plane, flat, arrow, stripes,
-  tree, bush, tireStack, drum, layers, SignAtlas, solids, surface,
+  tree, bush, tireStack, drum, layers, SignAtlas, solids, surface, flushSurfaces,
 } from './env-kit.js';
 import { buildStreets, streetGeo } from './env-streets.js';
 import * as Terrain from './env-terrain.js';
@@ -17,6 +17,7 @@ import * as Town from './env-town.js';
 // Namespace imports: a missing export (envdress mid-edit) must not break the module graph.
 import * as Harbor from './env-harbor.js';
 import * as Life from './env-life.js';
+import { buildPlots, setPlotCleared, plotSolids } from './env-plots.js';
 
 // ------------------------------------------------------------------ textures
 function hallFloorTex(repeat) {
@@ -632,7 +633,11 @@ export function buildEnvironment(scene) {
     }
   }
 
+  // ---------------- vacant-plot dressing (env-plots.js): one hideable group per plot, shown until the plot is bought
+  try { buildPlots(root); } catch (err) { console.error('[environment] buildPlots failed', err); }
+
   // ---------------- assemble merged chunk meshes (only after every module has pushed its geometry)
+  const nGround = flushSurfaces(root);                 // textured ground: one mesh per kind per 30 m chunk
   const n = solid.build(root, litMat, { cast: true, receive: true })
     + paint.build(root, litMat, { cast: false, receive: true })
     + glow.build(root, glowMat, { cast: false, receive: false });
@@ -640,6 +645,7 @@ export function buildEnvironment(scene) {
   const atlasGeo = mergeGeometries(atlasGeos, false);
   root.add(mesh(atlasGeo, atlasMat, { cast: false, receive: false }));
   root.userData.chunkMeshes = n;
+  root.userData.groundMeshes = nGround;
   root.userData.terrain = terrainInfo;
 
   scene.add(root);
@@ -665,3 +671,6 @@ export function townSolids() {
   return solids.map((b) => ({ minX: b.minX, maxX: b.maxX, minZ: b.minZ, maxZ: b.maxZ }));
 }
 
+/** Vacant-plot dressing (env-plots.js): hide it (cleared = true) once a plot is bought / built; show it again for an
+ *  unowned plot (after a shop:changed rebuild). plotSolids(id): the dressing's walk-blocking boxes while vacant. */
+export { setPlotCleared, plotSolids };

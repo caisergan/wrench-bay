@@ -8,7 +8,7 @@ export {
   createCharacter, randomCustomerLook, playerLook, mechanicLook, valetLook, painterLook, prepTechLook, hostLook,
   masterTechLook, detailerLook, vipCustomerLook, pedestrianLook, baristaLook, managerLook, buyerLook, towDriverLook,
 } from './characters.js';
-export { buildEnvironment, townSolids } from './environment.js';
+export { buildEnvironment, townSolids, setPlotCleared, plotSolids } from './environment.js';
 export { poof, sparks, confetti, mist, foam, sparkle, dust, splash, rain } from './fx.js';
 export { createSeagull } from './critters.js';
 export { updateLeaks } from './leak.js';
