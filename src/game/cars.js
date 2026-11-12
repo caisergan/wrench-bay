@@ -14,6 +14,8 @@
 //   toPickup   forward along the exit lane to pickupStop
 //   waitOwner  at pickupStop until the owner hops in (4 s max)
 //   exiting    carExit -> despawn
+//   (add-ons) fac.hooks.leave(fac, car) may take a leaving car instead of 'exiting' (wash.js: wash* modes);
+//             car.holding = true marks a car stopped on purpose (cars behind wait for it, they never ghost through)
 //   gone
 // Facility code may add its own modes; the car only drives itself in the modes above (`custom` = someone else
 // moves it, like 'driven').
@@ -182,7 +184,7 @@ export class Car {
       if (b === 'player') {
         if (!this.honked && this.blockT > 0.35) { this.honked = true; ui.sfx('honk'); }
         if (this.blockT > 1.2) this.ghostT = 1.0;
-      } else if (mutual || this.blockT > 6) this.ghostT = 1.6;
+      } else if (mutual || (this.blockT > 6 && !b.holding)) this.ghostT = 1.6;   // never ghost through a car held on purpose (wash queue)
       if (this.ghostT <= 0) vt = 0;
     } else { this.blockT = 0; this.honked = false; }
     this.blockedBy = b && b !== 'player' ? b : null;
@@ -262,6 +264,8 @@ export class Car {
         const close = o && o.state === 'toCar' && Math.hypot(o.pos.x - this.pos.x, o.pos.z - this.pos.z) < 4;
         if (this.ownerIn || !o || (!boarding && (this.waitT > PICKUP_WAIT && !(close && this.waitT < 9)))) {
           if (o && !this.ownerIn) o.abandon();
+          // an add-on may take the leaving car its own way (the car wash): it sets its own mode and drives it
+          if (this.fac.hooks.leave && this.fac.h('leave', this)) break;
           this.mode = 'exiting';
           this.setPath(this.fac.h('exitPath', this));
           if (this.ctx.near(this.pos)) ui.sfx('engine');

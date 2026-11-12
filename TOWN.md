@@ -166,14 +166,27 @@ arrival is one) and open for-sale plots. Fame counts from the first repair of a 
   hired driver takes it out on calls along the road network and brings the car in; you can still take the truck
   yourself when it is parked.
 
-### 4.6 Car wash (three arches over the garage's exit driveway)
-- ~60% of garage cars arrive dirty (`setDirt`). With the wash built, every leaving car (owner already inside)
-  slows to `slowSpeed` through `WASH.zone`: soap arch (foam builds up), brush rollers spin against it, rinse and
-  blower arch (foam and dirt gone, water drips, then a clean shine). Order and effects must be physically right.
-- At the end the wash fee lands as coins on `WASH.pile` (float text "+$18 Wash"). No staff, no interaction: it
-  is the first purely passive add-on and makes the exit lane lively.
-- Tier 2: wax (fee x2.2, cars leave with a wax gloss, tri-colour foam). Tier 3: turbo dry (fee x4.4 total, +1
-  fame per car, bigger blower, neon sign).
+### 4.6 Car wash "Suds & Shine" (drive-through on the garden block)
+- Its own building on the north part of the garden block (`PROPERTIES.wash.plot`, x 15.0..23.6, z 1.8..5.6), east of
+  the garage exit driveway. Open steel gantry with a see-through polycarbonate roof and an open south side, so the
+  camera sees the whole wash side-on, left to right. The south part of the garden stays a small park (fountain,
+  benches, the `garden` parking bay, two coin-op vacuum pillars `WASH.vacuums`). The exit driveway is a plain driveway.
+- ~60% of the garage's arriving cars are dirty (`WASH.dirtyChance`, `setDirt`), rolled only while the wash exists.
+- Who washes (`WASH.cleanCarsFromLevel`): level 1 only dirty cars, from level 2 every leaving garage car.
+- Route (`src/game/wash.js`, through the facility hook `fac.hooks.leave`): lift -> exit lane -> pickupStop (owner
+  gets in, as before) -> on east past the exit driveway along `WASH.approach` -> stop at the pay kiosk on the
+  driver's side (`WASH.kioskStop`, `payTime`) -> through the tunnel at `slowSpeed`: soap (foam builds up from here),
+  brushes (spin and lean in only at a car, mud comes off), rinse (foam and dust gone, car wet), blower (dry), then a
+  clean shine -> out at the east end into the east alley -> south to Harbor St (`WASH.exit`) -> east like every car.
+  Cars that do not wash leave down the exit driveway exactly as before.
+- Queue: one car approaches / pays at a time; a paid car enters only when the one ahead is `WASH.gap` on (entry light
+  red while held). A car that wants a wash while the kiosk is taken waits at the pickup stop with its owner aboard;
+  cars behind it wait too (`car.holding`: nobody ghosts through a held car).
+- Money: the fee (`washFee(tier)`) lands as coins on `WASH.pile` at the exit (float text "+$18 Wash"), collected by
+  walking past; `state.town.stats.washes++`, event `wash:done { total }`; offline income counts washes.
+- Tier 2: wax (fee x2.2, tri-colour foam, cars leave with a wax gloss). Tier 3: turbo dry (fee x4.4 total, +1 fame
+  per car, big roof blowers, neon "TURBO DRY" sign).
+- Debug: `__game.wash.state()`, `__game.wash.send({ dirty, x })` (a finished car appears on the exit lane at x).
 
 ### 4.7 Waiting lounge
 - Tier 0 is the patio. Tier 1 "Harbor Lounge": a glass-fronted room east of the hall (`LOUNGE.walls`) with two

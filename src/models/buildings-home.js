@@ -323,140 +323,206 @@ export function createTowShed(level = 1) {
   return group;
 }
 
-// ================================================================ car wash: three arches over the exit driveway (WORLD)
-// Along the drive direction (+z): soap arch (WASH.archZ.soap), side brushes (archZ.brush) with a rinse bar just
-// after them, blower (archZ.dryer). Nozzles spray only while a car body is under them; brushes spin up, close in on
-// the car's flanks and stop again when it has passed. Tier 2: tri-colour wax foam, top roller, chemical drums.
-// Tier 3: big turbo-dryer hood with two spinning turbines, side air towers, neon sign.
-// group.userData.zones = { soap, brush, rinse, dryer } (world z of each stage) for gameplay effects on the car.
+// ================================================================ car wash "Suds & Shine": drive-through (WORLD)
+// Its own building on the north part of the garden block (WASH, PROPERTIES.wash.plot). Cars drive through heading
+// east (+x): pay kiosk (separate model, createWashKiosk) -> soap arch -> side brushes (+ top roller at tier 2) ->
+// rinse bar -> blower. Open steel gantry with a clear polycarbonate roof; the north side is a low wall with glazing
+// above, the south (camera) side is open behind a low kerb, so the car stays visible all the way through.
+// Nozzles spray only while a car body is under them; brushes spin up and close in on the car's flanks only while a
+// car is between them. Floor: wet concrete slab, wheel guide rails for the left wheels, a trench drain, painted
+// arrows. Signs face the camera: "SUDS & SHINE" on the north eave, a traffic light (setSignal) at the entry, EXIT at
+// the far end, a low "WASH ->" board by the approach. Tier 2: tri-colour wax foam, top roller, chemical drums.
+// Tier 3: turbo-dryer hood with spinning turbines and side air towers, neon round the sign.
+// API: { group, setRunning(bool), setCars(xs[] | null) (car centre x of every car in the lane),
+//        setCarZ(x | null) (legacy single-car form of setCars), setSignal(go), update(dt) }.
+// group.userData.zones = WASH.stations (x of each stage), userData.axis = 'x', userData.solids = posts, wall, drums.
 const sprayMat = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide });
 const dropMat = new THREE.MeshBasicMaterial({ color: 0xd8f3ff, transparent: true, opacity: 0.75, depthWrite: false });
-const WASH_HW = 1.42, WASH_BEAM = 2.25;           // post centre offset from WASH.x, beam underside height
-const washZones = () => ({ soap: WASH.archZ.soap, brush: WASH.archZ.brush, rinse: WASH.archZ.brush + 0.5, dryer: WASH.archZ.dryer });
-function washFrame(b, z, c, trim) {
-  const X = WASH.x;
+const roofMat = new THREE.MeshLambertMaterial({ color: 0xe6f4fa, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide });
+const washFrames = () => {
+  const T = WASH.tunnel, S = WASH.stations;
+  return [T.minX, S.soap, S.brush, S.rinse, S.dryer, T.maxX];
+};
+/** Nozzle bar across the lane at x (spray heads pointing down + down-pipes either side with side jets). */
+function nozzleBarX(b, x, y) {
+  const Z = WASH.laneZ, hw = WASH.tunnel.halfW;
+  b.box(0.06, 0.06, hw * 2 - 0.35, TC.STEEL, x, y, Z);
+  for (let i = 0; i < 5; i++) b.box(0.06, 0.1, 0.06, TC.STEEL_DD, x, y - 0.1, Z - 1.0 + i * 0.5);
   for (const s of [-1, 1]) {
-    const x = X + s * WASH_HW;
-    b.box(0.4, 0.06, 0.4, TC.STEEL_DD, x, 0, z);
-    b.box(0.22, WASH_BEAM + 0.25, 0.26, c, x, 0.06, z);
-    b.box(0.24, 0.1, 0.28, trim, x, 0.9, z);
-    b.box(0.03, 1.6, 0.06, TC.STEEL, x - s * 0.12, 0.4, z);                  // inner guide track
+    b.box(0.06, y - 0.3, 0.06, TC.STEEL_D, x, 0.3, Z + s * (hw - 0.22));
+    for (const yy of [0.5, 0.95, 1.4]) b.box(0.06, 0.06, 0.1, TC.STEEL_DD, x, yy, Z + s * (hw - 0.3));
   }
-  b.box(WASH_HW * 2 + 0.3, 0.25, 0.3, c, X, WASH_BEAM, z);
-  b.box(WASH_HW * 2 + 0.34, 0.06, 0.34, trim, X, WASH_BEAM + 0.25, z);
-  b.box(WASH_HW * 2 - 0.2, 0.03, 0.06, TC.STEEL_DD, X, WASH_BEAM - 0.03, z + 0.14);   // LED strip seat
 }
-function nozzleBar(b, z, y = WASH_BEAM - 0.08) {
-  const X = WASH.x;
-  b.box(WASH_HW * 2 - 0.3, 0.06, 0.06, TC.STEEL, X, y, z);
-  for (let i = 0; i < 5; i++) { const x = X - 1.0 + i * 0.5; b.box(0.06, 0.1, 0.06, TC.STEEL_DD, x, y - 0.1, z); }
-  for (const s of [-1, 1]) for (const yy of [0.5, 0.95, 1.4]) b.box(0.1, 0.06, 0.06, TC.STEEL_DD, X + s * (WASH_HW - 0.16), yy, z);
-}
-/** Spray sheets for one nozzle bar: top fans down to roof height, side fans in to the car's flank. */
-function sprayGeo(key, z, colors) {
-  return geo(`wash|spray|${key}`, (b) => {
-    const X = WASH.x;
+/** Spray sheets of one nozzle bar at x: top fans down to roof height, side fans in towards the car's flanks. */
+function sprayGeoX(key, x, colors) {
+  return geo(`wash2|spray|${key}`, (b) => {
+    const Z = WASH.laneZ, hw = WASH.tunnel.halfW, y = WASH.tunnel.height - 0.42;
     for (let i = 0; i < 5; i++) {
-      const x = X - 1.0 + i * 0.5, c = colors[i % colors.length];
-      b.box(0.1, 0.3, 0.03, c, x, WASH_BEAM - 0.48, z);
-      b.box(0.34, 0.5, 0.04, c, x, WASH_BEAM - 0.95, z);
+      const z = Z - 1.0 + i * 0.5, c = colors[i % colors.length];
+      b.box(0.03, 0.3, 0.1, c, x, y - 0.42, z);
+      b.box(0.04, 0.55, 0.34, c, x, y - 0.95, z);
     }
     for (const s of [-1, 1]) for (const [k, yy] of [[0, 0.5], [1, 0.95], [2, 1.4]]) {
       const c = colors[(k + (s > 0 ? 1 : 0)) % colors.length];
-      b.box(0.5, 0.05, 0.06, c, X + s * (WASH_HW - 0.45), yy - 0.02, z);
-      b.box(0.24, 0.16, 0.06, c, X + s * (WASH_HW - 0.7), yy - 0.08, z);
+      b.box(0.06, 0.05, 0.42, c, x, yy - 0.02, Z + s * (hw - 0.55));
+      b.box(0.06, 0.16, 0.22, c, x, yy - 0.08, Z + s * (hw - 0.8));
     }
   });
 }
 function washSignTex(tier) {
-  return canvasTex(`washSign|${tier}`, 512, 320, (g, w, h) => {
+  return canvasTex(`washSign2|${tier}`, 640, 300, (g, w, h) => {
     g.fillStyle = css(TC.TEAL_D); g.fillRect(0, 0, w, h);
     g.fillStyle = css(TC.TEAL); g.fillRect(12, 12, w - 24, h - 24);
-    // bubbles
-    for (const [x, y, r] of [[60, 70, 30], [110, 40, 18], [450, 80, 34], [410, 40, 16], [470, 250, 22], [40, 250, 20]]) {
+    for (const [x, y, r] of [[60, 70, 30], [112, 40, 18], [580, 80, 34], [536, 40, 16], [590, 236, 22], [44, 236, 20]]) {
       g.fillStyle = 'rgba(255,255,255,0.35)'; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
       g.fillStyle = 'rgba(255,255,255,0.8)'; g.beginPath(); g.arc(x - r * 0.35, y - r * 0.35, r * 0.25, 0, 7); g.fill();
     }
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = `700 92px ${FONT}`; g.fillStyle = css(TC.NAVY_D); g.fillText('SUDS', w / 2 + 4, 104);
-    g.fillStyle = css(TC.CREAM_L); g.fillText('SUDS', w / 2, 98);
-    g.font = `700 64px ${FONT}`; g.fillStyle = css(TC.MUSTARD); g.fillText('& SHINE', w / 2, 178);
-    g.fillStyle = css(tier >= 3 ? TC.CORAL : TC.NAVY); g.fillRect(70, 222, w - 140, 66);
-    g.font = `700 40px ${FONT}`; g.fillStyle = css(TC.CREAM_L);
-    g.fillText(tier >= 3 ? 'TURBO DRY' : tier >= 2 ? 'WAX & POLISH' : 'CAR WASH', w / 2, 257);
+    g.font = `700 96px ${FONT}`; g.fillStyle = css(TC.NAVY_D); g.fillText('SUDS & SHINE', w / 2 + 4, 104);
+    g.fillStyle = css(TC.CREAM_L); g.fillText('SUDS & SHINE', w / 2, 98);
+    g.fillStyle = css(tier >= 3 ? TC.CORAL : TC.NAVY); g.fillRect(70, 178, w - 140, 74);
+    g.font = `700 46px ${FONT}`; g.fillStyle = css(TC.CREAM_L);
+    g.fillText(tier >= 3 ? 'TURBO DRY  →' : tier >= 2 ? 'WAX & POLISH  →' : 'CAR WASH  →', w / 2, 217);
   });
 }
+function smallSignTex(text, bg, fg = TC.CREAM_L) {
+  return canvasTex(`washSmall|${text}|${bg}`, 256, 112, (g, w, h) => {
+    g.fillStyle = css(bg); g.fillRect(0, 0, w, h);
+    g.strokeStyle = css(fg); g.lineWidth = 6; g.strokeRect(8, 8, w - 16, h - 16);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `700 54px ${FONT}`; g.fillStyle = css(fg);
+    g.fillText(text, w / 2, h / 2 + 3);
+  });
+}
+/** Painted floor arrow pointing +x, centred at x, z. */
+function floorArrowX(b, x, z, y, c = TC.MUSTARD) {
+  b.box(0.7, 0.006, 0.14, c, x - 0.2, y, z);
+  for (const s of [-1, 1]) b.box(0.42, 0.006, 0.13, c, x + 0.12, y, z + s * 0.12, 0, s * 0.75, 0);
+}
 function washStaticGeo(tier) {
-  return geo(`wash|static|${tier}`, (b) => {
-    const PL = PROPERTIES.wash.plot, X = WASH.x, Z = washZones();
-    const frame = tier >= 3 ? TC.NAVY : TC.TEAL, trim = tier >= 2 ? TC.MUSTARD : TC.CREAM;
-    // bay floor: darker wet concrete, guide channel for the left wheels, drain grates under each arch
-    b.box(PL.maxX - PL.minX, 0.02, PL.maxZ - PL.minZ, 0x8f969c, (PL.minX + PL.maxX) / 2, 0, (PL.minZ + PL.maxZ) / 2);
-    b.box(2.5, 0.004, PL.maxZ - PL.minZ - 0.3, 0x7f878e, X, 0.02, (PL.minZ + PL.maxZ) / 2);
-    for (const x of [X - 0.75, X - 0.45]) b.box(0.05, 0.05, PL.maxZ - PL.minZ - 0.6, TC.STEEL, x, 0.02, (PL.minZ + PL.maxZ) / 2);
-    for (const z of [Z.soap, Z.brush, Z.rinse, Z.dryer]) {
-      b.box(2.4, 0.006, 0.3, 0x3c434a, X, 0.02, z + 0.35);
-      for (let i = 0; i < 12; i++) b.box(0.03, 0.008, 0.26, 0x6a737a, X - 1.1 + i * 0.2, 0.02, z + 0.35);
+  return geo2(`wash2|static|${tier}`, (b, g) => {
+    const PL = PROPERTIES.wash.plot, ST = WASH.stations, T = WASH.tunnel, K = WASH.kiosk;
+    const Z = WASH.laneZ, zN = Z - T.halfW, zS = Z + T.halfW, X0 = T.minX, X1 = T.maxX, H = T.height;
+    const frame = tier >= 3 ? TC.NAVY : TC.TEAL, frameD = tier >= 3 ? TC.NAVY_D : TC.TEAL_D, trim = tier >= 2 ? TC.MUSTARD : TC.CREAM;
+    // ---- slab: wet concrete, saw-cut joints, darker wet lane, guide rails, trench drain, arrows, kerbs
+    const sx0 = PL.minX, sx1 = PL.maxX, sz0 = zN - 0.3, sz1 = zS + 0.25, scx = (sx0 + sx1) / 2, scz = (sz0 + sz1) / 2;
+    b.box(sx1 - sx0, 0.03, sz1 - sz0, 0xa9aeb0, scx, 0, scz);
+    b.box(X1 - X0 + 1.2, 0.004, 2.1, 0x8f979c, (X0 + X1) / 2 + 0.3, 0.03, Z);
+    for (let x = sx0 + 2.15; x < sx1 - 0.4; x += 2.15) b.box(0.03, 0.004, sz1 - sz0 - 0.08, 0x80878b, x, 0.032, scz);
+    b.box(sx1 - sx0 - 0.08, 0.004, 0.03, 0x80878b, scx, 0.032, zN + 0.55);
+    for (const [x, z, r] of [[16.0, Z + 0.3, 0.32], [15.6, Z - 0.5, 0.2], [X1 + 0.4, Z + 0.25, 0.28]]) b.cyl(r, r, 0.004, 0x7b8287, x, 0.033, z, 10);   // tyre-water stains
+    for (const [x, z, r] of [[ST.soap + 0.6, Z + 0.95, 0.24], [ST.soap + 0.9, Z - 1.0, 0.18], [ST.brush + 0.4, Z + 1.05, 0.15]]) b.cyl(r, r, 0.01, 0xf4f7fa, x, 0.034, z, 8);   // left-over foam
+    // wheel guide channel for the left (north) wheels: flared entry, two rails, rollers between them
+    const gz = Z - 0.62, gx0 = X0 - 1.0, gx1 = X1 + 0.15;
+    for (const s of [-1, 1]) {
+      b.box(gx1 - gx0, 0.07, 0.06, TC.STEEL, (gx0 + gx1) / 2, 0.03, gz + s * 0.2);
+      b.box(0.9, 0.07, 0.06, TC.STEEL, gx0 - 0.42, 0.03, gz + s * 0.38, 0, s * 0.4, 0);
     }
-    for (const [x, z, r] of [[X + 0.6, Z.soap + 0.6, 0.3], [X - 0.2, Z.soap + 1.0, 0.22], [X + 0.3, Z.brush - 0.5, 0.18]]) b.cyl(r, r, 0.012, 0xf4f7fa, x, 0.02, z, 8);   // left-over foam
-    // arrows painted on the floor (direction of travel) + yellow kerb edges along the bay
-    for (const z of [PL.minZ + 0.35, PL.maxZ - 0.6]) { b.box(0.14, 0.006, 0.5, TC.MUSTARD, X, 0.024, z); for (const s of [-1, 1]) b.box(0.13, 0.006, 0.36, TC.MUSTARD, X + s * 0.11, 0.024, z + 0.12, 0, s * 0.75, 0); }
-    for (const s of [-1, 1]) for (let i = 0, n = 9; i < n; i++) b.box(0.12, 0.08, (PL.maxZ - PL.minZ) / n, i % 2 ? P.hazardB : P.hazardA, X + s * (WASH_HW + 0.06), 0.02, PL.minZ + (i + 0.5) * (PL.maxZ - PL.minZ) / n);
-    // the three arches
-    washFrame(b, Z.soap, frame, trim); washFrame(b, Z.brush, frame, trim); washFrame(b, Z.dryer, frame, trim);
-    nozzleBar(b, Z.soap + 0.18);
-    nozzleBar(b, Z.rinse);
-    for (const s of [-1, 1]) { b.box(0.08, WASH_BEAM - 0.1, 0.08, TC.STEEL_D, X + s * (WASH_HW - 0.04), 0, Z.rinse); }   // rinse bar hangers
-    // brush carriages ride on the brush beam
-    for (const s of [-1, 1]) b.box(0.3, 0.16, 0.36, TC.STEEL_DD, X + s * 1.1, WASH_BEAM - 0.12, Z.brush);
-    // blower housing (tier 1-2: slim box with a fan cowl; tier 3: big hood + side air towers)
-    const dz = Z.dryer + 0.05;
+    b.box(gx1 - gx0, 0.012, 0.34, TC.DARK, (gx0 + gx1) / 2, 0.03, gz);
+    for (let x = gx0 + 0.2; x < gx1; x += 0.42) b.box(0.08, 0.03, 0.3, TC.STEEL_DD, x, 0.03, gz);
+    // trench drain along the lane centre
+    b.box(X1 - X0 + 0.4, 0.008, 0.32, 0x3c434a, (X0 + X1) / 2, 0.03, Z + 0.15);
+    for (let x = X0 - 0.1; x < X1 + 0.2; x += 0.16) b.box(0.04, 0.012, 0.26, 0x6a737a, x, 0.03, Z + 0.15);
+    floorArrowX(b, PL.minX + 0.75, Z, 0.034);
+    floorArrowX(b, X1 + 0.35, Z, 0.034);
+    // low kerbs either side of the lane (hazard paint), open in front of the kiosk
+    for (const [z, x0, x1] of [[zS + 0.13, X0 - 0.3, X1 + 0.3], [zN - 0.13, X0 - 0.15, X1 + 0.3]]) {
+      const n = Math.max(2, Math.round((x1 - x0) / 0.5));
+      for (let i = 0; i < n; i++) b.box((x1 - x0) / n, 0.1, 0.14, i % 2 ? P.hazardB : P.hazardA, x0 + (i + 0.5) * (x1 - x0) / n, 0.03, z);
+    }
+    // ---- gantry frames: posts both sides, beam across, eave rails along, roof purlins + ridge
+    for (const x of washFrames()) {
+      for (const z of [zN, zS]) {
+        b.box(0.34, 0.06, 0.34, TC.STEEL_DD, x, 0.03, z);
+        b.box(0.17, H, 0.17, frame, x, 0.03, z);
+        b.box(0.19, 0.08, 0.19, trim, x, 0.95, z);
+      }
+      b.box(0.17, 0.22, T.halfW * 2 + 0.17, frame, x, H - 0.19, Z);
+    }
+    for (const z of [zN, zS]) {
+      b.box(X1 - X0 + 0.25, 0.18, 0.17, frame, (X0 + X1) / 2, H - 0.15, z);
+      b.box(X1 - X0 + 0.3, 0.05, 0.2, trim, (X0 + X1) / 2, H + 0.03, z);
+    }
+    const RH = 0.38;                                          // roof rise at the ridge
+    b.box(X1 - X0 + 0.3, 0.07, 0.08, frameD, (X0 + X1) / 2, H + RH, Z);
+    for (const x of washFrames()) for (const s of [-1, 1]) b.box(0.07, 0.06, T.halfW + 0.05, frameD, x, H + RH / 2 + 0.02, Z + s * T.halfW / 2, s * Math.atan(RH / T.halfW), 0, 0);
+    // ---- north wall: low solid panel, glazing above (separate mesh), downpipe; equipment by the wall
+    b.box(X1 - X0, 1.0, 0.1, frameD, (X0 + X1) / 2, 0.03, zN - 0.04);
+    b.box(X1 - X0, 0.06, 0.14, trim, (X0 + X1) / 2, 1.03, zN - 0.04);
+    for (let x = X0 + 0.5; x < X1 - 0.3; x += 0.6) b.box(0.04, 0.9, 0.02, frame, x, 0.08, zN + 0.02);
+    b.cyl(0.05, 0.05, H, TC.STEEL_D, X1 - 0.12, 0, zN - 0.14, 6);
+    // ---- stations: soap nozzle arch, brush carriages, rinse bar, blower
+    nozzleBarX(b, ST.soap, H - 0.42);
+    b.box(0.1, 0.36, T.halfW * 2 - 0.2, tier >= 2 ? TC.CORAL : TC.CREAM, ST.soap - 0.12, H - 0.62, Z);           // foam arch housing
+    nozzleBarX(b, ST.rinse, H - 0.42);
+    for (const s of [-1, 1]) b.box(0.36, 0.16, 0.3, TC.STEEL_DD, ST.brush, H - 0.34, Z + s * 1.12);             // brush carriages
+    b.box(0.08, 0.06, T.halfW * 2 - 0.2, TC.STEEL, ST.brush, H - 0.26, Z);                                       // carriage track
+    if (tier >= 2) for (const s of [-1, 1]) b.box(0.08, 0.6, 0.08, TC.STEEL_DD, ST.brush + 0.32, H - 0.85, Z + s * (T.halfW - 0.12));   // top-roller slides
+    const dx = ST.dryer;
     if (tier < 3) {
-      b.box(2.3, 0.3, 0.44, TC.CREAM, X, WASH_BEAM - 0.3, dz);
-      b.box(2.0, 0.05, 0.12, TC.DARK, X, WASH_BEAM - 0.33, dz);                          // air slot
-      b.cyl(0.3, 0.3, 0.12, TC.CREAM, X, WASH_BEAM + 0.25, dz, 14); b.cyl(0.26, 0.26, 0.13, TC.DARK, X, WASH_BEAM + 0.25, dz, 14);
+      b.box(0.46, 0.32, 2.3, TC.CREAM, dx, H - 0.62, Z);
+      b.box(0.14, 0.05, 2.0, TC.DARK, dx, H - 0.65, Z);                                                        // air slot
+      b.cyl(0.3, 0.3, 0.12, TC.CREAM, dx, H - 0.3, Z, 14); b.cyl(0.26, 0.26, 0.13, TC.DARK, dx, H - 0.3, Z, 14);
     } else {
-      b.box(3.05, 0.42, 0.95, TC.CREAM, X, WASH_BEAM + 0.25, dz);
-      b.box(3.1, 0.06, 1.0, TC.CORAL, X, WASH_BEAM + 0.67, dz);
-      for (const s of [-1, 1]) { b.cyl(0.42, 0.42, 0.06, TC.CORAL, X + s * 0.75, WASH_BEAM + 0.67, dz, 16); b.cyl(0.38, 0.38, 0.07, TC.DARK, X + s * 0.75, WASH_BEAM + 0.67, dz, 16); }
-      b.box(2.4, 0.3, 0.5, TC.CREAM, X, WASH_BEAM - 0.3, dz);
-      b.box(2.2, 0.05, 0.14, TC.DARK, X, WASH_BEAM - 0.33, dz);
+      b.box(0.6, 0.42, 3.05, TC.CREAM, dx, H - 0.42, Z);                                                       // slim turbo hood: the car stays visible
+      b.box(0.66, 0.06, 3.1, TC.CORAL, dx, H, Z);
+      for (const s of [-1, 1]) { b.cyl(0.42, 0.42, 0.06, TC.CORAL, dx, H + 0.02, Z + s * 0.75, 16); b.cyl(0.38, 0.38, 0.07, TC.DARK, dx, H + 0.02, Z + s * 0.75, 16); }
+      b.box(0.5, 0.3, 2.4, TC.CREAM, dx, H - 0.72, Z);
+      b.box(0.14, 0.05, 2.2, TC.DARK, dx, H - 0.75, Z);
       for (const s of [-1, 1]) {
-        b.box(0.34, 1.7, 0.44, TC.CREAM, X + s * (WASH_HW - 0.05), 0.3, dz + 0.36);
-        for (let i = 0; i < 6; i++) b.box(0.04, 0.06, 0.36, TC.DARK, X + s * (WASH_HW - 0.23), 0.45 + i * 0.24, dz + 0.36);
+        b.box(0.44, 1.7, 0.34, TC.CREAM, dx + 0.36, 0.3, Z + s * (T.halfW - 0.2));
+        for (let i = 0; i < 6; i++) b.box(0.36, 0.06, 0.04, TC.DARK, dx + 0.36, 0.45 + i * 0.24, Z + s * (T.halfW - 0.38));
       }
     }
+    // ---- chemical drums (wax / polish) between the kiosk and the tunnel, tier 2+
     if (tier >= 2) {
-      // chemical drums (wax / polish) on a bund tray by the soap arch, hoses up the post
-      const cx0 = X + WASH_HW + 0.0, cz = Z.soap - 0.6;
-      b.box(0.5, 0.06, 0.95, TC.STEEL_DD, cx0, 0, cz);
-      for (const [dz2, c] of [[-0.24, 0xd94848], [0.24, 0x3b82c4]]) {
-        b.cyl(0.2, 0.2, 0.62, c, cx0, 0.06, cz + dz2, 10);
-        b.cyl(0.21, 0.21, 0.04, mixHex(c, 0x000000, 0.25), cx0, 0.38, cz + dz2, 10);
-        b.cyl(0.05, 0.05, 0.05, TC.STEEL, cx0 + 0.08, 0.68, cz + dz2, 6);
+      const cx0 = X0 - 0.55, cz = zN - 0.32;
+      b.box(0.95, 0.06, 0.5, TC.STEEL_DD, cx0, 0, cz);
+      for (const [ox, c] of [[-0.24, 0xd94848], [0.24, 0x3b82c4]]) {
+        b.cyl(0.2, 0.2, 0.62, c, cx0 + ox, 0.06, cz, 10);
+        b.cyl(0.21, 0.21, 0.04, mixHex(c, 0x000000, 0.25), cx0 + ox, 0.38, cz, 10);
       }
-      b.box(0.04, 1.8, 0.04, TC.MUSTARD, X + WASH_HW + 0.08, 0.6, Z.soap - 0.12);
-      for (const s of [-1, 1]) b.box(0.08, 0.5, 0.08, TC.STEEL_DD, X + s * WASH_HW, WASH_BEAM - 0.5, Z.brush + 0.15);   // top roller slides
+      b.box(0.04, 0.04, 0.4, TC.MUSTARD, X0 - 0.2, 0.75, cz + 0.1);
+      b.box(0.04, 1.8, 0.04, TC.MUSTARD, X0 - 0.1, 0.75, zN - 0.1);
     }
-    // sign pylon at the entrance corner (camera-readable, out of the lane)
-    const sx = PL.maxX - 0.15, sz = PL.minZ + 0.2;
-    b.box(0.36, 0.08, 0.36, TC.STEEL_DD, sx, 0, sz);
-    b.box(0.14, 2.6, 0.14, TC.NAVY_D, sx, 0.08, sz);
+    // ---- traffic light on the entry frame's north post (lamps are separate meshes), sign hangers
+    b.box(0.26, 0.62, 0.16, TC.DARK, X0 + 0.0, 1.75, zN + 0.18);
+    for (const x of [X0 + 0.55, X0 + 2.45]) b.box(0.06, 0.5, 0.06, TC.STEEL_DD, x, H + 0.05, zN);
+    b.box(0.08, 0.6, 0.08, TC.STEEL_DD, X1, 1.6, zN + 0.12);                                                     // EXIT sign bracket
+    // ---- "WASH ->" board by the approach (low, south of the lane) and the vacuum pillars by the garden P bay
+    const ax = PL.minX + 0.55, az = zS + 0.55;
+    for (const s of [-1, 1]) b.box(0.07, 0.6, 0.07, TC.STEEL_DD, ax + s * 0.42, 0, az);
+    b.box(1.04, 0.42, 0.06, TC.NAVY_D, ax, 0.55, az - 0.01);
+    for (const v of WASH.vacuums) {
+      b.box(0.42, 0.06, 0.42, TC.CONCRETE_D, v.x, 0, v.z);
+      b.box(0.3, 1.2, 0.3, tier >= 3 ? TC.CORAL : TC.TEAL, v.x, 0.06, v.z);
+      b.box(0.34, 0.14, 0.34, TC.NAVY_D, v.x, 1.26, v.z);
+      b.box(0.2, 0.12, 0.02, TC.MUSTARD, v.x, 0.85, v.z + 0.16);
+      b.box(0.04, 0.5, 0.04, TC.STEEL, v.x, 1.4, v.z);
+      for (let i = 0; i < 7; i++) b.box(0.07, 0.07, 0.11, TC.DARK, v.x + Math.sin(i * 0.7) * 0.18, 1.82 - i * 0.22, v.z + 0.16 + Math.cos(i * 0.6) * 0.04);
+      b.box(0.07, 0.14, 0.07, TC.STEEL_DD, v.x + 0.1, 0.25, v.z + 0.22);
+    }
+  });
+}
+function washRoofGeo() {
+  return geo('wash2|roof', (b) => {
+    const T = WASH.tunnel, Z = WASH.laneZ, H = T.height, X0 = T.minX, X1 = T.maxX, RH = 0.38;
+    const a = Math.atan(RH / T.halfW), len = Math.hypot(RH, T.halfW) + 0.2;
+    for (const s of [-1, 1]) b.box(X1 - X0 + 0.3, 0.02, len, 0xffffff, (X0 + X1) / 2, H + RH / 2 + 0.05, Z + s * T.halfW / 2, s * a, 0, 0);
   });
 }
 function washBrushGeo(color) {
-  return geo(`wash|brush|${color}`, (b) => {
-    b.cyl(0.05, 0.05, 2.1, TC.STEEL, 0, -2.1, 0, 6);
+  return geo(`wash2|brush|${color}`, (b) => {
+    b.cyl(0.05, 0.05, 2.25, TC.STEEL, 0, -2.25, 0, 6);
     for (let i = 0; i < 10; i++) {
       const a = (i / 10) * PI * 2;
-      b.box(0.26, 1.85, 0.05, i % 2 ? color : mixHex(color, 0xffffff, 0.45), Math.cos(a) * 0.17, -2.0, Math.sin(a) * 0.17, 0, -a, 0);
+      b.box(0.26, 1.9, 0.05, i % 2 ? color : mixHex(color, 0xffffff, 0.45), Math.cos(a) * 0.17, -2.2, Math.sin(a) * 0.17, 0, -a, 0);
     }
     b.cyl(0.09, 0.09, 0.08, TC.NAVY_D, 0, -0.12, 0, 8);
   });
 }
 function washRollerGeo() {
   return geo('wash|roller', (b) => {
-    b.cyl(0.05, 0.05, 2.2, TC.STEEL, 0, -1.1, 0, 6, 0, 0, R90);             // shaft along x, centred
+    b.cyl(0.05, 0.05, 2.2, TC.STEEL, 0, -1.1, 0, 6, 0, 0, R90);             // shaft along local x, centred
     for (let i = 0; i < 10; i++) {
       const a = (i / 10) * PI * 2;                                          // radial slabs around the x axis
       b.box(1.95, 0.22, 0.05, i % 2 ? 0xd94848 : 0xf4f1ea, 0, Math.sin(a) * 0.15 - 0.11, Math.cos(a) * 0.15, R90 - a, 0, 0);
@@ -471,50 +537,62 @@ function fanGeo(r) {
 }
 export function createWashArches(tier = 1) {
   tier = Math.max(1, Math.min(3, tier | 0 || 1));
-  const PL = PROPERTIES.wash.plot, X = WASH.x, Z = washZones();
+  const PL = PROPERTIES.wash.plot, ST = WASH.stations, T = WASH.tunnel, K = WASH.kiosk;
+  const Z = WASH.laneZ, zN = Z - T.halfW, zS = Z + T.halfW, X0 = T.minX, X1 = T.maxX, H = T.height;
   const group = new THREE.Group();
   group.userData.world = true;
   group.userData.centre = plotCentre(PL);
-  group.userData.zones = Z;
-  group.userData.solids = [];
-  for (const z of [Z.soap, Z.brush, Z.dryer]) for (const s of [-1, 1]) {
-    const x = X + s * WASH_HW;
-    group.userData.solids.push({ minX: x - 0.2, maxX: x + 0.2, minZ: z - 0.2, maxZ: z + 0.2 });
-  }
-  if (tier >= 2) group.userData.solids.push({ minX: X + WASH_HW - 0.25, maxX: X + WASH_HW + 0.25, minZ: Z.soap - 1.08, maxZ: Z.soap - 0.12 });
-  group.add(mesh(washStaticGeo(tier), litMat, { cast: true, receive: true }));
-  // sign board on the pylon, facing the camera; neon frame at tier 3
-  const signW = 1.5, signH = 0.94;
+  group.userData.zones = { ...ST };
+  group.userData.axis = 'x';
+  const sol = group.userData.solids = [];
+  for (const x of washFrames()) for (const z of [zN, zS]) sol.push({ minX: x - 0.16, maxX: x + 0.16, minZ: z - 0.16, maxZ: z + 0.16 });
+  sol.push({ minX: X0, maxX: X1, minZ: zN - 0.12, maxZ: zN + 0.04 });                         // north wall
+  sol.push({ minX: K.x - 0.38, maxX: K.x + 0.38, minZ: K.z - 0.3, maxZ: K.z + 0.3 });          // pay kiosk
+  for (const v of WASH.vacuums) sol.push({ minX: v.x - 0.2, maxX: v.x + 0.2, minZ: v.z - 0.2, maxZ: v.z + 0.2 });
+  if (tier >= 2) sol.push({ minX: X0 - 1.05, maxX: X0 - 0.05, minZ: zN - 0.6, maxZ: zN - 0.05 });
+  addGeo2(group, washStaticGeo(tier));
+  const kiosk = createWashKiosk(tier);                                                          // driver's side, before the tunnel
+  kiosk.position.set(K.x, 0, K.z); group.add(kiosk);
+  const roof = mesh(washRoofGeo(), roofMat, { cast: false, receive: false }); roof.renderOrder = 3; group.add(roof);
+  const glass = glassPane(X1 - X0 - 0.2, H - 1.25, 0.04, (X0 + X1) / 2, 1.07, zN - 0.04); group.add(glass);
+  // main sign on the north eave, facing the camera; neon frame at tier 3
+  const signW = 2.3, signH = 1.08, signX = (X0 + ST.rinse) / 2 + 0.2, signY = H + 0.32;
   const board = face(washSignTex(tier), signW, signH);
-  board.position.set(PL.maxX - 0.15, 2.68 + signH / 2, PL.minZ + 0.29); board.rotation.x = -0.12;
+  board.position.set(signX, signY + signH / 2, zN - 0.02); board.rotation.x = -0.18;
   group.add(board);
-  group.add(mesh(geo(`wash|signBack|${tier}`, (b) => b.box(signW + 0.12, signH + 0.12, 0.12, TC.NAVY_D, PL.maxX - 0.15, 2.62, PL.minZ + 0.2, -0.12)), litMat));
+  group.add(mesh(geo(`wash2|signBack`, (b) => b.box(signW + 0.12, signH + 0.12, 0.1, TC.NAVY_D, signX, signY - 0.06, zN - 0.09, -0.18)), litMat));
   let neon = null;
   if (tier >= 3) {
-    neon = mesh(geo('wash|neon', (b) => {
-      const x = PL.maxX - 0.15, y = 2.68, z = PL.minZ + 0.3, w = signW + 0.16, h = signH + 0.16;
-      b.box(w, 0.05, 0.04, 0xffffff, x, y - 0.08, z); b.box(w, 0.05, 0.04, 0xffffff, x, y + h - 0.12, z);
-      b.box(0.05, h, 0.04, 0xffffff, x - w / 2, y - 0.08, z); b.box(0.05, h, 0.04, 0xffffff, x + w / 2, y - 0.08, z);
+    neon = mesh(geo('wash2|neon', (b) => {
+      const w = signW + 0.16, h = signH + 0.16, y = signY - 0.08, z = zN + 0.0;
+      b.box(w, 0.05, 0.04, 0xffffff, signX, y, z); b.box(w, 0.05, 0.04, 0xffffff, signX, y + h - 0.05, z);
+      b.box(0.05, h, 0.04, 0xffffff, signX - w / 2, y, z); b.box(0.05, h, 0.04, 0xffffff, signX + w / 2, y, z);
     }), LAMP.blue, { cast: false });
     neon.rotation.x = 0; group.add(neon);
   }
-  // LED strips under each beam (on while running)
-  const leds = [Z.soap, Z.brush, Z.dryer].map((z) => {
+  // small signs facing the camera: WASH -> by the approach, EXIT at the far end
+  const enter = face(smallSignTex('WASH →', TC.TEAL), 0.96, 0.36); enter.position.set(PL.minX + 0.55, 0.76, zS + 0.59); group.add(enter);
+  const exit = face(smallSignTex('EXIT →', 0x2f8a4e), 0.62, 0.27); exit.position.set(X1, 2.05, zN + 0.18); group.add(exit);
+  // entry traffic light: red while the lane ahead is busy, green to drive in
+  const red = new THREE.Mesh(unitBox, LAMP.red), green = new THREE.Mesh(unitBox, LAMP.green);
+  for (const [m, y] of [[red, 2.2], [green, 1.92]]) { m.scale.set(0.16, 0.16, 0.04); m.position.set(X0, y, zN + 0.27); group.add(m); }
+  // LED strips under each station beam (on while running)
+  const leds = [ST.soap, ST.brush, ST.rinse, ST.dryer].map((x) => {
     const m = new THREE.Mesh(unitBox, LAMP.off);
-    m.scale.set(WASH_HW * 2 - 0.3, 0.025, 0.04); m.position.set(X, WASH_BEAM - 0.045, z + 0.165);
+    m.scale.set(0.04, 0.025, T.halfW * 2 - 0.3); m.position.set(x - 0.11, H - 0.21, Z);
     group.add(m); return m;
   });
   // sprays
   const soapCols = tier >= 2 ? [0xff7b7b, 0xffe27a, 0x7cc2ff] : [0xffffff, 0xe8f6ff];
-  const soap = mesh(sprayGeo(`soap${tier >= 2 ? 3 : 1}`, Z.soap + 0.18, soapCols), sprayMat, { cast: false });
-  const rinse = mesh(sprayGeo('rinse', Z.rinse, [0xbfe9ff, 0xe6f7ff]), sprayMat, { cast: false });
+  const soap = mesh(sprayGeoX(`soap${tier >= 2 ? 3 : 1}`, ST.soap, soapCols), sprayMat, { cast: false });
+  const rinse = mesh(sprayGeoX('rinse', ST.rinse, [0xbfe9ff, 0xe6f7ff]), sprayMat, { cast: false });
   soap.visible = rinse.visible = false;
   soap.renderOrder = rinse.renderOrder = 4;
   group.add(soap, rinse);
-  // brushes (hang from carriages; slide in towards the car's flanks, spin while a car is in reach)
+  // side brushes hang from carriages; they slide in towards the car's flanks and spin while a car is in reach
   const brushes = [-1, 1].map((s) => {
     const piv = new THREE.Group();
-    piv.position.set(X + s * 1.1, WASH_BEAM - 0.12, Z.brush);
+    piv.position.set(ST.brush, H - 0.36, Z + s * 1.14);
     const m = mesh(washBrushGeo(tier >= 2 ? 0x8e5bd1 : 0x3b82c4));
     piv.add(m); group.add(piv);
     return { piv, m, s };
@@ -522,68 +600,70 @@ export function createWashArches(tier = 1) {
   let roller = null;
   if (tier >= 2) {
     roller = new THREE.Group();
-    roller.position.set(X, 2.1, Z.brush + 0.15);
+    roller.position.set(ST.brush + 0.32, 2.1, Z); roller.rotation.y = R90;
     roller.add(mesh(washRollerGeo()));
     group.add(roller);
   }
-  // blower fans + blown-off droplets
+  // blower fans + water blown off backwards (against the drive direction)
   const fans = [];
-  const fanAt = tier >= 3 ? [[X - 0.75, 0.38], [X + 0.75, 0.38]] : [[X, 0.26]];
-  for (const [fx, r] of fanAt) {
+  const fanAt = tier >= 3 ? [[Z - 0.75, 0.38], [Z + 0.75, 0.38]] : [[Z, 0.26]];
+  for (const [fz, r] of fanAt) {
     const f = mesh(fanGeo(r), litMat, { cast: false });
-    f.position.set(fx, WASH_BEAM + (tier >= 3 ? 0.72 : 0.36), Z.dryer + 0.05);
+    f.position.set(ST.dryer, tier >= 3 ? H + 0.09 : H - 0.16, fz);
     group.add(f); fans.push(f);
   }
   const drops = [];
   for (let i = 0; i < 10; i++) {
     const m = new THREE.Mesh(unitBox, dropMat);
-    m.scale.set(0.05, 0.05, 0.07); m.visible = false; group.add(m);
-    drops.push({ m, t: Math.random(), x: 0, y: 0 });
+    m.scale.set(0.07, 0.05, 0.05); m.visible = false; group.add(m);
+    drops.push({ m, t: Math.random(), z: 0, y: 0 });
   }
-  let running = true, carZ = null, t = 0, brushSpin = 0, fanSpin = 0, close = 0;
-  const near = (z, reach = 1.45) => carZ !== null && Math.abs(carZ - z) < reach;
+  let running = true, signal = true, t = 0, brushSpin = 0, fanSpin = 0, close = 0;
+  const cars = [];
+  const near = (x, reach = 1.45) => { for (let i = 0; i < cars.length; i++) if (Math.abs(cars[i] - x) < reach) return true; return false; };
   function setRunning(on) { running = !!on; }
-  function setCarZ(z) { carZ = (z === null || z === undefined || Number.isNaN(z)) ? null : z; }
+  function setCars(xs) { cars.length = 0; if (xs) for (const x of xs) if (Number.isFinite(x)) cars.push(x); }
+  function setCarZ(x) { cars.length = 0; if (Number.isFinite(x)) cars.push(x); }
+  function setSignal(go) { signal = !!go; }
   function update(dt = 0.016) {
     t += dt;
     for (const m of leds) m.material = running ? LAMP.blue : LAMP.off;
+    red.material = running && !signal ? LAMP.red : LAMP.off;
+    green.material = running && signal ? LAMP.green : LAMP.off;
     if (neon) neon.visible = running ? (t % 4 > 0.12) : false;
-    const on = running && carZ !== null;
-    // soap / rinse spray only while the car body is under the bar
-    soap.visible = on && near(Z.soap + 0.18);
-    rinse.visible = on && near(Z.rinse);
+    const on = running && cars.length > 0;
+    soap.visible = on && near(ST.soap);
+    rinse.visible = on && near(ST.rinse);
     for (const m of [soap, rinse]) if (m.visible) { m.scale.y = 1 + Math.sin(t * 40) * 0.04; m.position.y = (1 - m.scale.y) * 2; }
-    // brushes: spin up / down, close in on the car while it is between them
-    const bOn = on && near(Z.brush, 1.6);
+    const bOn = on && near(ST.brush, 1.6);
     brushSpin += ((bOn ? 1 : 0) - brushSpin) * Math.min(1, dt * 3);
     close += ((bOn ? 1 : 0) - close) * Math.min(1, dt * 4);
     for (const br of brushes) {
       br.m.rotation.y += dt * 9 * brushSpin * br.s;
-      br.piv.position.x = X + br.s * (1.1 - close * 0.1);
-      br.piv.rotation.z = br.s * close * 0.05;
+      br.piv.position.z = Z + br.s * (1.14 - close * 0.18);
+      br.piv.rotation.x = br.s * close * 0.06;
     }
     if (roller) {
-      roller.position.y = 2.1 - close * 0.34;
+      roller.position.y = 2.1 - close * 0.36;
       roller.children[0].rotation.x += dt * 8 * brushSpin;
     }
-    // blower: fans spin while the car passes under the dryer, droplets fly off backwards and outwards
-    const fOn = on && near(Z.dryer, 1.6);
+    const fOn = on && near(ST.dryer, 1.6);
     fanSpin += ((fOn ? 1 : running ? 0.08 : 0) - fanSpin) * Math.min(1, dt * 2.5);
     for (const f of fans) f.rotation.y += dt * 30 * fanSpin;
     for (const d of drops) {
       d.t += dt * 1.6;
-      if (d.t >= 1) { d.t -= 1; d.x = (Math.random() - 0.5) * 1.4; d.y = 0.5 + Math.random() * 0.9; }
+      if (d.t >= 1) { d.t -= 1; d.z = (Math.random() - 0.5) * 1.4; d.y = 0.5 + Math.random() * 0.9; }
       d.m.visible = fOn && d.t < 0.8;
-      if (d.m.visible) d.m.position.set(X + d.x * (1 + d.t * 0.8), d.y + d.t * 0.3 - d.t * d.t * 0.9, Z.dryer + 0.2 + d.t * 1.2);
+      if (d.m.visible) d.m.position.set(ST.dryer - 0.2 - d.t * 1.2, d.y + d.t * 0.3 - d.t * d.t * 0.9, Z + d.z * (1 + d.t * 0.8));
     }
   }
   update(0);
-  return { group, setRunning, setCarZ, update };
+  return { group, setRunning, setCars, setCarZ, setSignal, update };
 }
 
 // ================================================================ wash kiosk (pay terminal, origin, front +z)
-// Tier 1: pay terminal with screen, card slot, price board. Tier 2: + canopy over it. Tier 3: + neon trim and a
-// coin-op vacuum hose stand beside it. Footprint <= 1.4 x 0.9.
+// Tier 1: pay terminal with screen, card slot, price board. Tier 2: + canopy over it. Tier 3: + neon trim.
+// Footprint <= 0.72 x 0.56 (canopy 1.0 x 0.9 overhead). Gameplay stands it at WASH.kiosk, front (+z) to the car.
 function kioskBoardTex(tier) {
   return canvasTex(`kiosk|${tier}`, 256, 192, (g, w, h) => {
     g.fillStyle = css(TC.NAVY); g.fillRect(0, 0, w, h);
@@ -612,15 +692,6 @@ export function createWashKiosk(tier = 1) {
       for (const s of [-1, 1]) b.box(0.07, 2.25, 0.07, TC.NAVY_D, s * 0.42, 0.1, -0.32);
       b.box(1.0, 0.08, 0.9, TC.MUSTARD, 0, 2.35, -0.05);
       b.box(1.04, 0.1, 0.06, TC.CORAL, 0, 2.3, 0.42);
-    }
-    if (tier >= 3) {
-      // vacuum hose stand beside the kiosk
-      b.box(0.36, 0.08, 0.36, TC.CONCRETE_D, 0.72, 0, 0.0);
-      b.box(0.26, 1.15, 0.26, TC.CORAL, 0.72, 0.08, 0.0);
-      b.box(0.3, 0.12, 0.3, TC.NAVY_D, 0.72, 1.23, 0.0);
-      b.box(0.04, 0.5, 0.04, TC.STEEL, 0.72, 1.35, 0.0);
-      for (let i = 0; i < 8; i++) b.box(0.07, 0.07, 0.12, TC.DARK, 0.72 + Math.sin(i * 0.6) * 0.2, 1.8 - i * 0.2, 0.14 + Math.cos(i * 0.6) * 0.05);
-      b.box(0.08, 0.12, 0.08, TC.STEEL_DD, 0.72, 0.18, 0.22);
     }
   });
   const group = solidGroup(g);

@@ -5,7 +5,7 @@
 // driveway cuts, bus stops) before it is placed, so a clash drops the item instead of blocking gameplay.
 import * as THREE from 'three';
 import { PALETTE as P, LAYOUT as L } from '../config.js';
-import { TOWN, PROPERTIES, SERVICES, RESCUE, DISTRICTS, LOUNGE } from '../config.town.js';
+import { TOWN, PROPERTIES, SERVICES, RESCUE, DISTRICTS, LOUNGE, WASH } from '../config.town.js';
 import { Builder, litMat, mesh, polygon } from './voxel.js';
 import {
   PI, Y, CREAM, CORAL, NAVY, PAINTW, FLOWERS, LEAF, mix, pick, tree, bush, rock, hedge, bench, hydrant, mailbox, trashCan, parkingMeter,
@@ -248,7 +248,7 @@ function alleys(env) {
   put(A.east.maxX - 0.4, -3.7, 0.5, 0.75, () => crateStack(S, A.east.maxX - 0.4, -3.7, -PI / 2, rnd));
   put(A.east.maxX - 0.45, -9.8, 0.45, 0.95, () => recyclingBins(S, A.east.maxX - 0.4, -9.8, -PI / 2));
   put(A.east.minX + 0.6, 0.5, 0.6, 0.65, () => palletStack(S, A.east.minX + 0.6, 0.5, PI / 2, 1, rnd));
-  put(A.east.maxX - 0.5, 4.5, 0.5, 0.5, () => drums(S, A.east.maxX - 0.5, 4.5, rnd, 2));
+  put(A.east.maxX - 0.5, 1.4, 0.5, 0.5, () => drums(S, A.east.maxX - 0.5, 1.4, rnd, 2));   // north of the wash exit route (z 3.7 .. 5.4)
 
   // ---- Main Street plot gaps (2 m wide dead ends between the north buildings): wrenches w14, w15, w16
   const gap = (id, x0, x1, kit) => {
@@ -292,55 +292,56 @@ function bed(S, x, z, w, d, rnd, c = 0xc9b79a) {
 }
 function garden(env) {
   const { root, S, F, G, rnd } = env;
-  const GD = TOWN.garden, wr = TOWN.wrenches.find((w) => w.id === 'w06');
+  const WP = PROPERTIES.wash.plot, GD = TOWN.garden;
   const k = baseKeep();
-  k.rect(14.0, 17.0, 1.8, 3.9);                                    // walkway towards the lounge door / zebra
-  k.rect(14.7, 16.9, 9.2, 10.9);                                   // wash coin pile
-  k.rect(17.4, 21.6, 8.4, 11.0);                                   // garden parking bay + its paved apron
+  k.rect(13.8, WP.minX + 0.2, 2.0, 5.0);                           // wash approach lane (exit lane -> kiosk)
+  k.box(WASH.pile.x, WASH.pile.z, 0.9, 0.85);                      // wash coin pile
+  for (const v of WASH.vacuums) k.box(v.x, v.z, 0.45, 0.45);
+  const pb = TOWN.parking.find((p) => p.id === 'garden');
+  k.rect(pb.x - 2.1, pb.x + 2.1, pb.z - 1.2, 11.0);                // P bay + its paved apron off Harbor St
+  const sp = { x: PROPERTIES.wash.pad.x + 1.35, z: PROPERTIES.wash.pad.z - 0.95 };
+  k.box(sp.x, sp.z, 0.7, 0.5);                                     // for-sale sign of the wash
   const put = (x, z, hw, hd, fn) => { if (!k.ok(x, z, hw, hd)) return false; fn(); k.box(x, z, hw, hd); return true; };
   const PAVE = 0xd9cdb5, PAVE2 = 0xcabda2;
-  const fx = 18.2, fz = 4.0;
-  // ---- paths (flat), a round plaza round the fountain and a small one at the statue
   const pave = (x0, x1, z0, z1) => { F.box(x1 - x0, 0.006, z1 - z0, PAVE, (x0 + x1) / 2, Y.lot, (z0 + z1) / 2); F.box(x1 - x0 - 0.12, 0.004, z1 - z0 - 0.12, PAVE2, (x0 + x1) / 2, Y.lot + 0.006, (z0 + z1) / 2); };
-  F.cyl(1.75, 1.75, 0.006, PAVE, fx, Y.lot, fz, 16); F.cyl(1.55, 1.55, 0.004, PAVE2, fx, Y.lot + 0.006, fz, 16);
-  pave(15.4, 16.7, 3.15, 4.05);                                    // west entrance
-  pave(19.7, 21.9, 3.15, 4.05);                                    // plaza to statue (north of w06)
-  F.cyl(1.0, 1.0, 0.006, PAVE, 22.2, Y.lot, 3.6, 12); F.cyl(0.85, 0.85, 0.004, PAVE2, 22.2, Y.lot + 0.006, 3.6, 12);
-  pave(21.75, 22.65, 4.4, 10.85);                                  // from Harbor St up to the statue
-  pave(16.3, 17.1, 4.5, 8.0);                                      // spur south-west (towards the car wash pad)
+  // ---- the park south of the car wash: a path up from Harbor St to the wash exit (coin pile), a small fountain
+  // plaza, a low planted strip along the wash kerb, benches, trees
+  const fx = 19.9, fz = 7.15;
+  pave(22.0, 22.8, 7.0, GD.maxZ + 0.2);                            // east path from the sidewalk
+  F.cyl(1.0, 1.0, 0.006, PAVE, WASH.pile.x - 0.2, Y.lot, WASH.pile.z + 0.1, 12); F.cyl(0.85, 0.85, 0.004, PAVE2, WASH.pile.x - 0.2, Y.lot + 0.006, WASH.pile.z + 0.1, 12);
+  F.cyl(1.3, 1.3, 0.006, PAVE, fx, Y.lot, fz, 16); F.cyl(1.16, 1.16, 0.004, PAVE2, fx, Y.lot + 0.006, fz, 16);
+  pave(21.1, 22.1, fz - 0.4, fz + 0.4);                            // plaza -> east path
+  pave(16.9, 18.7, fz - 0.4, fz + 0.4);                            // plaza -> wash pad
   // ---- fountain (solid basin, jet + droplets animated)
   const WATERC = 0x6fc4d6, STONE = 0xd9d2c4;
-  S.cyl(1.12, 1.12, 0.42, STONE, fx, 0, fz, 8); S.cyl(1.2, 1.2, 0.08, 0xcfc7b8, fx, 0.42, fz, 8);
-  G.cyl(0.95, 0.95, 0.02, WATERC, fx, 0.4, fz, 8);
-  S.cyl(0.22, 0.28, 0.85, STONE, fx, 0.4, fz, 8); S.cyl(0.55, 0.3, 0.14, STONE, fx, 1.05, fz, 8); S.cyl(0.5, 0.5, 0.02, WATERC, fx, 1.18, fz, 8);
-  solidRect(fx, fz, 2.3, 2.3);
-  const jetB = new Builder(); jetB.cyl(0.03, 0.07, 0.8, 0xdff4fa, 0, 0, 0, 5);
-  const jet = mesh(jetB.build(), litMat, { cast: false }); jet.position.set(fx, 1.2, fz); root.add(jet);
-  // droplets: 8 little cubes in ONE mesh, vertices shifted in place every frame (no allocation)
+  S.cyl(0.85, 0.85, 0.38, STONE, fx, 0, fz, 8); S.cyl(0.92, 0.92, 0.07, 0xcfc7b8, fx, 0.38, fz, 8);
+  G.cyl(0.72, 0.72, 0.02, WATERC, fx, 0.36, fz, 8);
+  S.cyl(0.18, 0.22, 0.7, STONE, fx, 0.36, fz, 8); S.cyl(0.42, 0.24, 0.12, STONE, fx, 0.92, fz, 8); S.cyl(0.38, 0.38, 0.02, WATERC, fx, 1.03, fz, 8);
+  solidRect(fx, fz, 1.8, 1.8);
+  k.box(fx, fz, 1.3, 1.3);
+  const jetB = new Builder(); jetB.cyl(0.03, 0.06, 0.7, 0xdff4fa, 0, 0, 0, 5);
+  const jet = mesh(jetB.build(), litMat, { cast: false }); jet.position.set(fx, 1.05, fz); root.add(jet);
   const dropB = new Builder();
-  for (let i = 0; i < 8; i++) dropB.box(0.07, 0.07, 0.07, 0xdff4fa, 0, 0, 0);
+  for (let i = 0; i < 8; i++) dropB.box(0.06, 0.06, 0.06, 0xdff4fa, 0, 0, 0);
   const dropGeo = dropB.build(), dropPos = dropGeo.attributes.position, dropBase = Float32Array.from(dropPos.array), per = dropPos.count / 8;
   const drops = Array.from({ length: 8 }, (_, i) => ({ a: (i / 8) * PI * 2, ph: i * 0.7 }));
   const dropMesh = mesh(dropGeo, litMat, { cast: false }); dropMesh.frustumCulled = false; root.add(dropMesh);
-  // ---- statue, beds, hedges, benches, trees, lanterns
-  anchorStatue(S, 22.2, 3.6);
-  put(16.2, 5.2, 0.8, 0.7, () => bed(S, 16.2, 5.2, 1.4, 1.1, rnd));
-  put(18.6, 7.55, 0.8, 0.6, () => bed(S, 18.6, 7.55, 1.4, 1.0, rnd, 0xb8a98a));
-  put(20.9, 2.75, 0.8, 0.3, () => bench(S, 20.9, 2.78, 0));
-  put(23.2, 6.2, 0.3, 0.8, () => bench(S, 23.15, 6.2, -PI / 2));
-  for (const [x, z, s] of [[23.0, 9.3, 0.9], [16.4, 8.4, 0.7], [17.0, 2.9, 0.75]]) put(x, z, 0.5, 0.5, () => tree(S, x, z, s, rnd));
-  for (const [x, z] of [[17.0, 4.8], [22.9, 10.0]]) put(x, z, 0.5, 0.3, () => lanternPost(S, G, x, z, 0));
-  put(23.35, 8.0, 0.2, 0.7, () => { hedge(S, 23.2, 23.6, 7.0, 10.4, 0.5); solidRect(23.4, 8.7, 0.4, 3.4); });
-  put(19.2, 2.5, 0.2, 0.2, () => { hedge(S, 17.7, 19.3, 2.45, 2.8, 0.5); solidRect(18.5, 2.62, 1.6, 0.35); });
-  put(23.1, 2.5, 0.2, 0.2, () => { hedge(S, 22.9, 23.6, 2.45, 2.8, 0.5); solidRect(23.25, 2.62, 0.7, 0.35); });
-  put(23.0, 5.2, 0.4, 0.4, () => { bush(S, 23.0, 4.9, 0.7, rnd, CORAL); });
-  put(15.9, 2.7, 0.3, 0.3, () => { bush(S, 15.8, 2.7, 0.6, rnd, P.accent); });
+  // ---- planted strip along the wash kerb, benches round the fountain, trees + bushes on the east edge
+  put(19.6, 5.86, 1.7, 0.2, () => bed(S, 19.6, 5.86, 3.3, 0.42, rnd));
+  put(21.4, fz, 0.25, 0.8, () => bench(S, 21.4, fz, -PI / 2));
+  put(18.5, fz + 0.75, 0.25, 0.8, () => bench(S, 18.45, fz + 0.75, PI / 2));
+  put(23.15, 8.3, 0.4, 0.5, () => tree(S, 23.15, 8.3, 0.8, rnd));
+  put(23.2, 10.15, 0.35, 0.5, () => { hedge(S, 23.0, 23.5, 9.6, 10.75, 0.5); solidRect(23.25, 10.17, 0.5, 1.15); });
+  put(21.0, 5.95, 0.3, 0.2, () => bush(S, 21.6, 5.95, 0.55, rnd, CORAL));
+  put(15.75, 5.95, 0.3, 0.25, () => bush(S, 15.75, 5.95, 0.6, rnd, P.accent));
+  put(22.4, 10.6, 0.3, 0.3, () => lanternPost(S, G, 22.45, 10.55, 0));
+  put(17.3, 10.75, 0.3, 0.2, () => bush(S, 17.25, 10.75, 0.5, rnd, pick(rnd, FLOWERS)));
 
   return (dt, t) => {
-    jet.scale.y = 0.85 + Math.sin(t * 3.2) * 0.12; jet.position.y = 1.2;
+    jet.scale.y = 0.85 + Math.sin(t * 3.2) * 0.12;
     for (let i = 0; i < 8; i++) {
-      const d = drops[i], ph = (t * 1.1 + d.ph) % 1, r = 0.2 + ph * 0.7;
-      const ox = fx + Math.cos(d.a) * r, oy = 1.2 + 3.6 * ph * (1 - ph) * 0.62 - 0.8 * ph * ph, oz = fz + Math.sin(d.a) * r, sc = ph < 0.97 ? 1 : 0;
+      const d = drops[i], ph = (t * 1.1 + d.ph) % 1, r = 0.15 + ph * 0.5;
+      const ox = fx + Math.cos(d.a) * r, oy = 1.05 + 3.0 * ph * (1 - ph) * 0.62 - 0.7 * ph * ph, oz = fz + Math.sin(d.a) * r, sc = ph < 0.97 ? 1 : 0;
       for (let v = i * per; v < (i + 1) * per; v++) {
         dropPos.array[v * 3] = ox + dropBase[v * 3] * sc; dropPos.array[v * 3 + 1] = oy + dropBase[v * 3 + 1] * sc; dropPos.array[v * 3 + 2] = oz + dropBase[v * 3 + 2] * sc;
       }

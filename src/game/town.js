@@ -107,13 +107,9 @@ function defaultSolids(id) {
     case 'lounge': return hallWalls(LOUNGE.walls, LOUNGE.walls.thickness);
     case 'paint': return hallWalls(PAINT.walls, PAINT.walls.thickness);
     case 'vip': return hallWalls(VIP.walls, VIP.walls.thickness);
-    case 'wash': {   // arch posts either side of the exit driveway
-      const out = [];
-      for (const k in WASH.archZ) {
-        const z = WASH.archZ[k];
-        out.push(box(WASH.zone.minX - 0.45, WASH.zone.minX - 0.1, z - 0.2, z + 0.2), box(WASH.zone.maxX + 0.1, WASH.zone.maxX + 0.45, z - 0.2, z + 0.2));
-      }
-      return out;
+    case 'wash': {   // drive-through gantry (the model reports its own solids; this is the fallback)
+      const T = WASH.tunnel, zN = WASH.laneZ - T.halfW;
+      return [box(T.minX, T.maxX, zN - 0.15, zN + 0.05)];
     }
     case 'showroom': {
       const w = PROJECT.showroom.walls, d = PROJECT.showroom.door, t = 0.3;
@@ -222,6 +218,19 @@ export function createTown(ctx) {
     };
   }
 
+  // Vacant-plot dressing (environment, env-plots.js): shown while a plot is unbuilt; its solids block walking in town
+  // mode. The environment outlives this world (shop:changed), so every plot starts vacant here and the refreshes
+  // below clear the owned ones.
+  const dressSolids = {};
+  function setVacant(id, vacant) {
+    M.setPlotCleared?.(id, !vacant);
+    const have = dressSolids[id];
+    if (vacant && townMode && !have) dressSolids[id] = (M.plotSolids?.(id) || []).map((b) => ctx.solids.add(b));
+    else if ((!vacant || !townMode) && have) { for (const b of have) ctx.solids.remove(b); delete dressSolids[id]; }
+  }
+  for (const id in PROPERTIES) M.setPlotCleared?.(id, false);
+  for (const id in SERVICES) M.setPlotCleared?.(id, false);
+
   const town = {
     root,
     get open() { return townOpen(); },
@@ -326,6 +335,7 @@ export function createTown(ctx) {
       const rec = recs[id], p = rec.def;
       const visible = townOpen() && districtOpen(p.district);
       const lvl = propLevel(id);
+      setVacant(id, !(lvl > 0 || rec.site || rec.building));
       if (!visible) { clearSale(rec); continue; }
       // the building (loaded saves show it at once); the ferry terminal stands there from the start
       if ((lvl > 0 || p.kind === 'goal') && !rec.building && !rec.site) spawnBuilding(rec, lvl, animate && lvl > 0);
@@ -412,10 +422,9 @@ export function createTown(ctx) {
   /** Building site on the plot for BUILD_TIME, then the building pops in. */
   function startSite(rec) {
     const id = rec.id, plot = rec.def.plot;
-    const parts = id === 'wash'
-      // the wash arches stand over the exit driveway: scaffold towers either side, the lane stays open
-      ? [{ minX: plot.minX - 0.5, maxX: WASH.zone.minX - 0.05, minZ: plot.minZ, maxZ: plot.maxZ }, { minX: WASH.zone.maxX + 0.05, maxX: plot.maxX + 0.5, minZ: plot.minZ, maxZ: plot.maxZ }]
-      : [plot];
+    setVacant(id, false);                    // the old lot is cleared the moment it is bought
+    // the wash has its own plot now (drive-through on the garden block): one site like every other property
+    const parts = [plot];
     const sites = [];
     for (const r of parts) {
       const w = r.maxX - r.minX, d = r.maxZ - r.minZ, c = centre(r);
@@ -574,6 +583,7 @@ export function createTown(ctx) {
     const want = townOpen() && districtOpen('main');
     for (const id in SERVICES) {
       const S = SERVICES[id];
+      setVacant(id, !want && !services[id]);
       if (!want || services[id]) continue;
       const building = buildingModel(id, 1);
       placeBuilding(building, S.plot);
