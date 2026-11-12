@@ -1,0 +1,27 @@
+<!doctype html>
+<html><head><meta charset="UTF-8"><title>Wrench Bay cars preview</title>
+<style>
+html,body{margin:0;height:100%;background:#9fd8cb;overflow:hidden;font:11px system-ui,sans-serif}
+#pv{position:fixed;left:0;top:0}#game-root{display:none}
+#nav{position:fixed;left:6px;top:6px;display:flex;gap:3px;flex-wrap:wrap;z-index:3;max-width:96vw}
+#nav a{background:#2f4858;color:#fff6e6;padding:3px 6px;border-radius:7px;text-decoration:none}
+#nav a.on{background:#f26b5b}
+.lb{position:fixed;transform:translate(-50%,-100%);background:rgba(47,72,88,.82);color:#fff6e6;padding:1px 4px;
+  border-radius:5px;white-space:nowrap;pointer-events:none;z-index:2;font-size:10px}
+#info{position:fixed;left:6px;bottom:6px;background:rgba(47,72,88,.85);color:#fff6e6;padding:3px 6px;border-radius:6px;z-index:3}
+</style></head>
+<body><canvas id="pv"></canvas><div id="game-root"></div>
+<div id="nav">
+  <a href="?focus=types">types</a><a href="?focus=types&set=town">town</a><a href="?focus=types&set=vip">vip</a>
+  <a href="?focus=types&set=classic">classics</a><a href="?focus=legacy">legacy old|new</a>
+  <a href="?focus=damage&set=town">dmg town</a><a href="?focus=damage&set=vip">dmg vip</a><a href="?focus=damage&set=classic">dmg classic</a>
+  <a href="?focus=damage&set=town&drive=1">dmg driving</a>
+  <a href="?focus=states&st=dirt">dirt</a><a href="?focus=states&st=foam">foam</a><a href="?focus=states&st=wet">wet</a>
+  <a href="?focus=states&st=mask">mask</a><a href="?focus=states&st=stripe">stripe</a><a href="?focus=states&st=gloss">gloss</a>
+  <a href="?focus=states&st=hazard">hazard</a><a href="?focus=states&st=tow">tow</a>
+  <a href="?focus=color">colour k</a><a href="?focus=restore">restore</a><a href="?focus=wash">wash run</a><a href="?focus=towrun">tow run</a>
+  <a href="?view=game&grid=lane">game: lane</a><a href="?view=game&grid=lift">game: lift</a><a href="?view=game&grid=mix">game: mix</a>
+  <a href="?view=game&grid=restore">game: restore</a><a href="?view=game&grid=states">game: states</a>
+</div>
+<div id="info"></div>
+<script type="module" src="./preview-cars.js"></script></body></html>

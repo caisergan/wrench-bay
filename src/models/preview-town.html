@@ -1,0 +1,20 @@
+<!doctype html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Wrench Bay town buildings preview</title>
+<style>
+html,body{margin:0;height:100%;background:#9fd8cb;overflow:hidden;font:12px system-ui,sans-serif}
+#pv{position:fixed;left:0;top:0}
+#nav{position:fixed;left:6px;top:6px;display:flex;gap:3px;flex-wrap:wrap;z-index:2;max-width:98vw}
+#nav a{background:#2f4858;color:#fff6e6;padding:3px 6px;border-radius:7px;text-decoration:none;font-size:11px}
+#info{position:fixed;left:6px;bottom:6px;background:rgba(47,72,88,.85);color:#fff6e6;padding:4px 8px;border-radius:8px;z-index:2;font-size:11px}
+</style></head>
+<body><canvas id="pv"></canvas>
+<div id="nav">
+  <a href="?focus=kit">kit</a><a href="?focus=site">sites</a><a href="?focus=wash">tow+wash</a><a href="?focus=lounge">lounge</a>
+  <a href="?focus=paint">paint</a><a href="?focus=vip">vip</a><a href="?focus=main">main st</a><a href="?focus=biz">diner/gas/qf</a>
+  <a href="?view=game">game: garage</a><a href="?view=game&tx=17&tz=-3">game: lounge</a><a href="?view=game&tx=13&tz=6">game: wash</a>
+  <a href="?view=game&tx=-12&tz=-1">game: tow</a><a href="?view=game&tx=-30&tz=-3">game: paint</a><a href="?view=game&tx=36&tz=-2">game: vip</a>
+  <a href="?view=game&tx=-34&tz=-30">game: junk</a><a href="?view=game&tx=34&tz=-30">game: show</a><a href="?view=game&tx=-1&tz=-30">game: diner</a>
+  <a href="?view=game&tx=-54&tz=1">game: gas</a><a href="?view=game&tx=55&tz=1">game: qfit</a>
+</div>
+<div id="info"></div>
+<script type="module" src="./preview-town.js"></script></body></html>

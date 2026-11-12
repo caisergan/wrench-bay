@@ -1,0 +1,14 @@
+<!doctype html>
+<html><head><meta charset="UTF-8"><title>Wrench Bay vehicles preview</title>
+<style>
+html,body{margin:0;height:100%;background:#9fd8cb;overflow:hidden;font:12px system-ui,sans-serif}
+#pv{position:fixed;inset:0}#game-root{display:none}
+#nav{position:fixed;left:8px;top:8px;display:flex;gap:4px;flex-wrap:wrap;z-index:2;max-width:70vw}
+#nav a{background:#2f4858;color:#fff6e6;padding:4px 8px;border-radius:8px;text-decoration:none}
+</style></head>
+<body><canvas id="pv"></canvas><div id="game-root"></div>
+<div id="nav">
+  <a href="?focus=tow">tow trucks</a><a href="?focus=towed">towing</a><a href="?focus=traffic">traffic</a><a href="?focus=doors">bus doors</a>
+  <a href="?focus=ferry">ferry</a><a href="?view=game&scene=tow">game: tow</a><a href="?view=game&scene=traffic">game: traffic</a><a href="?view=game&scene=ferry">game: ferry</a>
+</div>
+<script type="module" src="./preview-vehicles.js"></script></body></html>

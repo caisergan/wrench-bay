@@ -1,0 +1,19 @@
+<!doctype html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Wrench Bay Main Street preview</title>
+<style>
+html,body{margin:0;height:100%;background:#9fd8cb;overflow:hidden;font:12px system-ui,sans-serif}
+#pv{position:fixed;left:0;top:0}
+#nav{position:fixed;left:6px;top:6px;display:flex;gap:3px;flex-wrap:wrap;z-index:2;max-width:98vw}
+#nav a{background:#2f4858;color:#fff6e6;padding:3px 6px;border-radius:7px;text-decoration:none;font-size:11px}
+#info{position:fixed;left:6px;bottom:6px;background:rgba(47,72,88,.85);color:#fff6e6;padding:4px 8px;border-radius:8px;z-index:2;font-size:11px}
+</style></head>
+<body><canvas id="pv"></canvas>
+<div id="nav">
+  <a href="?focus=junk">junk</a><a href="?focus=depot">depot</a><a href="?focus=diner">diner 1-5</a><a href="?focus=academy">academy</a>
+  <a href="?focus=show">showroom</a><a href="?focus=gas">gas 1-5</a><a href="?focus=qf">quickfit 1-5</a><a href="?focus=ferry">ferry</a>
+  <a href="?view=game&tx=-34&tz=-30">G junk</a><a href="?view=game&tx=-16&tz=-30">G depot</a><a href="?view=game&tx=0&tz=-30">G diner</a>
+  <a href="?view=game&tx=15&tz=-30">G academy</a><a href="?view=game&tx=34&tz=-30">G show</a>
+  <a href="?view=game&tx=-54&tz=2">G gas</a><a href="?view=game&tx=55&tz=2">G qf</a><a href="?view=game&tx=55&tz=17">G ferry</a>
+</div>
+<div id="info"></div>
+<script type="module" src="./preview-main.js"></script></body></html>

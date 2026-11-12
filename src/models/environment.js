@@ -1,31 +1,22 @@
-// The whole static world of Wrench Bay: garage hall, forecourt + lounge, street and harbor.
-// Everything is derived from LAYOUT. Static geometry is merged into a handful of meshes.
+// The whole static world of Wrench Bay + Harbor Town (TOWN.md section 8).
+// This file: the legacy garage lot (hall, forecourt, patio; from LAYOUT), the water, and the assembly of every
+// env-* module into per-area merged chunk meshes. Streets: env-streets.js. Terrain, quay, tunnels, backdrop:
+// env-terrain.js. Filler buildings: env-town.js. Harbor dressing + street life: env-harbor.js / env-life.js (envdress).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PALETTE as P, LAYOUT as L } from '../config.js';
+import { TOWN } from '../config.town.js';
 import { Builder, litMat, glowMat, mesh, polygon, mulberry32 } from './voxel.js';
-
-const PI = Math.PI;
-const CREAM = 0xfff6e6;
-const PAINT = 0xfbf6ea;
-const CORAL = P.wallTrim;
-const NAVY = P.wall;
-const LEAF = [0x3f9d6a, 0x56b97a, 0x2f7f5a, 0x6ac48b];
-const FONT = '"Fredoka", "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif';
-const css = (hex) => '#' + hex.toString(16).padStart(6, '0');
-
-function canvasTex(w, h, draw, repeat = null) {
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  draw(c.getContext('2d'), w, h);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
-  if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
-  return t;
-}
-
-const mixHex = (a, b, k) => new THREE.Color(a).lerp(new THREE.Color(b), k);
+import {
+  PI, CREAM, PAINTW as PAINT, CORAL, NAVY, FONT, css, mixHex, canvasTex, waterTex, plane, flat, arrow, stripes,
+  tree, bush, tireStack, drum, layers, SignAtlas, solids, surface,
+} from './env-kit.js';
+import { buildStreets, streetGeo } from './env-streets.js';
+import * as Terrain from './env-terrain.js';
+import * as Town from './env-town.js';
+// Namespace imports: a missing export (envdress mid-edit) must not break the module graph.
+import * as Harbor from './env-harbor.js';
+import * as Life from './env-life.js';
 
 // ------------------------------------------------------------------ textures
 function hallFloorTex(repeat) {
@@ -59,17 +50,6 @@ function forecourtTex(repeat) {
   }, repeat);
 }
 
-function asphaltTex(repeat) {
-  return canvasTex(256, 256, (g, w, h) => {
-    const rnd = mulberry32(3);
-    g.fillStyle = css(P.street); g.fillRect(0, 0, w, h);
-    for (let k = 0; k < 500; k++) {
-      g.fillStyle = rnd() > 0.5 ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.09)';
-      g.fillRect(rnd() * w, rnd() * h, 2 + rnd() * 3, 2 + rnd() * 3);
-    }
-  }, repeat);
-}
-
 function deckTex(repeat) {
   return canvasTex(256, 256, (g, w, h) => {
     const rnd = mulberry32(9), n = 8, s = h / n;
@@ -82,20 +62,6 @@ function deckTex(repeat) {
       for (let k = 0; k < 4; k++) { g.fillStyle = 'rgba(90,55,30,0.12)'; g.fillRect(rnd() * w, i * s + 3 + rnd() * (s - 6), 20 + rnd() * 50, 1.5); }
     }
   }, repeat);
-}
-
-function waterTex() {
-  const t = canvasTex(256, 256, (g, w, h) => {
-    const rnd = mulberry32(21);
-    g.fillStyle = '#5cb8c6'; g.fillRect(0, 0, w, h);
-    for (let k = 0; k < 46; k++) {
-      const x = rnd() * w, y = rnd() * h, l = 14 + rnd() * 36;
-      g.strokeStyle = rnd() > 0.4 ? 'rgba(255,255,255,0.35)' : 'rgba(30,110,140,0.25)';
-      g.lineWidth = 2.5;
-      g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + l / 2, y - 3, x + l, y); g.stroke();
-    }
-  }, [14, 8]);
-  return t;
 }
 
 function signTex() {
@@ -226,67 +192,6 @@ function atlasTex() {
   });
 }
 
-// ------------------------------------------------------------------ helpers
-function plane(w, d, x, y, z, mat, { cast = false } = {}) {
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat);
-  m.rotation.x = -PI / 2; m.position.set(x, y, z); m.receiveShadow = true; m.castShadow = cast;
-  return m;
-}
-const flat = (b, x0, x1, z0, z1, y, h, c) => b.box(x1 - x0, h, z1 - z0, c, (x0 + x1) / 2, y, (z0 + z1) / 2);
-
-function arrow(b, x, z, dir, len, c, w = 0.28, hw = 0.7) {
-  const a = len * 0.5;
-  const shp = polygon([[-w / 2, 0], [w / 2, 0], [w / 2, a], [hw / 2, a], [0, len], [-hw / 2, a], [-w / 2, a]]);
-  const ry = { '+x': -PI / 2, '-x': PI / 2, '+z': PI, '-z': 0 }[dir];
-  b.push(x, 0, z, ry);
-  b.shape(shp, 0.03, c, 0, 0.002, len / 2, -PI / 2);
-  b.pop();
-}
-
-function stripes(b, x0, x1, zMax, width, c1, c2, step = 0.55) {
-  let i = 0;
-  for (let x = x0; x < x1 - 0.01; x += step, i++) {
-    const s = Math.min(step, x1 - x);
-    const shp = polygon([[0, 0], [s, 0], [s + width * 0.5, width], [width * 0.5, width]]);
-    b.shape(shp, 0.025, i % 2 ? c2 : c1, x - width * 0.25, 0.003, zMax, -PI / 2);
-  }
-}
-
-function tree(b, x, z, s, rnd, trunk = P.woodDark) {
-  const c = LEAF[(rnd() * LEAF.length) | 0];
-  b.box(0.3 * s, 0.9 * s, 0.3 * s, trunk, x, 0, z);
-  b.box(1.5 * s, 0.9 * s, 1.5 * s, c, x, 0.8 * s, z, 0, rnd() * 0.6);
-  b.box(1.15 * s, 0.8 * s, 1.15 * s, mixHex(c, 0xffffff, 0.12).getHex(), x, 1.55 * s, z, 0, rnd() * 0.6);
-  b.box(0.7 * s, 0.6 * s, 0.7 * s, mixHex(c, 0xffffff, 0.22).getHex(), x, 2.2 * s, z, 0, rnd() * 0.6);
-}
-function bush(b, x, z, s, rnd, flower = null) {
-  const c = LEAF[(rnd() * LEAF.length) | 0];
-  b.box(0.9 * s, 0.5 * s, 0.8 * s, c, x, 0, z, 0, rnd() * 0.5);
-  b.box(0.6 * s, 0.4 * s, 0.55 * s, mixHex(c, 0xffffff, 0.15).getHex(), x + 0.05 * s, 0.4 * s, z, 0, rnd());
-  if (flower) for (let i = 0; i < 3; i++) b.box(0.12 * s, 0.12 * s, 0.12 * s, flower, x + (rnd() - 0.5) * 0.7 * s, 0.6 * s + rnd() * 0.15, z + (rnd() - 0.5) * 0.6 * s);
-}
-function tireStack(b, x, z, n, rnd) {
-  for (let i = 0; i < n; i++) b.cyl(0.36, 0.36, 0.17, i % 2 ? 0x2b2f36 : 0x363c45, x + (rnd() - 0.5) * 0.05, i * 0.17, z + (rnd() - 0.5) * 0.05, 10);
-  b.cyl(0.19, 0.19, 0.012, P.steel, x, n * 0.17, z, 10);
-}
-function drum(b, x, z, c) {
-  b.cyl(0.3, 0.3, 0.82, c, x, 0, z, 10);
-  b.cyl(0.315, 0.315, 0.05, mixHex(c, 0x000000, 0.25).getHex(), x, 0.2, z, 10);
-  b.cyl(0.315, 0.315, 0.05, mixHex(c, 0x000000, 0.25).getHex(), x, 0.55, z, 10);
-  b.cyl(0.22, 0.22, 0.03, P.steelDark, x, 0.82, z, 10);
-}
-function lampPost(b, g, x, z, rotY) {
-  b.push(x, 0, z, rotY);
-  b.cyl(0.14, 0.18, 0.25, P.steelDark, 0, 0, 0, 8);
-  b.cyl(0.07, 0.09, 2.6, P.steelDark, 0, 0.25, 0, 8);
-  b.box(0.1, 0.1, 0.75, P.steelDark, 0, 2.8, -0.3);
-  b.box(0.32, 0.12, 0.42, P.steelDark, 0, 2.8, -0.65);
-  b.pop();
-  g.push(x, 0, z, rotY);
-  g.box(0.26, 0.05, 0.34, 0xfff1b8, 0, 2.76, -0.65);
-  g.pop();
-}
-
 export function buildEnvironment(scene) {
   const root = new THREE.Group();
   const rnd = mulberry32(2024);
@@ -294,16 +199,25 @@ export function buildEnvironment(scene) {
   const H = W.height, T = W.thickness;
   const bounds = L.bounds;
 
-  const solid = new Builder();   // cast + receive
-  const paint = new Builder();   // flat floor markings, receive only
-  const glow = new Builder();    // unlit bits
-  const anim = { clockHands: null, boats: [], buoys: [], water: null, flags: [] };
+  // Every area builds into the same three chunked layers (per ~30 m chunk one mesh each, so the frustum culls):
+  // S solid lit (casts shadows), F flat ground paint (receives only), G glowing / unlit bits.
+  const { S, F: FL, G } = layers();
+  const solid = S, paint = FL, glow = G;
+  const signs = new SignAtlas();
+  solids.length = 0;                                   // townSolids registry (rebuilt with the world)
+  const anim = { clockHands: null, water: null };
 
-  // ---------------- ground + floors (textured planes)
-  const groundMat = new THREE.MeshLambertMaterial({ color: P.outside });
-  const quayEdge = L.street.z + L.street.halfWidth + 1.9;
-  const ground = plane(240, quayEdge + 105, 0, -0.04, (quayEdge - 105) / 2, groundMat); root.add(ground);
+  // ---------------- town ground, roads, sidewalks, markings, lots (env-streets.js)
+  const geo = buildStreets(root, { S, F: FL }, signs, rnd);
+  // ---------------- terrain, cliffs, tunnels, quay edge (env-terrain.js)
+  const terrainInfo = Terrain.buildTerrain(root);
+  Terrain.buildCliffs(S, FL, G, mulberry32(31));
+  Terrain.buildQuay(root, S, FL, mulberry32(32), surface);
+  // ---------------- filler buildings + backdrop (env-town.js)
+  Town.buildFillers(root, { S, F: FL, G }, signs, mulberry32(41));
+  Town.buildBackdrop(root, { S, F: FL, G }, signs, mulberry32(42), surface);
 
+  // ---------------- legacy lot floors (textured planes)
   const hallW = W.maxX - W.minX, hallD = W.maxZ - W.minZ;
   const hallTexRep = 1.3;
   const hallFloor = plane(hallW, hallD, 0, 0.012, (W.minZ + W.maxZ) / 2,
@@ -314,57 +228,26 @@ export function buildEnvironment(scene) {
   root.add(plane(fW, fD, (F.minX + F.maxX) / 2, 0, (F.minZ + F.maxZ) / 2,
     new THREE.MeshLambertMaterial({ map: forecourtTex([fW / 9.2, fD / 9.2]) })));
 
-  // street asphalt (full width) + sidewalks
-  const streetMat = new THREE.MeshLambertMaterial({ map: asphaltTex([60, 2]) });
-  const streetZ0 = ST.z - ST.halfWidth, streetZ1 = ST.z + ST.halfWidth;
-  root.add(plane(240, streetZ1 - streetZ0, 0, 0.004, ST.z, streetMat));
-
-  // driveways: entry (down the left) and exit (down the right), derived from the car polylines
-  const asphalt = P.street;
-  const entry = L.carEntry, exit = L.carExit;
+  // driveways: entry (down the left) and exit (down the right), derived from the car polylines.
+  // They stop at the sidewalk: env-streets paints the flush driveway cut through it.
   const laneHalf = 1.2;
   const dw = 1.0;                                    // half width of a driveway
-  const eX = entry[1].x, xX = exit[0].x;
-    // sidewalk ranges, cut where driveways cross
-  const swNear = [[-60, eX - dw], [eX + dw, xX - dw], [xX + dw, 60]];
-  const swZ0 = F.maxZ, swZ1 = streetZ0;
-  swNear.forEach(([a, b], i) => {
-    for (let x = a; x < b - 0.01; x += 1.5) {
-      const e = Math.min(x + 1.5, b);
-      solid.box(e - x, 0.1, swZ1 - swZ0, ((Math.round(x / 1.5)) & 1) ? 0xd6cfc4 : P.sidewalk, (x + e) / 2, 0, (swZ0 + swZ1) / 2);
-    }
-  });
-  swNear.forEach(([a, b]) => solid.box(b - a, 0.14, 0.14, 0xe9e3d8, (a + b) / 2, 0, streetZ0 + 0.07));
-  // far sidewalk + quay
-  const fz0 = streetZ1, fz1 = streetZ1 + 1.2;
-  for (let x = -60; x < 60; x += 1.5) solid.box(1.5, 0.1, fz1 - fz0, ((Math.round(x / 1.5)) & 1) ? 0xd6cfc4 : P.sidewalk, x + 0.75, 0, (fz0 + fz1) / 2);
-  solid.box(120, 0.14, 0.14, 0xe9e3d8, 0, 0, fz0 + 0.07);
-  const quayZ0 = fz1, quayZ1 = fz1 + 0.7;
-  solid.box(120, 0.8, quayZ1 - quayZ0, 0xb9b0a2, 0, -0.65, (quayZ0 + quayZ1) / 2);
-  solid.box(120, 0.05, 0.12, 0x8e8577, 0, 0.1, quayZ1 - 0.06);
+  const eX = L.carEntry[1].x, xX = L.carExit[0].x;
+  const swZ0 = F.maxZ;
 
   // driveway slabs (flat, at paint level)
   const dwTone = 0x6c7080;
-  flat(paint, eX - dw, eX + dw, L.queueLaneZ + laneHalf + 0.05, streetZ0 + 0.01, 0.0, 0.02, dwTone);
-  flat(paint, xX - dw, xX + dw, L.exitLaneZ + 0.9, streetZ0 + 0.01, 0.0, 0.02, dwTone);
+  flat(paint, eX - dw, eX + dw, L.queueLaneZ + laneHalf + 0.05, swZ0, 0.0, 0.02, dwTone);
+  flat(paint, xX - dw, xX + dw, L.exitLaneZ + 0.9, swZ0, 0.0, 0.02, dwTone);
   flat(paint, F.maxX - 0.01, xX + dw, L.exitLaneZ - 0.9, L.exitLaneZ + 0.9, 0.0, 0.02, dwTone);
   // driveway edge lines
   for (const sx of [-1, 1]) {
-    flat(paint, eX + sx * dw - 0.04, eX + sx * dw + 0.04, L.queueLaneZ + laneHalf + 0.05, streetZ0, 0.02, 0.012, PAINT);
-    flat(paint, xX + sx * dw - 0.04, xX + sx * dw + 0.04, L.exitLaneZ + 0.9, streetZ0, 0.02, 0.012, PAINT);
+    flat(paint, eX + sx * dw - 0.04, eX + sx * dw + 0.04, L.queueLaneZ + laneHalf + 0.05, swZ0, 0.02, 0.012, PAINT);
+    flat(paint, xX + sx * dw - 0.04, xX + sx * dw + 0.04, L.exitLaneZ + 0.9, swZ0, 0.02, 0.012, PAINT);
   }
   arrow(paint, eX, 10.4, '-z', 1.3, PAINT, 0.3, 0.8);
   arrow(paint, xX, 7.4, '+z', 1.3, PAINT, 0.3, 0.8);
 
-  // ---------------- street markings
-  for (let x = -58; x < 58; x += 2.6) flat(paint, x, x + 1.3, ST.z - 0.07, ST.z + 0.07, 0.006, 0.012, PAINT);
-  for (const z of [streetZ0 + 0.28, streetZ1 - 0.28]) {
-    flat(paint, -60, eX - dw - 0.2, z - 0.05, z + 0.05, 0.006, 0.012, PAINT);
-    flat(paint, eX + dw + 0.2, xX - dw - 0.2, z - 0.05, z + 0.05, 0.006, 0.012, PAINT);
-    flat(paint, xX + dw + 0.2, 60, z - 0.05, z + 0.05, 0.006, 0.012, PAINT);
-  }
-  // zebra crossing
-  for (let z = streetZ0 + 0.55; z < streetZ1 - 0.5; z += 0.7) flat(paint, 2.2, 4.8, z, z + 0.4, 0.006, 0.012, PAINT);
 
   // ---------------- hall floor markings
   const hz = W.maxZ;
@@ -656,130 +539,67 @@ export function buildEnvironment(scene) {
     solid.box(1.6, 0.4, 0.06, P.woodDark, 0, 0.45, -0.22);
     for (const s of [-0.65, 0.65]) solid.box(0.07, 0.38, 0.36, P.steelDark, s, 0, 0);
     solid.pop();
-    // parasol table beside the patio
-    const tx = lg.maxX + 2.0, tz = lg.minZ + 1.0;
-    solid.cyl(0.04, 0.04, 1.75, P.steel, tx, 0, tz, 6);
-    solid.cyl(0.35, 0.3, 0.05, P.cream, tx, 0.62, tz, 10);
-    solid.cyl(0.06, 0.1, 0.62, P.steelDark, tx, 0, tz, 6);
-    solid.cyl(0.04, 1.15, 0.38, CORAL, tx, 1.55, tz, 8);
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * PI * 2 + PI / 8;
-      solid.box(0.46, 0.09, 0.2, i % 2 ? CREAM : CORAL, tx + Math.cos(a) * 1.0, 1.48, tz + Math.sin(a) * 1.0, 0, -a);
-    }
-    [0.6, 2.4, 4.2].forEach((a, i) => solid.cyl(0.19, 0.16, 0.45, [P.teal, P.accent, CORAL][i], tx + Math.cos(a) * 0.85, 0, tz + Math.sin(a) * 0.85, 8));
-    // planters at the patio corners + beside the pillars
+    // planters at the patio corners
     const planter = (x, z, c, flower) => {
       solid.box(0.55, 0.38, 0.55, c, x, 0, z);
-      bush(solid, x, z, 0.8, rnd, flower);
+      bush(solid, x, z, 0.8, rnd, flower, 0.0);
     };
     planter(x0 + 0.25, z0 + 0.2, P.teal, 0xfff6e6);
     planter(x1 - 0.25, z0 + 0.2, CORAL, P.accent);
-    for (const sx of [-1, 1]) planter(sx * (W.maxX + 1.2), W.maxZ + 0.6, sx < 0 ? P.teal : CORAL, sx < 0 ? CORAL : P.accent);
+    // Relocated (TOWN.md 8): the pillar planters stood on the tow apron (west) and the lounge crossing (east).
+    // East: tucked between the hall and the lounge annex, north of the owners' walkway; the bin beside it.
+    planter(W.maxX + 1.05, W.maxZ - 2.0, CORAL, P.accent);
+    solid.cyl(0.25, 0.22, 0.6, P.teal, W.maxX + 1.05, 0, W.maxZ - 1.1, 8);
+    solid.cyl(0.27, 0.27, 0.06, P.steelDark, W.maxX + 1.05, 0.6, W.maxZ - 1.1, 8);
   }
 
-  // forecourt hedges + props (low, off the lanes)
+  // forecourt hedge + bushes (low, off the lanes). The west hedge, cones, sandwich board and tire display stood
+  // on the tow apron: they moved to the crew corner behind the tow shed (below).
   {
     const hedge = (x0, x1, z0, z1) => { solid.box(x1 - x0, 0.5, z1 - z0, 0x3f9d6a, (x0 + x1) / 2, 0, (z0 + z1) / 2); solid.box(x1 - x0 - 0.1, 0.12, z1 - z0 - 0.1, 0x56b97a, (x0 + x1) / 2, 0.5, (z0 + z1) / 2); };
     hedge(F.maxX - 0.7, F.maxX - 0.25, 8.2, 10.3);
-    hedge(F.minX + 0.25, F.minX + 0.7, 1.7, 5.8);
     for (const x of [-3.2, 2.0, 5.2, 9.8]) bush(solid, x, F.maxZ - 0.35, 1.0, rnd, [CORAL, P.accent, 0xfff6e6][(rnd() * 3) | 0]);
-    // cones, sandwich board, tire display (left of the forecourt)
-    for (const [x, z] of [[-10.6, 2.0], [-9.8, 2.3]]) {
+  }
+
+  // ---------------- crew corner behind the tow shed (west of the hall, between the tow plot and the back lane):
+  // a parasol table where the crew takes a break, old tyres and drums waiting for the scrap man, two trees.
+  {
+    const x0 = TOWN.alleys.west.maxX, x1 = W.minX - T;                // -13.5 .. -9.8
+    const z0 = TOWN.alleys.back.maxZ, z1 = -5.6;                       // back lane .. tow plot
+    const tx = (x0 + x1) / 2 + 0.1, tz = z0 + 3.4;
+    solid.cyl(0.04, 0.04, 1.75, P.steel, tx, 0, tz, 6);
+    solid.cyl(0.35, 0.3, 0.05, P.cream, tx, 0.62, tz, 10);
+    solid.cyl(0.06, 0.1, 0.62, P.steelDark, tx, 0, tz, 6);
+    solid.cyl(0.04, 1.05, 0.36, CORAL, tx, 1.55, tz, 8);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * PI * 2 + PI / 8;
+      solid.box(0.42, 0.09, 0.2, i % 2 ? CREAM : CORAL, tx + Math.cos(a) * 0.92, 1.49, tz + Math.sin(a) * 0.92, 0, -a);
+    }
+    [0.6, 2.4, 4.2].forEach((a, i) => solid.cyl(0.19, 0.16, 0.45, [P.teal, P.accent, CORAL][i], tx + Math.cos(a) * 0.8, 0, tz + Math.sin(a) * 0.8, 8));
+    // tyre stacks + drums against the hall wall, cones parked on top of a stack
+    tireStack(solid, x1 - 0.45, z1 - 0.6, 4, rnd);
+    tireStack(solid, x1 - 0.45, z1 - 1.4, 3, rnd);
+    tireStack(solid, x1 - 1.2, z1 - 0.65, 2, rnd);
+    drum(solid, x1 - 0.4, z0 + 1.0, P.teal); drum(solid, x1 - 1.05, z0 + 0.9, CORAL);
+    for (const [x, z] of [[x0 + 0.5, z1 - 0.5], [x0 + 0.95, z1 - 0.35]]) {
       solid.box(0.4, 0.04, 0.4, P.rubber, x, 0, z);
       solid.cyl(0.04, 0.16, 0.5, 0xf2813a, x, 0.04, z, 8);
       solid.cyl(0.1, 0.12, 0.08, PAINT, x, 0.22, z, 8);
     }
-    solid.box(0.8, 0.9, 0.05, P.accent, -10.3, 0, 3.8, -0.12, 0.3, 0);
-    solid.box(0.7, 0.8, 0.04, CORAL, -10.3, 0.05, 3.8, -0.12, 0.3, 0);
-    tireStack(solid, -10.4, 4.7, 3, rnd);
-    tireStack(solid, -9.7, 4.9, 2, rnd);
-    // bin by the pillar
-    solid.cyl(0.25, 0.22, 0.6, P.teal, W.maxX + 1.5, 0, 2.0, 8);
-    solid.cyl(0.27, 0.27, 0.06, P.steelDark, W.maxX + 1.5, 0.6, 2.0, 8);
+    // the old sandwich board, folded and leaning on the wall
+    solid.box(0.8, 0.9, 0.05, P.accent, x1 - 0.1, 0, tz + 1.6, 0.18, -PI / 2, 0);
+    tree(solid, x0 + 0.9, z0 + 0.9, 1.05, rnd);
+    bush(solid, x0 + 0.6, z1 - 1.5, 1.0, rnd, CORAL);
   }
 
-  // ---------------- scenery: trees, shrubs, lamp posts, harbor
-  {
-    const farZ = fz0 + 0.55;
-    for (const x of [-21, 15, 27]) tree(solid, x, farZ, 0.85 + rnd() * 0.2, rnd);
-    for (const x of [-15, -3, 9, 21]) lampPost(solid, glow, x, fz0 + 0.5, 0);
-    for (const x of [-9, -6, 7.5, 10, 19]) bush(solid, x, farZ + 0.1, 0.9, rnd, CORAL);
-    // behind and around the hall
-    for (const [x, z, s] of [[-15, -14, 1.4], [-9, -15.5, 1.7], [-2, -14.8, 1.3], [5, -16, 1.6], [12, -14.5, 1.4], [18, -12, 1.5], [-17, -6, 1.3], [-18, 2, 1.4], [18, -3, 1.4], [20, 5, 1.2], [-30, -4, 1.6], [30, -2, 1.6], [-24, -14, 1.5], [25, -15, 1.5]]) tree(solid, x, z, s, rnd);
-    for (const [x, z] of [[-11.4, -9], [-11.6, -3], [11.5, -8], [11.4, -1], [-12.5, -12.5], [12.8, -12.8], [-13.5, 5], [-14, 9]]) bush(solid, x, z, 1.3, rnd, [CORAL, P.accent, 0xfff6e6][(rnd() * 3) | 0]);
-    for (const [x, z, s] of [[-13, -11, 0.7], [14, -9, 0.9], [-16, 12, 0.6]]) {
-      solid.box(s * 1.2, s * 0.7, s, 0xa9b1ad, x, 0, z, 0, rnd());
-      solid.box(s * 0.7, s * 0.5, s * 0.7, 0xbcc3bf, x + 0.1, s * 0.6, z, 0, rnd());
-    }
-    // bollards on the quay
-    for (let x = -12; x <= 12; x += 3) {
-      solid.cyl(0.11, 0.13, 0.32, P.steelDark, x, 0.1, quayZ1 - 0.28, 8);
-      solid.cyl(0.115, 0.115, 0.06, P.accent, x, 0.4, quayZ1 - 0.28, 8);
-    }
-    // pier
-    const px = -2.2, pz1 = 27;
-    solid.box(1.7, 0.1, pz1 - quayZ1 + 0.1, P.wood, px, 0.03, (quayZ1 + pz1) / 2);
-    for (let z = quayZ1 + 0.8; z < pz1; z += 0.8) solid.box(1.76, 0.02, 0.04, P.woodDark, px, 0.13, z);
-    for (let z = quayZ1 + 1.4; z <= pz1; z += 2.6) for (const s of [-0.8, 0.8]) {
-      solid.cyl(0.1, 0.1, 1.0, P.woodDark, px + s, -0.6, z, 6);
-      solid.cyl(0.11, 0.11, 0.05, P.accent, px + s, 0.4, z, 6);
-    }
-    lampPost(solid, glow, px, pz1 - 0.2, PI);
-    solid.box(0.3, 0.3, 0.3, P.wood, px + 0.45, 0.13, pz1 - 1.6);   // crate on the pier
-    solid.box(0.3, 0.3, 0.3, P.wood, px + 0.45, 0.43, pz1 - 1.6, 0, 0.5);
-  }
-
-  // water
+  // ---------------- water (the quay wall, plaza and headlands are env-terrain.js)
   {
     const wTex = waterTex();
-    const water = plane(240, 140, 0, -0.4, quayZ1 + 70 - 0.05, new THREE.MeshLambertMaterial({ map: wTex }));
+    const qz = geo.quayZ;
+    const water = plane(300, 170, 0, -0.4, qz + 85 - 0.4, new THREE.MeshLambertMaterial({ map: wTex }));
+    wTex.repeat.set(300 / 17, 170 / 17);
     root.add(water);
     anim.water = wTex;
-  }
-  // boats + buoys
-  const bobbers = [];
-  {
-    const motor = new Builder();
-    const hull = polygon([[-0.5, -1.1], [0.5, -1.1], [0.56, 0.5], [0, 1.3], [-0.56, 0.5]]);
-    motor.shape(hull, 0.45, CREAM, 0, -0.1, 0, -PI / 2);
-    const deckS = polygon([[-0.42, -1.0], [0.42, -1.0], [0.47, 0.45], [0, 1.1], [-0.47, 0.45]]);
-    motor.shape(deckS, 0.04, P.teal, 0, 0.35, 0, -PI / 2);
-    motor.box(0.9, 0.08, 2.5, CORAL, 0, 0.12, -0.0);
-    motor.box(0.7, 0.45, 0.7, CREAM, 0, 0.38, 0.35); motor.box(0.78, 0.07, 0.78, CORAL, 0, 0.83, 0.35);
-    motor.box(0.62, 0.2, 0.05, 0x7fc9e0, 0, 0.5, -0.02);
-    motor.box(0.2, 0.25, 0.3, P.steelDark, 0, 0.35, 1.15);
-    const m1 = mesh(motor.build(), litMat); const g1 = new THREE.Group(); g1.add(m1);
-    g1.position.set(-7.5, -0.25, quayZ1 + 2.2); g1.rotation.y = PI / 2 + 0.06;
-    root.add(g1); bobbers.push({ g: g1, base: g1.position.y, ph: 0.3, amp: 0.045 });
-
-    const sail = new Builder();
-    const hull2 = polygon([[-0.4, -0.9], [0.4, -0.9], [0.45, 0.4], [0, 1.1], [-0.45, 0.4]]);
-    sail.shape(hull2, 0.4, P.teal, 0, -0.1, 0, -PI / 2);
-    sail.box(0.7, 0.05, 1.8, CREAM, 0, 0.3, -0.0);
-    sail.cyl(0.04, 0.05, 2.7, P.steelDark, 0, 0.3, -0.15, 6);
-    sail.push(0.0, 0.5, -0.15, PI / 2);
-    sail.shape(polygon([[0.0, 0], [1.1, 0], [0.04, 2.3]]), 0.03, CREAM, 0, 0, 0);
-    sail.pop();
-    sail.push(0.0, 0.5, -0.15, PI / 2);
-    sail.shape(polygon([[-0.0, 0], [-0.8, 0.1], [0.0, 2.0]]), 0.03, CORAL, 0, 0, 0.0);
-    sail.pop();
-    const g2 = new THREE.Group(); g2.add(mesh(sail.build(), litMat));
-    g2.position.set(5.5, -0.25, quayZ1 + 6.8); g2.rotation.y = 0.5;
-    root.add(g2); bobbers.push({ g: g2, base: g2.position.y, ph: 1.7, amp: 0.05 });
-
-    const row = new Builder();
-    row.shape(polygon([[-0.3, -0.7], [0.3, -0.7], [0.34, 0.2], [0, 0.8], [-0.34, 0.2]]), 0.22, P.accent, 0, -0.05, 0, -PI / 2);
-    row.box(0.5, 0.04, 0.2, P.woodDark, 0, 0.1, 0.0);
-    const g3 = new THREE.Group(); g3.add(mesh(row.build(), litMat));
-    g3.position.set(-0.2, -0.28, quayZ1 + 5.2); g3.rotation.y = -0.4;
-    root.add(g3); bobbers.push({ g: g3, base: g3.position.y, ph: 2.9, amp: 0.04 });
-
-    for (const [x, z, c, ph] of [[10, quayZ1 + 3.2, CORAL, 0.5], [-11.5, quayZ1 + 6, P.accent, 2.2], [13, quayZ1 + 8.5, CORAL, 4.0]]) {
-      const bb = new Builder();
-      bb.cyl(0.22, 0.26, 0.3, c, 0, -0.1, 0, 8); bb.cyl(0.22, 0.22, 0.12, CREAM, 0, 0.12, 0, 8); bb.cyl(0.03, 0.03, 0.3, P.steelDark, 0, 0.24, 0, 4);
-      const gb = new THREE.Group(); gb.add(mesh(bb.build(), litMat)); gb.position.set(x, -0.35, z);
-      root.add(gb); bobbers.push({ g: gb, base: gb.position.y, ph, amp: 0.05 });
-    }
   }
 
   // ---------------- clock hands (animated)
@@ -796,21 +616,37 @@ export function buildEnvironment(scene) {
   }
   root.add(clock);
 
-  // ---------------- assemble merged meshes
-  root.add(mesh(solid.build(), litMat, { cast: true, receive: true }));
-  root.add(mesh(paint.build(), litMat, { cast: false, receive: true }));
-  root.add(mesh(glow.build(), glowMat, { cast: false, receive: false }));
+  // ---------------- harbor front + street life (envdress: env-harbor.js / env-life.js). Each runs in its own
+  // try/catch: a bug in either file must never take the world down. Each gets its own seeded random, so a change
+  // in one module never reshuffles the others.
+  const dressed = [];
+  const env = { root, S, F: FL, G, signs, rnd: mulberry32(7001), geo: streetGeo() };
+  for (const [name, mod, seed] of [['buildHarbor', Harbor, 7001], ['buildStreetLife', Life, 7002]]) {
+    try {
+      const fn = mod[name];
+      if (typeof fn !== 'function') { console.warn(`[environment] ${name} not exported yet`); continue; }
+      const r = fn({ ...env, rnd: mulberry32(seed) });
+      if (r) dressed.push(r);
+    } catch (err) {
+      console.error(`[environment] ${name} failed`, err);
+    }
+  }
+
+  // ---------------- assemble merged chunk meshes (only after every module has pushed its geometry)
+  const n = solid.build(root, litMat, { cast: true, receive: true })
+    + paint.build(root, litMat, { cast: false, receive: true })
+    + glow.build(root, glowMat, { cast: false, receive: false });
+  signs.build(root, mergeGeometries);
   const atlasGeo = mergeGeometries(atlasGeos, false);
   root.add(mesh(atlasGeo, atlasMat, { cast: false, receive: false }));
+  root.userData.chunkMeshes = n;
+  root.userData.terrain = terrainInfo;
 
   scene.add(root);
+  // Debug (?envdebug): scene + solids for the console (renderer / camera via scene.onBeforeRender).
+  if (typeof location !== 'undefined' && /[?&]envdebug/.test(location.search)) window.__envDebug = { scene, root, townSolids };
 
   function update(dt, t) {
-    for (const b of bobbers) {
-      b.g.position.y = b.base + Math.sin(t * 1.4 + b.ph) * b.amp;
-      b.g.rotation.z = Math.sin(t * 1.1 + b.ph) * 0.05;
-      b.g.rotation.x = Math.sin(t * 0.9 + b.ph * 1.3) * 0.03;
-    }
     if (anim.water) { anim.water.offset.x += dt * 0.004; anim.water.offset.y += dt * 0.002; }
     if (anim.clockHands) {
       const d = new Date(), s = d.getSeconds() + d.getMilliseconds() / 1000, m = d.getMinutes() + s / 60, h = (d.getHours() % 12) + m / 60;
@@ -818,6 +654,14 @@ export function buildEnvironment(scene) {
       anim.clockHands.min.rotation.z = -m / 60 * PI * 2;
       anim.clockHands.hour.rotation.z = -h / 12 * PI * 2;
     }
+    for (let i = 0; i < dressed.length; i++) dressed[i].update?.(dt, t);
   }
   return { update, group: root };
 }
+
+/** Boxes of solid scenery inside walkable areas (dumpsters, kiosks, big planters, fountain...). Valid after
+ *  buildEnvironment(); a fresh array of fresh objects, so callers may keep or mutate it. */
+export function townSolids() {
+  return solids.map((b) => ({ minX: b.minX, maxX: b.maxX, minZ: b.minZ, maxZ: b.maxZ }));
+}
+
