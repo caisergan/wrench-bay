@@ -91,6 +91,7 @@ coral. Everything original: no real car brands, logos or designs lifted from an 
 | Area | Files | Owner |
 |---|---|---|
 | Core | `src/core/*`, `src/config.js`, `src/main.js`, `index.html`, `CONTRACTS.md`, `package.json` | lead (ask; don't edit) |
+| iOS app | `capacitor.config.json`, `ios/`, `resources/` | lead |
 | 3D models: props, cars, characters, fx | `src/models/*` except `environment.js` / `env-*.js` | models agent |
 | Static world | `src/models/environment.js` (+ optional `src/models/env-*.js`) | environment agent |
 | HUD, panels, labels, audio | `src/ui/*` (incl. `ui.css`) | UI agent |
@@ -116,7 +117,13 @@ every area can run before the others are done.
   `upgradeValue(key)`, `upgradeCost(key)`, `buyUpgrade(key)`, `activateBoost('income'|'speed')`,
   `incomeBoostActive()`, `speedBoostActive()`, `shopMult()`, `shopName()`, `nextShop()`, `streakMult(n?)`,
   `setStreak(n)`, `repairPayout(types, {tier, vip, speedy}) -> {total, base, speedy, streakMult}`,
-  `offlineRate()`, `pendingOffline() -> {amount, seconds} | null`, `claimOffline(multiplier = 1)`.
+  `offlineRate()`, `pendingOffline() -> {amount, seconds} | null`, `claimOffline(multiplier = 1)`,
+  `refreshOffline()` (re-checks offline earnings when the game comes back from the background).
+- `core/platform.js` (iOS app via Capacitor; every export is a no-op in the browser): `isNative`,
+  `initPlatform()` (awaited in `main.js` before `load()`: restores saves from native storage),
+  `persist(key, value|null)` (mirror a localStorage write to native storage; any new localStorage key must be added
+  to `MIRRORED_KEYS` and written through `persist`), `haptic(sfxName)` (called by `sfx()`), `onLifecycle({hidden,
+  visible})`, `hideSplash()`. Never read localStorage at module load time: in the app it is restored afterwards.
 - `config.js`: `PALETTE`, `PART_TYPES`, `PROBLEMS`, `CAR_TYPES`, `CAR`, `LAYOUT`, `UNLOCKS`, `VISIBLE_PADS`,
   `ECONOMY`, `PLAYER`, `UPGRADES`, `BOOSTS`, `SHOP_NAMES`. All positions come from `LAYOUT`; never hard-code them.
 - Conventions: +x right, +z towards the camera, y up, `yaw = Math.atan2(dx, dz)`. Models have their origin at
@@ -127,6 +134,7 @@ Core: `cash:changed {cash, delta, worldPos?}`, `gems:changed {gems, delta}`, `pr
 `upgrades:changed`, `boosts:changed`, `shop:changed`, `streak:changed {streak, mult}`.
 Gameplay: `game:started`, `car:arrived {vip}`, `car:repaired {count, vip, speedy, total}`, `unlock {id, label}`,
 `upgradepad:enter`, `upgradepad:exit`, `drive:start`, `drive:end`, `shop:complete`.
+App: `app:resume` (back from the background with offline earnings pending; the UI shows the welcome-back modal).
 UI: `ui:ready`, `ui:play` (PLAY pressed on the title screen), `ui:nextShop`.
 
 ## 4. Models API: `src/models/index.js` (models agent; environment agent owns `buildEnvironment`)

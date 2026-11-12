@@ -325,6 +325,8 @@ export function buildPanels(root, hud) {
     welcomeShown = true;
     if (pendingOffline()) setTimeout(() => showWelcome(), 350);
   });
+  // back from the background with offline earnings (main.js). Before the first ui:play the handler above shows it.
+  events.on('app:resume', () => { if (welcomeShown) setTimeout(() => showWelcome(), 350); });
 
   return {
     showWelcome,

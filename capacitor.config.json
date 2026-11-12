@@ -1,0 +1,18 @@
+{
+  "appId": "com.caisergan.wrenchbay",
+  "appName": "Wrench Bay",
+  "webDir": "dist",
+  "backgroundColor": "#121f28",
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": false,
+    "backgroundColor": "#121f28"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "backgroundColor": "#bdd6cc",
+      "showSpinner": false
+    }
+  }
+}
