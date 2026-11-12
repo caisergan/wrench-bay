@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { events } from '../core/events.js';
 import { addCash, addGems, state } from '../core/state.js';
 import { onUpdate } from '../core/engine.js';
+import { runTown } from './devtest-town.js';
 
 export function run(ui) {
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -66,7 +67,8 @@ export function run(ui) {
 
     // ---- float texts, streak chip, driving hint, sfx ----
     const sfxList = ['pickup', 'drop', 'cash', 'coin', 'pay', 'click', 'upgrade', 'error', 'unlock',
-      'engine', 'honk', 'lift', 'wrench', 'fix', 'done', 'vip', 'trash'];
+      'engine', 'honk', 'lift', 'wrench', 'fix', 'done', 'vip', 'trash',
+      'spray', 'cure', 'wash', 'polish', 'winch', 'radio', 'fame', 'build', 'gate', 'thud', 'horn', 'bell', 'gull', 'coins', 'perfect', 'ferry'];
     let n = 0, streak = 0;
     setInterval(() => {
       ui.floatText(V(-0.5, 1, 4.5), '+$24', 'cash');
@@ -81,5 +83,6 @@ export function run(ui) {
     }, 2200);
     let driving = false;
     setInterval(() => { driving = !driving; events.emit(driving ? 'drive:start' : 'drive:end'); }, 4500);
+    runTown(ui, V);
   });
 }

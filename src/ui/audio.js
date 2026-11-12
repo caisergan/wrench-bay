@@ -151,8 +151,81 @@ const SOUNDS = {
     tone(300 * p, 0.2, { to: 110 * p, vol: 0.18, type: 'triangle' });
     tone(180 * p, 0.14, { to: 90 * p, vol: 0.14, type: 'triangle', at: 0.1 });
   },
+  // ---- Harbor Town ----
+  spray(p) { noise(0.34, { freq: 6200, q: 0.5, vol: 0.09 }); noise(0.34, { freq: 3000, q: 0.7, vol: 0.04, filter: 'highpass' }); },
+  cure(p) {
+    // warm lamps coming on: a soft rising hum and a few ticks of heating metal
+    tone(180 * p, 0.55, { to: 260 * p, vol: 0.09, type: 'sine', a: 0.1 });
+    tone(360 * p, 0.55, { to: 520 * p, vol: 0.04, type: 'triangle', a: 0.12 });
+    [0.1, 0.27, 0.41].forEach((at) => noise(0.02, { freq: 4800, q: 4, vol: 0.04, at }));
+  },
+  wash(p) {
+    noise(0.7, { freq: 1700, q: 0.4, vol: 0.1 });
+    noise(0.7, { freq: 900, q: 0.8, vol: 0.05, at: 0.05 });
+    [0, 0.13, 0.31, 0.46].forEach((at, i) => tone((700 + i * 160) * p, 0.07, { to: (1100 + i * 140) * p, vol: 0.05, at }));
+  },
+  polish(p) {
+    for (const at of [0, 0.13]) {
+      tone(1700 * p, 0.11, { to: 2500 * p, vol: 0.05, type: 'triangle', at, a: 0.01 });
+      noise(0.1, { freq: 5200, q: 3, vol: 0.025, at });
+    }
+  },
+  winch(p) {
+    tone(80 * p, 0.55, { to: 105 * p, vol: 0.13, type: 'sawtooth', a: 0.05 });
+    for (let i = 0; i < 6; i++) tone(520 * p, 0.025, { to: 380 * p, vol: 0.06, type: 'square', at: i * 0.085, a: 0.002 });
+    noise(0.5, { freq: 450, q: 1.5, vol: 0.05 });
+  },
+  radio(p) {
+    noise(0.1, { freq: 2600, q: 0.8, vol: 0.07 });
+    tone(880 * p, 0.07, { vol: 0.08, type: 'square', at: 0.09 });
+    tone(1180 * p, 0.09, { vol: 0.08, type: 'square', at: 0.17 });
+    noise(0.08, { freq: 2200, q: 0.8, vol: 0.05, at: 0.27 });
+  },
+  fame(p) {
+    [659, 880, 1175, 1568].forEach((f, i) => { tone(f * p, 0.26, { vol: 0.15, type: 'triangle', at: i * 0.075 }); tone(f * 2 * p, 0.3, { vol: 0.04, at: i * 0.075 + 0.02 }); });
+    tone(2093 * p, 0.6, { vol: 0.07, at: 0.34 });
+    noise(0.14, { freq: 7500, q: 3, vol: 0.035, at: 0.3 });
+  },
+  build(p) {
+    for (const at of [0, 0.17]) {
+      tone(200 * p, 0.09, { to: 85 * p, vol: 0.25, type: 'triangle', at });
+      noise(0.04, { freq: 1500, q: 2, vol: 0.1, at });
+    }
+  },
+  gate(p) {
+    tone(150 * p, 0.35, { to: 95 * p, vol: 0.15, type: 'sawtooth', a: 0.02 });
+    for (let i = 0; i < 5; i++) noise(0.05, { freq: 2400 + i * 300, q: 5, vol: 0.06, at: 0.05 + i * 0.06 });
+    tone(330 * p, 0.2, { vol: 0.07, type: 'triangle', at: 0.38 });
+  },
+  thud(p) { tone(130 * p, 0.2, { to: 55 * p, vol: 0.35, type: 'sine', a: 0.003 }); noise(0.08, { freq: 300, q: 0.7, vol: 0.12, filter: 'lowpass' }); },
+  horn(p) {
+    tone(330 * p, 0.42, { vol: 0.09, type: 'sawtooth', a: 0.02 });
+    tone(415 * p, 0.42, { vol: 0.08, type: 'sawtooth', a: 0.02 });
+  },
+  bell(p) {
+    tone(1568 * p, 0.7, { vol: 0.13, type: 'sine' });
+    tone(2349 * p, 0.45, { vol: 0.06, type: 'sine' });
+    tone(3136 * p, 0.25, { vol: 0.03, type: 'sine' });
+  },
+  gull(p) {
+    tone(1500 * p, 0.28, { to: 2000 * p, vol: 0.06, type: 'triangle', a: 0.04 });
+    tone(2000 * p, 0.3, { to: 1350 * p, vol: 0.06, type: 'triangle', at: 0.26, a: 0.02 });
+    tone(1300 * p, 0.22, { to: 1700 * p, vol: 0.04, type: 'triangle', at: 0.52, a: 0.02 });
+  },
+  coins(p) { for (let i = 0; i < 6; i++) { const f = 1900 + Math.random() * 1500; tone(f * p, 0.08, { vol: 0.09, type: 'square', at: i * 0.05 }); tone(f * 1.5 * p, 0.12, { vol: 0.05, type: 'square', at: i * 0.05 + 0.03 }); } },
+  perfect(p) {
+    [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f * p, 0.3, { vol: 0.17, type: 'triangle', at: i * 0.075 }));
+    [1568, 1976, 2349].forEach((f, i) => tone(f * p, 0.5, { vol: 0.07, at: 0.38 + i * 0.07 }));
+    tone(262 * p, 0.7, { vol: 0.12, type: 'sine', at: 0.38 });
+    noise(0.2, { freq: 7200, q: 3, vol: 0.05, at: 0.4 });
+  },
+  ferry(p) {
+    tone(112 * p, 1.0, { vol: 0.17, type: 'sawtooth', a: 0.08 });
+    tone(141 * p, 1.0, { vol: 0.13, type: 'sawtooth', a: 0.08 });
+    tone(56 * p, 1.0, { vol: 0.14, type: 'sine', a: 0.08 });
+  },
 };
-const MIN_GAP = { pickup: 60, pay: 60, coin: 45, drop: 50, cash: 80, click: 40, wrench: 90, honk: 200, engine: 250, lift: 300, fix: 80 };
+const MIN_GAP = { pickup: 60, pay: 60, coin: 45, drop: 50, cash: 80, click: 40, wrench: 90, honk: 200, engine: 250, lift: 300, fix: 80, spray: 200, wash: 300, polish: 150, winch: 300, radio: 400, gull: 600, coins: 120, thud: 100, build: 160, bell: 200, horn: 250 };
 const last = {};
 
 export function sfx(name) {
