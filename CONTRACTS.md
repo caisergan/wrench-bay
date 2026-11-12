@@ -149,10 +149,17 @@ Build static geometry with `voxel.js` `Builder` (one merged vertex-coloured mesh
   `CAR` (1.5 wide x 2.8 long), ~1.1-1.5 tall, windows, lights, bumpers, 4 separate wheels that spin in `update`
   (`speed` in m/s, negative = reversing) plus a slight body bob. VIP = gold sports car with a crown or star on the
   roof. `setProblems(types)` takes the list of problems still unfixed (may be called any time, idempotent) and
-  shows damage for each type present: tire -> a visibly flat wheel and a slight lean; oil -> dark puddle + drips
-  under the nose; battery -> hood ajar with a dead / red warning light; engine -> animated smoke puffs from the
-  hood; paint -> primer-grey patches and scratches on the body. Empty list = pristine. `setShine(true)` = just
-  repaired: clean glints / sparkles for a few seconds.
+  shows damage for each type present. Every effect must make sense on a car that is still being driven:
+  tire -> one bad wheel per `'tire'` entry (camera-side rear wheel first): a soft tyre that sags and bulges onto
+  the floor, the body leans onto it and thumps once per wheel turn while driving; ~40% of cars have the first bad
+  one already swapped for a small yellow-rimmed space-saver spare. oil -> drops fall from under the engine and stay
+  on the floor in world space (`leak.js`): a moving car leaves a drip trail, a parked one grows a puddle that stays
+  behind when it drives off; spots shrink away after ~10-16 s; nothing rides along with the car. battery -> only
+  while parked (stopped > 0.6 s): hood pops up, blinking red warning light, electric zaps crackling at the
+  terminals, no idle vibration (engine off); pulling away: the hood shuts and the car struggles to start (shudder +
+  black puff from the exhaust); while driving an occasional zap from the hood seam. engine -> animated smoke puffs
+  from the hood; paint -> primer-grey patches and scratches on the body. Empty list = pristine. `setShine(true)` =
+  just repaired: clean glints / sparkles for a few seconds.
 - `createLift() -> { group, platform, setHeight(0..1), setLight('idle'|'busy'|'done'), update(dt) }`: two-post
   lift, posts at local x = +/-`LAYOUT.liftPostOffsetX` (0.3 square, ~2.2 tall), carriage arms that slide up with
   `setHeight` (car floor rises by `h * LIFT_RISE`), a beacon lamp on a post (grey / amber blinking / green),
@@ -168,6 +175,8 @@ Build static geometry with `voxel.js` `Builder` (one merged vertex-coloured mesh
   `createUpgradePad() -> { group, update(dt) }` (1.4 x 1.4, teal, arrow-up icon), `createZoneRing(radius) -> Mesh`.
 - `createScrapBin()`, `createCoffeeCart()`, `createBillboard()` (roadside billboard on posts, canvas-texture face,
   ~3.2 wide x 3 tall), `createValetStand()` (podium with a key board), `createToolbox()` (rolling tool chest): Groups.
+- `updateLeaks(dt)`: advances the shared oil drops / spots (3 instanced meshes for every car). Called once per
+  frame by gameplay's car system (and by the preview loop); models never import the engine.
 - fx: `poof(scene, pos, color)`, `sparks(scene, pos)` (fast small orange / yellow / white bits, welding feel),
   `confetti(scene, pos)` (multi-colour burst, bigger and floatier). Pooled, self-updating.
 - `buildEnvironment(scene) -> { update(dt, t) }` (environment agent): everything static, from `LAYOUT`.
@@ -188,10 +197,11 @@ which carry `data-ui`). Exports `ui`:
   World-anchored, pooled HTML label repositioned every frame. Kinds:
   - `'price'`: pay-pad price pill with cash icon + fill bar (`setProgress`).
   - `'job'`: bubble over a car listing its problems. Extra methods: `setJobs([{ type, state }])` with state
-    `'need' | 'ready' | 'done'` (one part icon per job: need = plain, ready = highlighted "part delivered, being
-    worked on", done = green check / faded), `setProgress(0..1)` = work progress of the current job (thin bar,
-    hidden at 0), `setPatience(0..1)` = remaining patience (bar that goes green -> amber -> red; at 0 show it
-    empty / grey), `setVip(bool)` (gold bubble + star). Must stay readable at ~10 on screen; compact.
+    `'need' | 'ready' | 'done'` (one part tile per job: need = cream slot, ready = "part delivered" mustard ring,
+    done = green tile + check), `setProgress(0..1)` = work progress of the current job: the first `ready` tile
+    fills up green from the bottom (green ring, icon wiggles), `setPatience(0..1)` = the owner's mood row: a face
+    (happy / meh / sad / angry) + bar, green -> amber -> coral, grey and empty at 0; the bubble shakes when low,
+    `setVip(bool)` (gold bubble + star). Must stay readable at ~10 on screen; compact.
   - `'station'`: small pill over a part station: part icon (`icon: 'tire'` etc.) + count text ("3", "MAX").
   - `'max'`: "MAX" over the player when the carry stack is full.
   - `'info'`: small plain text ("No free lift!").

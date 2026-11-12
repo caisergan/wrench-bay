@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { CAR_TYPES } from '../config.js';
 import { Builder, litMat, glowMat, memo, mesh, polygon } from './voxel.js';
+import { leakDrop } from './leak.js';
 
 // ---------------------------------------------------------------- palette
 export const CAR_COLORS = [
@@ -29,6 +30,9 @@ const CREAM = 0xf6ecd8;
 const HEAD = 0xfff1b8;
 const TAIL = 0xe0443e;
 const AMBER = 0xf6a53a;
+const SPARE_RIM = 0xf6c453;   // space-saver spare wheel
+const SPARE_K = 0.8;          // its radius relative to a normal wheel
+const SAG = 0.38;             // a soft tyre loses this much of its height
 const PRIMER = 0xa3a8ad;
 const PRIMER_D = 0x868c93;
 const RUST = 0xa8552e;
@@ -346,32 +350,27 @@ function batteryGeo(type) {
     b.box(0.05, 0.05, 0.05, 0xd94848, bx - 0.08, s.yb + 0.2, bz + 0.06);                     // terminals
     b.box(0.05, 0.05, 0.05, DARK, bx + 0.08, s.yb + 0.2, bz + 0.06);
     b.box(0.03, 0.02, 0.2, 0xd94848, bx - 0.08, s.yb + 0.22, bz - 0.05);                     // loose cable
-    b.box(0.03, 0.5, 0.03, 0x9aa5ad, -0.5, s.yb, s.hz0 + hl * 0.62, -0.45);               // hood prop rod
     return b.build();
   });
 }
-const puddleGeo = (() => {
-  let g = null;
-  return () => g || (g = (() => {
-    // wide enough to peek out on both sides of the car (the game camera mostly sees roofs)
+function propRodGeo(type) {
+  return memo(geoCache, `rod|${type}`, () => {
+    const s = SPECS[type], hl = s.hz1 - s.hz0;
     const b = new Builder();
-    const O = 0x2b3640, S = 0x55627a, S2 = 0x7b8ba0;
-    b.cyl(0.62, 0.62, 0.012, O, 0, 0, 0, 16);
-    b.cyl(0.4, 0.4, 0.012, O, 0.62, 0, 0.12, 12);
-    b.cyl(0.36, 0.36, 0.012, O, -0.6, 0, 0.22, 12);
-    b.cyl(0.24, 0.24, 0.012, O, 0.92, 0, -0.2, 10);
-    b.cyl(0.2, 0.2, 0.012, O, -0.9, 0, -0.12, 10);
-    b.cyl(0.3, 0.3, 0.012, O, 0.1, 0, 0.58, 12);
-    b.cyl(0.1, 0.1, 0.012, O, 1.12, 0, 0.12, 8);
-    b.cyl(0.08, 0.08, 0.012, O, -1.1, 0, 0.3, 8);
-    b.cyl(0.18, 0.18, 0.014, S, -0.2, 0, 0.1, 10);                 // sheen
-    b.cyl(0.12, 0.12, 0.014, S, 0.7, 0, 0.05, 8);
-    b.cyl(0.07, 0.07, 0.016, S2, 0.2, 0, 0.36, 8);
-    b.cyl(0.06, 0.06, 0.016, S2, -0.62, 0, 0.3, 6);
+    b.box(0.03, 0.5, 0.03, 0x9aa5ad, -0.5, s.yb, s.hz0 + hl * 0.62, -0.45);
     return b.build();
-  })());
-})();
-
+  });
+}
+/** Sagging rubber where a deflated tyre meets the floor (pivot space, origin on the floor). */
+function bulgeGeo(r, w) {
+  return memo(geoCache, `bulge|${r}|${w}`, () => {
+    const b = new Builder();
+    b.box(w * 1.6, 0.08, r * 1.1, RUBBER, 0, 0, 0);
+    b.box(w * 1.3, 0.07, r * 1.5, RUBBER, 0, 0, 0);
+    b.box(w * 1.75, 0.05, r * 0.7, 0x3a3f48, 0, 0, 0);
+    return b.build();
+  });
+}
 // shared fx resources
 const unitBox = new THREE.BoxGeometry(1, 1, 1);
 const smokeMats = [   // young (dark) -> old (light)
@@ -379,13 +378,29 @@ const smokeMats = [   // young (dark) -> old (light)
   new THREE.MeshLambertMaterial({ color: 0x737981, flatShading: true }),
   new THREE.MeshLambertMaterial({ color: 0xb4b9be, flatShading: true }),
 ];
-const dripMat = new THREE.MeshLambertMaterial({ color: 0x1d2026 });
 const warnOn = new THREE.MeshBasicMaterial({ color: 0xff3b30 });
 const warnOff = new THREE.MeshLambertMaterial({ color: 0x5a1c1c });
 const warnGeo = (() => {
   const b = new Builder();
   b.box(0.17, 0.13, 0.17, 0xffffff, 0, 0, 0);
   b.box(0.1, 0.08, 0.1, 0xffffff, 0, 0.13, 0);
+  return b.build();
+})();
+// electric zap (dead battery): a jagged bolt of bright cubes, unlit; ~0.25 tall, base at the origin
+const zapGeo = (() => {
+  const b = new Builder();
+  const pts = [[0, 0, 0], [0.05, 0.07, 0.03], [-0.03, 0.12, 0], [0.04, 0.19, -0.03], [-0.01, 0.26, 0.01]];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [ax, ay, az] = pts[i], [bx, by, bz] = pts[i + 1];
+    const n = Math.ceil(Math.hypot(bx - ax, by - ay, bz - az) / 0.02);
+    for (let k = 0; k < n; k++) {
+      const f = k / n;
+      b.box(0.036, 0.036, 0.036, 0xfff3a0, ax + (bx - ax) * f, ay + (by - ay) * f - 0.018, az + (bz - az) * f);
+    }
+  }
+  b.box(0.05, 0.05, 0.05, 0x9be8ff, 0.05, 0.045, 0.03);       // cyan flashes at the kinks
+  b.box(0.05, 0.05, 0.05, 0x9be8ff, 0.04, 0.165, -0.03);
+  b.box(0.056, 0.056, 0.056, 0xffffff, -0.01, 0.235, 0.01);
   return b.build();
 })();
 const sparkleGeo = (() => {
@@ -426,7 +441,7 @@ export function createCar(look = randomCarLook()) {
   hood.add(mesh(hoodGeo(look)));
   chassis.add(hood);
 
-  // wheels: pivot (position) > squash (flat tyre) > spin
+  // wheels: pivot (position) > squash (deflated tyre) > spin (+ the space-saver spare, when fitted)
   const wg = wheelGeo(s.r, s.wr, look.vip ? 0xffd54d : look.type === 'sports' ? 0x9aa5ad : CHROME);
   const wheels = [];
   for (const [sx, z] of [[-1, s.ax], [1, s.ax], [-1, s.axR], [1, s.axR]]) {
@@ -437,13 +452,26 @@ export function createCar(look = randomCarLook()) {
     squash.add(spin);
     pivot.add(squash);
     group.add(pivot);
-    wheels.push({ pivot, squash, spin });
+    wheels.push({ pivot, squash, spin, sx, z, def: 0, target: 0, spare: null, bulge: null });
   }
-  const flatWheel = wheels[2]; // rear wheel on local -x: faces the camera both in the lane and on a lift
+  // Tyre problems: one wheel per 'tire' job, so a car with two tyre jobs has two bad wheels. A bad tyre is soft:
+  // it sags, the body leans onto it and it thumps once per turn while driving (a deflated tyre is still drivable).
+  // Some owners already swapped the first bad one for the little space-saver spare (yellow rim, sits lower).
+  // The rear wheel on local -x goes first: it faces the camera both in the lane and on a lift.
+  const TIRE_ORDER = [2, 0, 3, 1];
+  const spareSlot = Math.random() < 0.4 ? 0 : -1;
+  function setSpare(w, on) {
+    if (on && !w.spare) {
+      w.spare = mesh(wheelGeo(+(s.r * SPARE_K).toFixed(3), +(s.wr * 0.62).toFixed(3), SPARE_RIM));
+      w.squash.add(w.spare);
+    }
+    if (w.spare) w.spare.visible = on;
+    w.spin.visible = !on;
+  }
 
   // ---- damage overlays (lazily created, then toggled)
   const dmg = {};
-  const fx = { smoke: [], drips: [], sparkles: [] };
+  const fx = { smoke: [], sparkles: [] };
   function ensure(type) {
     if (dmg[type]) return dmg[type];
     let o;
@@ -456,25 +484,37 @@ export function createCar(look = randomCarLook()) {
       o.userData.hood = hp;
     } else if (type === 'battery') {
       o = new THREE.Group();
-      o.add(mesh(batteryGeo(look.type), litMat, { cast: false }));
+      const bay = mesh(batteryGeo(look.type), litMat, { cast: false });   // pokes through a shut hood: shown only when it is up
+      o.add(bay);
+      o.userData.bay = bay;
+      const bz = s.hz0 + (s.hz1 - s.hz0) * 0.55;
       const warn = new THREE.Mesh(warnGeo, warnOn);
-      warn.position.set(0.26, s.yb + 0.24, s.hz0 + (s.hz1 - s.hz0) * 0.55);
+      warn.position.set(0.26, s.yb + 0.24, bz);
       o.add(warn);
       o.userData.warn = warn;
+      const rod = mesh(propRodGeo(look.type), litMat, { cast: false });
+      o.add(rod);
+      o.userData.rod = rod;
+      o.userData.bz = bz;
+      o.userData.zaps = [];
+      for (let i = 0; i < 3; i++) {
+        const m = new THREE.Mesh(zapGeo, glowMat);
+        m.visible = false;
+        o.add(m);
+        o.userData.zaps.push({ m, t: Math.random() * 0.5 });
+      }
+      o.userData.puffs = [];
+      for (let i = 0; i < 5; i++) {
+        const m = new THREE.Mesh(unitBox, smokeMats[0]);
+        m.visible = false;
+        m.castShadow = false;
+        o.add(m);
+        o.userData.puffs.push({ m, age: 1, ox: 0 });
+      }
       chassis.add(o);
     } else if (type === 'oil') {
-      o = new THREE.Group();
-      const p = mesh(puddleGeo(), litMat, { cast: false, receive: true });
-      p.position.set(0, 0, s.ax + 0.12);
-      o.add(p);
-      o.userData.puddle = p;
+      o = new THREE.Group();   // nothing on the car itself: drops fall to the floor and stay there (leak.js)
       group.add(o);
-      for (let i = 0; i < 3; i++) {
-        const d = new THREE.Mesh(unitBox, dripMat);
-        d.scale.set(0.05, 0.08, 0.05);
-        o.add(d);
-        fx.drips.push({ m: d, age: i / 3, x: -0.2 + i * 0.22 });
-      }
     } else if (type === 'engine') {
       o = new THREE.Group();
       chassis.add(o);
@@ -493,7 +533,7 @@ export function createCar(look = randomCarLook()) {
   }
 
   const active = new Set();
-  let hoodTarget = 0, hoodA = 0, lean = 0, leanTarget = 0;
+  let hoodA = 0;
 
   function setProblems(types = []) {
     const want = new Set(types);
@@ -507,8 +547,13 @@ export function createCar(look = randomCarLook()) {
         if (o.userData.hood) o.userData.hood.visible = on;
       }
     }
-    hoodTarget = active.has('battery') ? 1 : 0;
-    leanTarget = active.has('tire') ? 1 : 0;
+    let nTire = 0;
+    for (const ty of types) if (ty === 'tire') nTire++;
+    for (let k = 0; k < TIRE_ORDER.length; k++) {
+      const w = wheels[TIRE_ORDER[k]], on = k < nTire;
+      if (k === spareSlot) setSpare(w, on);
+      else w.target = on ? 1 : 0;
+    }
   }
 
   // ---- shine (just repaired)
@@ -537,33 +582,104 @@ export function createCar(look = randomCarLook()) {
 
   // ---- per-frame
   let t = Math.random() * 10, blink = 0;
-  const flatY = s.r * 0.52;
+  let leakT = Math.random() * 0.5, leakD = 0;
+  const leakKey = {};   // groups this car's drops into one puddle
+  let parkedT = 0, crankT = 0;
+  const PARKED = 0.6, CRANK = 0.55;
+  // Dead battery, starting up: the car shudders and coughs black smoke out of the exhaust before it gets going.
+  function crank() {
+    crankT = CRANK;
+    ensure('battery').userData.puffs.forEach((p, i) => { p.age = -i * 0.07; p.ox = (Math.random() - 0.5) * 0.12; });
+  }
   function update(dt = 0.016, speed = 0) {
     t += dt;
     const sp = Number.isFinite(speed) ? speed : 0;
-    const roll = (sp * dt) / s.r;
-    for (const w of wheels) if (!(w === flatWheel && leanTarget)) w.spin.rotation.x += roll;
-
-    // flat tyre: squash the wheel and lean the body toward it
-    lean += (leanTarget - lean) * Math.min(1, dt * 8);
-    flatWheel.squash.scale.set(1 + 0.62 * lean, 1 - 0.48 * lean, 1 + 0.26 * lean);
-    flatWheel.pivot.position.y = s.r - (s.r - flatY) * lean;
-    if (lean > 0.01 && flatWheel.spin.rotation.x !== 0) flatWheel.spin.rotation.x *= 1 - lean;
-
+    if (Math.abs(sp) < 0.05) parkedT += dt;
+    else {
+      if (parkedT > PARKED && active.has('battery')) crank();
+      parkedT = 0;
+    }
+    const parked = parkedT > PARKED;
     const mv = Math.min(1, Math.abs(sp) / 4);
-    chassis.position.y = Math.sin(t * 17) * 0.012 * mv + Math.sin(t * 43) * 0.004 - 0.07 * lean;
-    chassis.rotation.z = 0.13 * lean;
-    chassis.rotation.x = -0.045 * lean + Math.sin(t * 9) * 0.004 * mv;
+    const roll = (sp * dt) / s.r;
 
-    // hood ajar
-    hoodA += (hoodTarget - hoodA) * Math.min(1, dt * 6);
+    // tyres: soft ones sag + bulge at the floor, the spare sits lower; the body leans onto the low corners
+    let tilt = 0, pitch = 0, sink = 0, thump = 0;
+    for (const w of wheels) {
+      let h;   // how far this corner sits below normal
+      if (w.spare && w.spare.visible) {
+        w.def = 0;
+        w.squash.scale.set(1, 1, 1);
+        w.pivot.position.y = s.r * SPARE_K;
+        w.spare.rotation.x += roll / SPARE_K;
+        h = s.r * (1 - SPARE_K);
+      } else {
+        w.def += (w.target - w.def) * Math.min(1, dt * (w.target ? 6 : 10));
+        if (w.def < 0.002) w.def = 0;
+        const d = w.def;
+        w.squash.scale.set(1 + 0.6 * d, 1 - SAG * d, 1 + 0.2 * d);
+        w.pivot.position.y = s.r * (1 - SAG * d);
+        w.spin.rotation.x += roll;
+        h = s.r * SAG * d;
+        if (d > 0 && !w.bulge) { w.bulge = mesh(bulgeGeo(s.r, s.wr), litMat, { cast: false }); w.pivot.add(w.bulge); }
+        if (w.bulge) {
+          w.bulge.visible = d > 0.02;
+          w.bulge.position.set(w.sx * 0.06 * d, -w.pivot.position.y, 0);   // sags outward, out from under the body
+          w.bulge.scale.set(0.6 + 0.4 * d, d, 0.6 + 0.4 * d);
+        }
+        thump += d * Math.pow(Math.abs(Math.sin(w.spin.rotation.x)), 12);   // the flat bit comes round
+      }
+      tilt += -w.sx * h;
+      pitch += (w.z > 0 ? 1 : -1) * h;
+      sink += h;
+    }
+    let shake = 0;
+    if (crankT > 0) { crankT = Math.max(0, crankT - dt); shake = crankT / CRANK; }
+    const dead = parked && active.has('battery');   // engine off: no idle vibration
+    chassis.position.y = Math.sin(t * 17) * 0.012 * mv + (dead ? 0 : Math.sin(t * 43) * 0.004) - sink * 0.3
+      - thump * 0.03 * mv + Math.abs(Math.sin(t * 41)) * 0.02 * shake;
+    chassis.rotation.z = (tilt / s.wx) * 1.05 + Math.sin(t * 63) * 0.03 * shake;
+    chassis.rotation.x = pitch * 0.55 + Math.sin(t * 9) * 0.004 * mv;
+
+    // dead battery: the hood pops up once the car stands still (and shuts before it drives: nobody drives blind)
+    const hoodTarget = dead ? 1 : 0;
+    hoodA += (hoodTarget - hoodA) * Math.min(1, dt * (hoodTarget ? 5 : 12));
     hood.rotation.x = -0.95 * hoodA;
 
-    if (active.has('battery')) {
-      blink += dt;
-      const w = dmg.battery.userData.warn;
-      w.material = blink % 0.7 < 0.35 ? warnOn : warnOff;
-      w.scale.setScalar(blink % 0.7 < 0.35 ? 1.15 : 0.9);
+    if (dmg.battery) {
+      const B = dmg.battery.userData, on = active.has('battery');
+      B.bay.visible = hoodA > 0.2;
+      B.rod.visible = hoodA > 0.85;
+      B.warn.visible = hoodA > 0.5;
+      if (on) {
+        blink += dt;
+        B.warn.material = blink % 0.7 < 0.35 ? warnOn : warnOff;
+        B.warn.scale.setScalar(blink % 0.7 < 0.35 ? 1.15 : 0.9);
+      }
+      // zaps: crackling at the terminals while parked with the hood up, now and then out of the hood seam on the move
+      for (const z of B.zaps) {
+        z.t -= dt;
+        if (z.t > 0) continue;
+        if (z.m.visible || !on) { z.m.visible = false; z.t = parked ? 0.1 + Math.random() * 0.5 : 0.7 + Math.random() * 1.5; continue; }
+        if (parked ? hoodA < 0.6 : (z !== B.zaps[0] || mv < 0.05)) { z.t = 0.15; continue; }
+        z.m.visible = true;
+        z.t = 0.05 + Math.random() * 0.08;
+        if (parked) z.m.position.set(0.26 + (Math.random() < 0.5 ? -0.08 : 0.08), s.yb + 0.22, B.bz + 0.06);
+        else z.m.position.set((Math.random() - 0.5) * 0.7, s.yb + 0.03, s.hz1 - 0.05);
+        z.m.rotation.set((Math.random() - 0.5) * 0.9, Math.random() * Math.PI * 2, (Math.random() - 0.5) * 0.9);
+        z.m.scale.setScalar(parked ? 0.95 + Math.random() * 0.5 : 0.75 + Math.random() * 0.3);
+      }
+      for (const p of B.puffs) {
+        if (p.age >= 1) { if (p.m.visible) p.m.visible = false; continue; }
+        p.age += dt * 1.5;
+        const a = Math.min(1, p.age);
+        p.m.visible = a > 0 && a < 1 && on;
+        if (!p.m.visible) continue;
+        p.m.material = smokeMats[a < 0.35 ? 0 : a < 0.7 ? 1 : 2];
+        p.m.scale.setScalar(Math.max(0.001, (0.1 + a * 0.24) * (a > 0.75 ? (1 - a) / 0.25 : 1)));
+        p.m.position.set(-0.4 + p.ox + Math.sin(a * 5 + p.ox * 30) * 0.05, s.y0 + 0.06 + a * 0.5, s.zr - 0.14 - a * 0.75);
+        p.m.rotation.set(a * 3, a * 2, 0);
+      }
     }
     if (active.has('engine')) {
       const zc = s.hz0 + (s.hz1 - s.hz0) * 0.6;
@@ -585,20 +701,16 @@ export function createCar(look = randomCarLook()) {
         p.m.rotation.set(a * 2 + p.rot, p.rot + a * 3, 0);
       }
     }
-    if (active.has('oil')) {
-      const gy = group.position.y;
-      const o = dmg.oil;
-      o.userData.puddle.position.y = 0.012 - gy;                 // stays on the floor while the lift raises the car
-      const pu = 0.88 + Math.sin(t * 1.3) * 0.03;
-      o.userData.puddle.scale.set(pu, 1, pu);
-      const top = s.y0 + 0.02, fall = top + gy;
-      for (const d of fx.drips) {
-        d.age += dt * (1.1 / Math.max(0.4, Math.sqrt(fall)));
-        if (d.age >= 1) d.age -= 1;
-        const k = d.age;
-        d.m.position.set(d.x, top - fall * k * k, s.L / 2 - 0.42);
-        d.m.visible = k > 0.15;
-        d.m.scale.y = 0.06 + k * 0.08;
+    if (active.has('oil') && group.parent) {
+      // A drop every ~0.6 s while parked (they pile up into a puddle), one every ~0.7 m while driving (a trail).
+      leakT -= dt;
+      leakD -= Math.abs(sp) * dt;
+      if (leakT <= 0 || leakD <= 0) {
+        leakT = 0.5 + Math.random() * 0.25;
+        leakD = 0.55 + Math.random() * 0.25;
+        const lx = (Math.random() - 0.5) * 0.28, lz = s.ax + 0.1 + (Math.random() - 0.5) * 0.18;   // under the sump
+        const yaw = group.rotation.y, c = Math.cos(yaw), sn = Math.sin(yaw), g = group.position;
+        leakDrop(group.parent, g.x + lx * c + lz * sn, g.y + s.y0, g.z - lx * sn + lz * c, leakKey);
       }
     }
     if (shineT > 0) {

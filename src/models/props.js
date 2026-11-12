@@ -82,18 +82,44 @@ function partGeo(type) {
       b.box(0.04, 0.226, 0.2, 0xaab4bb, 0, -0.008, 0);
       b.cyl(0.05, 0.05, 0.23, TRIM, 0, -0.01, 0, 8);
     } else if (type === 'oil') {
-      const Y = 0xf6c453, YD = 0xd9a23a;
-      b.box(0.36, 0.2, 0.26, Y, 0, 0, 0);
-      b.box(0.32, 0.02, 0.22, YD, 0, 0.2, 0);
-      b.box(0.08, 0.05, 0.08, YD, 0.1, 0.2, 0.0);                       // neck
-      b.box(0.09, 0.03, 0.09, CORAL, 0.1, 0.24, 0.0);                   // cap
-      b.box(0.035, 0.06, 0.035, YD, -0.15, 0.2, 0);                     // handle
-      b.box(0.035, 0.06, 0.035, YD, -0.03, 0.2, 0);
-      b.box(0.155, 0.03, 0.05, YD, -0.09, 0.25, 0);
-      b.box(0.22, 0.12, 0.012, NAVY, 0, 0.045, 0.13);                   // label + drop
-      b.box(0.05, 0.05, 0.014, CREAM, 0, 0.065, 0.132);
-      b.box(0.028, 0.03, 0.014, CREAM, 0, 0.11, 0.132);
-      b.box(0.012, 0.12, 0.22, NAVY, 0.181, 0.045, 0);
+      // Motor-oil jug, built as its front outline extruded back: rounded body, a carry handle with a see-through
+      // hole (top left), a shoulder curving up into the neck + cap. Stacked jugs only show their fronts, so the
+      // outline itself has to say "jug". Label with a big oil drop front and back. 0.245 tall (< PART_H).
+      const Y = 0xf6c453, YD = 0xd9a23a, D = 0.13;
+      const jug = new THREE.Shape();
+      jug.moveTo(-0.085, 0);
+      jug.lineTo(0.085, 0);
+      jug.quadraticCurveTo(0.108, 0, 0.108, 0.023);
+      jug.lineTo(0.108, 0.115);
+      jug.quadraticCurveTo(0.108, 0.168, 0.075, 0.182);                  // shoulder
+      jug.lineTo(0.012, 0.182);                                          // neck base
+      jug.lineTo(0.012, 0.218);                                          // handle grip
+      jug.lineTo(-0.085, 0.218);
+      jug.quadraticCurveTo(-0.108, 0.218, -0.108, 0.195);
+      jug.lineTo(-0.108, 0.023);
+      jug.quadraticCurveTo(-0.108, 0, -0.085, 0);
+      const hole = new THREE.Path();                                     // the handle opening
+      hole.moveTo(-0.08, 0.138);
+      hole.lineTo(-0.08, 0.19);
+      hole.lineTo(-0.018, 0.19);
+      hole.lineTo(-0.018, 0.138);
+      hole.lineTo(-0.08, 0.138);
+      jug.holes.push(hole);
+      b.shape(jug, D, Y, 0, 0, -D / 2);
+      b.box(0.21, 0.018, D + 0.006, YD, 0, 0, 0);                         // base band
+      b.cyl(0.03, 0.032, 0.06, YD, 0.045, 0.16, 0, 10);                  // neck
+      b.cyl(0.043, 0.043, 0.01, CORAL, 0.045, 0.205, 0, 10);             // tamper ring
+      b.cyl(0.04, 0.04, 0.035, NAVY, 0.045, 0.21, 0, 10);                // cap
+      const drop = new THREE.Shape();
+      drop.moveTo(0, 0.042);
+      drop.bezierCurveTo(0.008, 0.025, 0.027, 0.012, 0.027, -0.005);
+      drop.absarc(0, -0.005, 0.027, 0, Math.PI, true);
+      drop.bezierCurveTo(-0.027, 0.012, -0.008, 0.025, 0, 0.042);
+      for (const side of [1, -1]) {
+        const z = side * (D / 2);
+        b.box(0.16, 0.088, 0.01, CREAM, 0, 0.03, z);                      // label
+        b.shape(drop, 0.008, NAVY, 0, 0.07, z + side * 0.004, 0, side > 0 ? 0 : Math.PI, 0);
+      }
     } else if (type === 'battery') {
       const B = 0x4f9bd9, BD = 0x2f6aa0;
       b.box(0.42, 0.17, 0.28, B, 0, 0, 0);

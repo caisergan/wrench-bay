@@ -178,50 +178,74 @@ button:disabled { cursor: default; }
 .wl-price .pill svg { width: 22px; height: 22px; }
 .wl-price .bar { width: 66px; height: 6px; border-radius: 3px; background: rgba(31,51,64,.75); overflow: hidden; }
 .wl-price .bar i { display: block; height: 100%; width: 100%; transform: scaleX(0); transform-origin: left; background: var(--mustard); border-radius: 3px; }
-/* job bubble: the key piece of UI, kept compact (up to ~10 on screen) */
-.wl-job { padding-bottom: 8px; }
+/* job bubble: the key piece of UI, kept compact (up to ~10 on screen).
+   Tiles: need = cream slot, ready = part delivered (mustard ring), working = fills up green, done = green + check.
+   Mood row: the owner's face + patience bar, green -> amber -> coral, grey once patience is gone. */
+.wl-job { padding-bottom: 9px; }
 .wl-job .bubble {
-  position: relative; padding: 3px 4px 4px; border-radius: 13px; background: #fff; border: 2.5px solid var(--navy);
-  box-shadow: 0 3px 0 rgba(31,51,64,.38), 0 5px 8px rgba(0,0,0,.18);
+  position: relative; min-width: 60px; padding: 4px 4px 5px; border-radius: 14px; background: #fffaf0;
+  border: 2.5px solid var(--navy);
+  box-shadow: inset 0 2px 0 #fff, inset 0 -3px 0 rgba(47,72,88,.07), 0 3px 0 rgba(31,51,64,.42), 0 6px 10px rgba(0,0,0,.16);
 }
 .wl-job .bubble::after {
-  content: ''; position: absolute; left: 50%; bottom: -7.5px; width: 10px; height: 10px; background: #fff;
+  content: ''; position: absolute; left: 50%; bottom: -8px; width: 10px; height: 10px; background: #fffaf0;
   border-right: 2.5px solid var(--navy); border-bottom: 2.5px solid var(--navy); transform: translateX(-50%) rotate(45deg); border-bottom-right-radius: 3px;
 }
-.wl-job .jobs { display: flex; gap: 2px; justify-content: center; }
-.jb { position: relative; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: #f1ead9; transition: background .2s, transform .25s var(--bounce); }
+.wl-job .jobs { display: flex; gap: 3px; justify-content: center; }
+.jb {
+  position: relative; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+  background: #f3e7d0; box-shadow: inset 0 -2.5px 0 rgba(47,72,88,.11);
+  transition: background-color .2s, box-shadow .2s, transform .25s var(--bounce);
+}
 .jb[hidden] { display: none; }
 .jb .jb-i { display: contents; }
-.jb svg.ico { width: 25px; height: 25px; }
-.jb u { position: absolute; right: -3px; bottom: -3px; width: 13px; height: 13px; border-radius: 50%; background: #3fb36b; border: 2px solid var(--navy); display: none; place-items: center; text-decoration: none; }
+.jb .jb-i svg.ico { position: relative; width: 24px; height: 24px; }
+.jb-w { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; }
+.jb-w i { display: block; position: absolute; inset: 0; transform: scaleY(0); transform-origin: bottom; background: linear-gradient(#b4ecc3, #7fd796); box-shadow: inset 0 2px 0 rgba(255,255,255,.55); }
+.jb u {
+  position: absolute; right: -3px; bottom: -3px; width: 15px; height: 15px; border-radius: 50%; background: #3fb36b;
+  border: 2px solid var(--navy); display: none; place-items: center; text-decoration: none;
+}
 .jb u svg.ico { width: 9px; height: 9px; }
 .jb u svg path { stroke-width: 4.5; }
-.jb[data-s='need'] { background: #f1ead9; }
-.jb[data-s='need'] svg { filter: saturate(.9); }
-.jb[data-s='ready'] { background: #fff1b8; box-shadow: 0 0 0 2px var(--mustard-d), 0 0 7px 1px rgba(246,196,83,.9); transform: scale(1.06); }
-.jb[data-s='done'] { background: #d5f3df; }
-.jb[data-s='done'] svg.ico { opacity: .45; filter: grayscale(.35); }
-.jb[data-s='done'] u { display: grid; }
-.wl-job .work, .wl-job .pat { height: 5px; border-radius: 3px; overflow: hidden; margin: 3px 2px 0; background: #e3d9c2; }
-.wl-job .work { visibility: hidden; background: #ead9a2; }
-.wl-job .work.on { visibility: visible; }
-.wl-job .work i { display: block; height: 100%; transform: scaleX(0); transform-origin: left; background: linear-gradient(#ffd96b, var(--mustard-d)); border-radius: 3px; }
-.wl-job .pat[hidden] { display: block; visibility: hidden; }
-.wl-job .pat i { display: block; height: 100%; transform-origin: left; border-radius: 3px; transition: transform .25s linear, background-color .3s; background: #4cc26b; }
-.wl-job .pat[data-b='mid'] i { background: var(--mustard); }
-.wl-job .pat[data-b='low'] i { background: var(--coral); }
-.wl-job .pat[data-b='zero'] { background: #b9bfc3; }
+.jb[data-s='ready'] { background: #fff; box-shadow: 0 0 0 2px var(--mustard-d), inset 0 -2.5px 0 rgba(47,72,88,.08); transform: scale(1.05); animation: jbIn .35s var(--bounce); }
+.jb.working { box-shadow: 0 0 0 2px #2f9e57, inset 0 -2.5px 0 rgba(47,72,88,.08); transform: scale(1.1); }
+.jb.working .jb-i svg.ico { animation: jbWork .22s ease-in-out infinite alternate; }
+.jb[data-s='done'] { background: #c9eed5; box-shadow: inset 0 -2.5px 0 rgba(31,120,60,.14); }
+.jb[data-s='done'] .jb-i svg.ico { opacity: .42; filter: grayscale(.5); }
+.jb[data-s='done'] u { display: grid; animation: checkPop .4s var(--bounce); }
+@keyframes jbIn { 0% { transform: scale(.7); } 100% { transform: scale(1.05); } }
+@keyframes jbWork { from { transform: rotate(-8deg); } to { transform: rotate(8deg) translateY(-1px); } }
+@keyframes checkPop { from { transform: scale(0); } }
+.wl-job .mood { display: flex; align-items: center; gap: 3px; margin-top: 4px; }
+.wl-job .mood[hidden] { display: none; }
+.wl-job .face { display: contents; }
+.wl-job .face svg.ico { flex: none; width: 16px; height: 16px; margin-left: -1px; }
+.wl-job .pat { flex: 1; height: 7px; border-radius: 4px; overflow: hidden; background: rgba(47,72,88,.14); box-shadow: inset 0 1.5px 0 rgba(31,51,64,.12); }
+.wl-job .pat i {
+  display: block; height: 100%; transform-origin: left; border-radius: 4px; background: #4cc26b;
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.38); transition: transform .25s linear, background-color .3s;
+}
+.wl-job .mood[data-b='mid'] .pat i { background: var(--mustard); }
+.wl-job .mood[data-b='low'] .pat i { background: var(--coral); }
+.wl-job .mood[data-b='low'] .face svg.ico { animation: facePulse .6s ease-in-out infinite; }
+.wl-job .mood[data-b='zero'] .pat { background: #c3c8cb; }
+@keyframes facePulse { 50% { transform: scale(1.22); } }
 .wl-job .bubble.urgent { animation: urgent .6s ease-in-out infinite; }
 @keyframes urgent { 0%,100% { transform: none; } 25% { transform: translateX(-1.5px) rotate(-1.5deg); } 75% { transform: translateX(1.5px) rotate(1.5deg); } }
-.wl-job .vstar { display: none; position: absolute; left: -9px; top: -11px; width: 20px; height: 20px; transform: rotate(-14deg); filter: drop-shadow(0 2px 0 rgba(31,51,64,.4)); }
-.wl-job .vstar svg.ico { width: 20px; height: 20px; }
-.wl-job .bubble.vip { background: linear-gradient(#ffe38a, #f6c453); border-color: #7a5a12; }
+.wl-job .vstar { display: none; position: absolute; left: -10px; top: -12px; width: 21px; height: 21px; transform: rotate(-14deg); filter: drop-shadow(0 2px 0 rgba(31,51,64,.4)); }
+.wl-job .vstar svg.ico { width: 21px; height: 21px; }
+.wl-job .bubble.vip {
+  background: linear-gradient(#ffeaa8, #f6c453); border-color: #7a5a12;
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.6), 0 3px 0 rgba(122,90,18,.55), 0 6px 10px rgba(0,0,0,.16);
+}
 .wl-job .bubble.vip::after { background: #f6c453; border-color: #7a5a12; }
 .wl-job .bubble.vip .vstar { display: block; }
-.wl-job .bubble.vip .jb { background: #fff4c9; }
-.wl-job .bubble.vip .jb[data-s='ready'] { background: #fff; }
-.wl-job .bubble.vip .jb[data-s='done'] { background: #d5f3df; }
-.wl-job .bubble.vip .work, .wl-job .bubble.vip .pat { background: rgba(122,90,18,.28); }
+.wl-job .bubble.vip .jb { background: #fff3c4; box-shadow: inset 0 -2.5px 0 rgba(122,90,18,.16); }
+.wl-job .bubble.vip .jb[data-s='ready'] { background: #fff; box-shadow: 0 0 0 2px #7a5a12, inset 0 -2.5px 0 rgba(122,90,18,.12); }
+.wl-job .bubble.vip .jb.working { box-shadow: 0 0 0 2px #2f9e57, inset 0 -2.5px 0 rgba(122,90,18,.12); }
+.wl-job .bubble.vip .jb[data-s='done'] { background: #c9eed5; }
+.wl-job .bubble.vip .pat { background: rgba(122,90,18,.24); }
 /* pop when a bubble appears */
 .wl.on .bubble { animation: bubblePop .38s var(--bounce); }
 .wl.on .bubble.urgent { animation: urgent .6s ease-in-out infinite; }

@@ -7,3 +7,4 @@ export { createCar, randomCarLook } from './cars.js';
 export { createCharacter, randomCustomerLook, playerLook, mechanicLook, valetLook } from './characters.js';
 export { buildEnvironment } from './environment.js';
 export { poof, sparks, confetti } from './fx.js';
+export { updateLeaks } from './leak.js';

@@ -7,6 +7,7 @@ import * as P from './props.js';
 import * as C from './cars.js';
 import * as H from './characters.js';
 import { poof, sparks, confetti, updateFx } from './fx.js';
+import { updateLeaks } from './leak.js';
 
 const q = new URLSearchParams(location.search);
 const view = q.get('view') || 'row';
@@ -205,6 +206,7 @@ function frame() {
   for (const u of updaters) u(dt);
   for (const w of chars) w.c.update(dt, w.speed);
   updateFx(dt);
+  updateLeaks(dt);
   renderer.render(scene, camera);
 }
 frame();

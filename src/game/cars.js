@@ -15,7 +15,7 @@
 //   exiting    carExit -> despawn
 //   gone
 import * as THREE from 'three';
-import { createCar, randomCarLook, createZoneRing } from '../models/index.js';
+import { createCar, randomCarLook, createZoneRing, updateLeaks } from '../models/index.js';
 import { LAYOUT as L, ECONOMY, CAR, CAR_TYPES, PLAYER } from '../config.js';
 import { state, unlockedPartTypes, isUnlocked, liftCount } from '../core/state.js';
 import { events } from '../core/events.js';
@@ -435,6 +435,7 @@ export function createCars(ctx) {
       }
       // ---- entities
       for (let i = list.length - 1; i >= 0; i--) list[i].update(dt);
+      updateLeaks(dt);   // oil drops + spots on the floor (they outlive the car that left them)
       // ---- dynamic colliders for the player / driven car
       const caps = ctx.capsules;
       caps.length = 0;
