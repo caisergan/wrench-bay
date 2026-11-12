@@ -14,6 +14,9 @@ Controls: drag anywhere for the floating joystick (touch or mouse), or WASD / ar
 interact: next to a waiting car to hop in and drive it, in front of a station to grab parts, in front of a lifted
 car to deliver parts and repair, on a yellow pad to pay for an unlock, on the teal pad for upgrades.
 
+Dev tools: `?dev` adds an in-game panel to edit every stat, tune the balance live, jump to any stage of the game and
+hide the HUD (`?nohud` starts with a clean screen). See `docs/dev-tool.md`.
+
 Debug: `?autoplay` skips the title; `?nogame` boots only the environment + UI; `?cam=x,z` pins the camera;
 `?uitest` spawns sample UI; `window.__game` has `teleport(x,z)`, `giveCash(n)`, `spawnCar()`, `unlockAll()`...;
 `/src/models/preview.html` shows every model.

@@ -10,10 +10,14 @@ import { initPlatform, onLifecycle, hideSplash } from './core/platform.js';
 import { suspendAudio, resumeAudio } from './ui/audio.js';
 import { buildEnvironment } from './models/index.js';
 import { initUI } from './ui/index.js';
+import { devFlag, armDevGesture } from './dev/flag.js';
 
 const params = new URLSearchParams(location.search);
 await initPlatform();   // iOS app: restores saves from native storage. No-op in the browser.
 load();
+// Dev tool (?dev, see src/dev/flag.js): loaded before the game so its balance overrides are in place first.
+let dev = devFlag() ? await import('./dev/index.js') : null;
+dev?.boot();
 // Static world (owned by the environment agent). Built here so it shows even if gameplay fails to boot.
 const env = buildEnvironment(scene);
 onUpdate((dt, t) => env.update(dt, t));
@@ -29,6 +33,8 @@ if (!params.has('nogame')) {
 }
 start();
 requestAnimationFrame(() => requestAnimationFrame(hideSplash));
+if (dev) dev.start();
+else armDevGesture(async () => { dev = await import('./dev/index.js'); dev.boot(); dev.start({ announce: true }); });
 
 // Leaving the game (iOS app to the background, browser tab hidden or closed): save now and pause the sound.
 // Coming back: resume the sound and offer offline earnings if the crew was running the shop meanwhile.
