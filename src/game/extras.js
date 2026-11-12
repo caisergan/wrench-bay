@@ -47,18 +47,19 @@ export function createExtras(ctx) {
       items.valetStand = place(createValetStand(), s.x, s.z, 0, animate, [0.35, 0.3]);
     },
 
-    /** Fly every part of `stack` into the bin (top first). */
-    dumpFrom(stack, from) {
+    /** Fly every part of `stack` into a bin (top first). bin = { x, z } (default: the garage's scrap bin). */
+    dumpFrom(stack, from, b = bin) {
       const n = stack.items.length;
       if (!n) return 0;
+      const top = b === bin ? binTop : new THREE.Vector3(b.x, 1.0, b.z);
       for (let i = 0; i < n; i++) {
         const part = stack.takeTop();
-        hop(part, part.position, binTop, {
+        hop(part, part.position, top, {
           duration: 0.3, delay: i * 0.05, height: 1.0, scaleFrom: part.scale.x, scaleTo: 0.4,
           onComplete: () => detach(part),
         });
       }
-      tween({ duration: 0.01, delay: 0.3 + n * 0.05, onComplete: () => poof(scene, _v.set(bin.x, 0.6, bin.z), 0x8f9aa3) });
+      tween({ duration: 0.01, delay: 0.3 + n * 0.05, onComplete: () => poof(scene, _v.set(b.x, 0.6, b.z), 0x8f9aa3) });
       ui.sfx('trash');
       return n;
     },
@@ -67,8 +68,13 @@ export function createExtras(ctx) {
       dumpT -= dt;
       const pl = ctx.player;
       if (!pl.onFoot || dumpT > 0 || !pl.stack.items.length) return;
-      const r = L.scrapBinRadius + PLAYER.radius + 0.15;
-      if (Math.hypot(pl.pos.x - bin.x, pl.pos.z - bin.z) < r) { sys.dumpFrom(pl.stack); dumpT = 0.6; }
+      // every facility's scrap bin (garage: L.scrapBin; others: fac.scrap = { x, z, radius })
+      for (const fac of ctx.facilityList) {
+        const b = fac.scrap;
+        if (!b) continue;
+        const r = b.radius + PLAYER.radius + 0.15;
+        if (Math.hypot(pl.pos.x - b.x, pl.pos.z - b.z) < r) { sys.dumpFrom(pl.stack, null, fac.id === 'garage' ? bin : b); dumpT = 0.6; return; }
+      }
     },
     dispose() {},
   };

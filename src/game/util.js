@@ -41,6 +41,9 @@ export class Tag {
   setPatience(p) { this.label.setPatience?.(p); return this; }
   setVip(v) { this.label.setVip?.(v); return this; }
   setIcon(i) { this.label.setIcon?.(i); return this; }
+  setBonus(t) { this.label.setBonus?.(t); return this; }
+  /** Any other label method, called only if the label kind has it: tag.call('setStars', [true, null, null]). */
+  call(name, ...args) { this.label[name]?.(...args); return this; }
   remove() { this.label.remove(); }
 }
 

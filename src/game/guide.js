@@ -1,4 +1,5 @@
-// Tutorial arrow: car -> lift -> station -> work zone -> cash -> pad. Hidden after a few unlocks.
+// Tutorial arrow: car -> lift -> station -> work zone -> cash -> pad. Hidden after a few unlocks; later it shows the
+// town's guide target (ctx.town.guideTarget: tow shed pad, the truck, a map target ...).
 import * as THREE from 'three';
 import { state } from '../core/state.js';
 import { LAYOUT as L } from '../config.js';
@@ -52,9 +53,12 @@ export function createGuide(ctx) {
 
   return {
     update(dt, t) {
-      const show = ctx.game.started && state.stats.unlocks < HIDE_AFTER;
-      if (!show) { group.visible = false; return; }
-      const tp = pick();
+      // tutorial targets for the first unlocks; after that the town's guide target (ctx.town.setGuide / map)
+      const tut = state.stats.unlocks < HIDE_AFTER;
+      const town = ctx.town?.guideTarget;
+      const show = ctx.game.started && (tut || town);
+      if (!show) { group.visible = false; placed = false; return; }
+      const tp = (tut ? pick() : null) || (town ? target.set(town.x, 0, town.z) : null);
       if (!tp) { group.visible = false; placed = false; return; }
       group.visible = true;
       if (!placed) { cur.copy(tp); placed = true; }

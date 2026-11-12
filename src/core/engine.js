@@ -37,25 +37,46 @@ scene.add(sun, sun.target);
 
 // ---- follow camera ----
 let followObj = null;
-const camTarget = new THREE.Vector3(0, 0, 0);
+/** Current camera target on the ground (read-only for callers; ctx.near uses it). */
+export const camTarget = new THREE.Vector3(0, 0, 0);
 /** Camera follows this Object3D (the player, or the car being driven). */
 export function follow(obj) { followObj = obj; }
 // Clamp how far the camera can roam so we never look too far outside the lot.
 const CAM_CLAMP = { minX: -2.6, maxX: 2.6, minZ: LAYOUT.bounds.minZ + 6.5, maxZ: LAYOUT.bounds.maxZ - 1.2 };
+// Town mode (setCameraBounds(rect)): follows 1:1 inside rect. null = the legacy lot framing above.
+let townClamp = null;
+const lead = new THREE.Vector2(), leadGoal = new THREE.Vector2();
+let zoom = 1, zoomGoal = 1;
+/** rect {minX,maxX,minZ,maxZ}: follow the target 1:1 inside it (the open town). null: legacy lot clamp. */
+export function setCameraBounds(rect) { townClamp = rect ? { ...rect } : null; }
+/** Look ahead of the followed object by (x, z) world units (e.g. ahead of a vehicle's velocity). Eased. */
+export function setCameraLead(x = 0, z = 0) { leadGoal.set(x, z); }
+/** Pull the camera back (k > 1) or in. Eased; 1 = default framing. */
+export function setCameraZoom(k = 1) { zoomGoal = k; }
 // Debug: ?cam=x,z pins the camera target (no follow). Handy for looking at the environment.
 const camParam = new URLSearchParams(location.search).get('cam');
 const camPinned = camParam ? camParam.split(',').map(Number) : null;
 if (camPinned) camTarget.set(camPinned[0] || 0, 0, camPinned[1] || 0);
 
+const _off = new THREE.Vector3();
 function updateCamera(dt, snap = false) {
+  const kl = snap ? 1 : 1 - Math.exp(-dt * 2.2);
+  lead.lerp(leadGoal, kl);
+  zoom += (zoomGoal - zoom) * kl;
   if (followObj && !camPinned) {
-    const tx = THREE.MathUtils.clamp(followObj.position.x * 0.85, CAM_CLAMP.minX, CAM_CLAMP.maxX);
-    const tz = THREE.MathUtils.clamp(followObj.position.z, CAM_CLAMP.minZ, CAM_CLAMP.maxZ);
+    let tx, tz;
+    if (townClamp) {
+      tx = THREE.MathUtils.clamp(followObj.position.x + lead.x, townClamp.minX, townClamp.maxX);
+      tz = THREE.MathUtils.clamp(followObj.position.z + lead.y, townClamp.minZ, townClamp.maxZ);
+    } else {
+      tx = THREE.MathUtils.clamp(followObj.position.x * 0.85, CAM_CLAMP.minX, CAM_CLAMP.maxX);
+      tz = THREE.MathUtils.clamp(followObj.position.z, CAM_CLAMP.minZ, CAM_CLAMP.maxZ);
+    }
     const k = snap ? 1 : 1 - Math.exp(-dt * 5);
     camTarget.x += (tx - camTarget.x) * k;
     camTarget.z += (tz - camTarget.z) * k;
   }
-  camera.position.copy(camTarget).add(CAMERA_OFFSET);
+  camera.position.copy(camTarget).add(_off.copy(CAMERA_OFFSET).multiplyScalar(zoom));
   camera.lookAt(camTarget.x, 0, camTarget.z - 1.2);
   // keep the shadow frustum centred on what we see
   sun.position.set(camTarget.x - 8, 18, camTarget.z + 10);

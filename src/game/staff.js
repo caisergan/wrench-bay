@@ -1,24 +1,24 @@
-// Staff: mechanics (fetch parts for a lifted car, deliver, wrench) and the valet (drives waiting cars onto lifts).
+// Staff: mechanics (fetch parts for a bay's car, deliver, wrench) and the valet (drives waiting cars onto bays).
+// One staff system per facility; a facility can subclass Mechanic / Valet (painter, prep tech, host ...).
 import * as THREE from 'three';
-import { createCharacter, mechanicLook, valetLook } from '../models/index.js';
-import { LAYOUT as L, ECONOMY } from '../config.js';
+import { createCharacter } from '../models/index.js';
+import { ECONOMY } from '../config.js';
 import { ui } from '../ui/index.js';
 import { Walker } from './walker.js';
 import { PartStack } from './stack.js';
 import { popIn, hop } from './tween.js';
 
-const LANE_Z = L.staffLaneZ;
-
-/** Is this lift's car something a mechanic can work on right now? */
+/** Is this bay's car something a mechanic can work on right now? */
 function workable(lift) {
-  return lift && lift.car && (lift.phase === 'raise' || lift.phase === 'up') && !lift.car.finished;
+  return !!lift && lift.isWorkable();
 }
 
-class Mechanic extends Walker {
-  constructor(ctx, index, from) {
-    super(createCharacter(mechanicLook(index)), ECONOMY.mechanicSpeed, 0);
-    this.ctx = ctx; this.index = index;
-    this.home = L.mechanicIdle[index % L.mechanicIdle.length];
+export class Mechanic extends Walker {
+  constructor(ctx, fac, index, from) {
+    super(createCharacter(fac.h('mechanicLook', index)), ECONOMY.mechanicSpeed, 0);
+    this.ctx = ctx; this.fac = fac; this.L = fac.L; this.index = index;
+    const idle = fac.L.staffIdle;
+    this.home = idle[index % idle.length];
     this.pos.set(from ? from.x : this.home.x, 0, from ? from.z : this.home.z);
     ctx.root.add(this.group);
     if (from) popIn(this.group, 1, 0.4);
@@ -33,6 +33,7 @@ class Mechanic extends Walker {
 
   /** Walk via the staff lane between the parts wall and the lifts. */
   goTo(x, z) {
+    const LANE_Z = this.L.staffLaneZ;
     const p = this.pos, path = [];
     if (Math.abs(p.z - LANE_Z) > 0.3 && Math.hypot(p.x - x, p.z - z) > 0.5) path.push({ x: p.x, z: LANE_Z });
     if (Math.abs(z - LANE_Z) > 0.3) path.push({ x, z: LANE_Z });
@@ -65,8 +66,8 @@ class Mechanic extends Walker {
   /** Where this mechanic stands at a lift (second mechanic mirrors to the other side). */
   spotAt(lift) {
     let k = 0;
-    for (const m of this.ctx.staff.mechanics) { if (m === this) break; if (m.lift === lift) k++; }
-    const o = L.mechanicSpotOffset;
+    for (const m of this.fac.staff.mechanics) { if (m === this) break; if (m.lift === lift) k++; }
+    const o = this.L.staffSpotOffset;
     return { x: lift.x + (k % 2 ? -o.x : o.x), z: lift.z + o.z };
   }
 
@@ -75,14 +76,14 @@ class Mechanic extends Walker {
     for (const it of this.stack.items) {
       const t = it.userData.partType;
       let used = false;
-      for (const l of this.ctx.lifts.list) if (workable(l) && l.car.findNeed(t, this, true)) { used = true; break; }
+      for (const l of this.fac.bays.list) if (workable(l) && l.car.findNeed(t, this, true)) { used = true; break; }
       if (!used) return true;
     }
     return false;
   }
 
   plan() {
-    const lifts = this.ctx.lifts.list;
+    const lifts = this.fac.bays.list;
     let best = null, bestScore = -1e9;
     for (const l of lifts) {
       if (!workable(l)) continue;
@@ -90,11 +91,11 @@ class Mechanic extends Walker {
       let open = 0, ready = 0, carriedMatch = 0;
       for (const j of car.jobs) {
         if (j.state === 'ready') ready++;
-        else if (j.state === 'need' && !j.incoming && (j.claim === null || j.claim === this) && this.ctx.stations.get(j.type)) open++;
+        else if (j.state === 'need' && !j.incoming && (j.claim === null || j.claim === this) && this.fac.stations.get(j.type)) open++;
       }
       for (const it of this.stack.items) if (car.findNeed(it.userData.partType, this, false)) carriedMatch++;
       let others = 0;
-      for (const m of this.ctx.staff.mechanics) if (m !== this && m.lift === l) others++;
+      for (const m of this.fac.staff.mechanics) if (m !== this && m.lift === l) others++;
       if (!open && !carriedMatch && !(ready && others === 0)) continue;
       const score = (l === this.lift ? 40 : 0) - others * 30 + open * 3 + ready * 2 + carriedMatch * 8 - Math.abs(l.x - this.pos.x) * 0.3;
       if (score > bestScore) { bestScore = score; best = l; }
@@ -119,7 +120,7 @@ class Mechanic extends Walker {
     let useless = carried.length - this.claims.length;
     for (const j of car.jobs) {
       if (this.claims.length + useless >= cap) break;
-      if (j.state === 'need' && !j.incoming && j.claim === null && this.ctx.stations.get(j.type)) { j.claim = this; this.claims.push(j); }
+      if (j.state === 'need' && !j.incoming && j.claim === null && this.fac.stations.get(j.type)) { j.claim = this; this.claims.push(j); }
     }
     if (useless > 0 && this.hasUseless() && this.claims.length + useless >= cap) { this.releaseClaims(); this.toScrap(); return; }
     this.startFetchOrGo();
@@ -128,7 +129,7 @@ class Mechanic extends Walker {
   startFetchOrGo() {
     const t = this.missingType();
     if (t) {
-      this.station = this.ctx.stations.get(t);
+      this.station = this.fac.stations.get(t);
       this.goTo(this.station.zonePos.x, this.station.zonePos.z);
       this.idleYaw = Math.PI;
       this.state = 'fetch'; this.waitT = 0;
@@ -143,12 +144,14 @@ class Mechanic extends Walker {
   }
 
   toScrap() {
-    const b = L.scrapBin;
+    const b = this.fac.scrap;
+    if (!b) { this.stack.clear(); this.state = 'idle'; this.timer = 0.3; return; }   // no bin: parts go back on the shelf
     this.goTo(b.x - 1.0, b.z);
     this.idleYaw = Math.PI / 2;
     this.state = 'toScrap';
   }
 
+  /** Work pose on / off (a painter overrides this with setSpraying). */
   setWorkAnim(on) { if (on !== this.workShown) { this.workShown = on; this.ch.setWorking(on); } }
 
   update(dt) {
@@ -226,7 +229,7 @@ class Mechanic extends Walker {
       }
       case 'toScrap':
         if (arrived) {
-          this.ctx.extras.dumpFrom(this.stack, this.group.position);
+          this.ctx.extras.dumpFrom(this.stack, this.group.position, this.fac.scrap);
           this.state = 'idle'; this.timer = 0.6;
         }
         break;
@@ -235,11 +238,11 @@ class Mechanic extends Walker {
   }
 }
 
-class Valet extends Walker {
-  constructor(ctx, from) {
-    super(createCharacter(valetLook()), 3.4, 0);
-    this.ctx = ctx;
-    const s = L.valetStand;
+export class Valet extends Walker {
+  constructor(ctx, fac, from) {
+    super(createCharacter(fac.h('valetLook')), 3.4, 0);
+    this.ctx = ctx; this.fac = fac; this.L = fac.L;
+    const s = fac.L.valetStand;
     this.home = { x: s.x - 0.75, z: s.z + 0.15 };
     this.pos.set(from ? from.x : this.home.x, 0, from ? from.z : this.home.z);
     ctx.root.add(this.group);
@@ -250,10 +253,10 @@ class Valet extends Walker {
     this.hidden = false;
   }
 
-  door(car, out) { out.x = car.pos.x - 0.35; out.z = car.pos.z + L.queuePickupOffsetZ + 0.35; return out; }
+  door(car, out) { out.x = car.pos.x - 0.35; out.z = car.pos.z + this.L.queuePickupOffsetZ + 0.35; return out; }
 
   pickCar() {
-    const cars = this.ctx.cars;
+    const cars = this.fac.cars;
     for (const car of cars.lane) {             // front-most first
       if (!cars.isWaiting(car)) continue;
       if (car.enterT > 0 || car.queuedT < ECONOMY.valetDelay) return null;
@@ -262,8 +265,10 @@ class Valet extends Walker {
     return null;
   }
   pickLift(car) {
-    const lifts = this.ctx.lifts;
-    const need = this.ctx.player.driving ? 2 : 1;
+    const lifts = this.fac.bays;
+    const pl = this.ctx.player;
+    // leave one free bay for the player while they are driving one of this facility's cars
+    const need = pl.driving && pl.car && pl.car.fac === this.fac ? 2 : 1;
     if (lifts.capturableCount() < need) return null;
     let best = null, bd = 1e9;
     for (const l of lifts.list) {
@@ -325,7 +330,7 @@ class Valet extends Walker {
   board() {
     const car = this.car, lift = this.lift;
     this.state = 'boarding';
-    const cars = this.ctx.cars;
+    const cars = this.fac.cars;
     cars.leaveLane(car);
     car.mode = 'boarding';
     hop(this.group, this.pos, (out) => out.set(car.pos.x, 0.5, car.pos.z), {
@@ -335,15 +340,20 @@ class Valet extends Walker {
         this.group.scale.setScalar(1);
         car.mode = 'valet';
         const sx = car.pos.x;
-        car.setPath([
-          { x: sx + 0.4, z: L.queueLaneZ - 2.4 },
-          { x: lift.x, z: 1.8 },
-          { x: lift.x, z: -0.2 },
-        ], { restYaw: Math.PI });
+        car.setPath(this.pathToBay(car, lift, sx), { restYaw: Math.PI });
         car.onArrive = () => lift.capture(car, 'valet', this);
         ui.sfx('engine');
       },
     });
+  }
+
+  /** Waypoints from the lane to the bay (the bay captures the car at the last one). */
+  pathToBay(car, lift, sx) {
+    return [
+      { x: sx + 0.4, z: this.L.queueLaneZ - 2.4 },
+      { x: lift.x, z: lift.z + 5.2 },
+      { x: lift.x, z: lift.z + 3.2 },
+    ];
   }
 
   /** The lift snapped our car: hop out and walk back to the stand. */
@@ -352,7 +362,7 @@ class Valet extends Walker {
     this.car = null; this.lift = null;
     this.hidden = false;
     const from = new THREE.Vector3(car.pos.x, 0.5, car.pos.z);
-    const to = new THREE.Vector3(lift.x - 1.0, 0, lift.z + 1.9);
+    const to = new THREE.Vector3(lift.x - 1.0, 0, lift.z + 1.9);   // beside the car's tail
     this.pos.copy(from);
     this.group.visible = true;
     this.state = 'alighting';
@@ -361,23 +371,23 @@ class Valet extends Walker {
       onComplete: () => {
         this.pos.y = 0; this.group.scale.setScalar(1);
         this.state = 'return';
-        this.path = [{ x: lift.x - 1.0, z: 2.2 }, { x: this.home.x, z: this.home.z }];
+        this.path = [{ x: lift.x - 1.0, z: lift.z + 5.6 }, { x: this.home.x, z: this.home.z }];
       },
     });
   }
 }
 
-export function createStaff(ctx) {
+export function createStaff(ctx, fac) {
   const mechanics = [];
   let valet = null;
   return {
-    mechanics,
+    mechanics, fac,
     get valet() { return valet; },
     addMechanic(index, from) {
       if (mechanics.some((m) => m.index === index)) return;
-      mechanics.push(new Mechanic(ctx, index, from));
+      mechanics.push(new fac.classes.Mechanic(ctx, fac, index, from));
     },
-    addValet(from) { if (!valet) valet = new Valet(ctx, from); },
+    addValet(from) { if (!valet) valet = new fac.classes.Valet(ctx, fac, from); },
     update(dt) {
       for (const m of mechanics) m.update(dt);
       if (valet) valet.update(dt);

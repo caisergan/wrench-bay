@@ -1,61 +1,48 @@
 // Cars: entity (AI driving, jobs, patience, job bubble), spawner, drop-off lane queue and the way out.
+// One car system per facility (fac.cars); every car of every facility is also in ctx.allCars (collision, yielding).
 //
 // Car modes:
 //   arriving   street -> carEntry -> drop-off lane slot          (in sys.lane)
 //   queued     waiting in the lane (rolls forward when the lane shuffles; enterable when stopped)  (in sys.lane)
 //   boarding   the player / valet is hopping in
 //   driven     the player drives it with the joystick
-//   valet      the valet drives it to a reserved lift (AI path)
-//   snap       tweening onto a lift (lift.js)
-//   lift       on a lift (lift.js runs raise / work / lower)
-//   ready      repaired and lowered, waiting for its departure slot (exitGap)
-//   reversing  straight back from the lift to the exit lane
+//   valet      the valet drives it to a reserved bay (AI path)
+//   snap       tweening onto a bay (lifts.js)
+//   lift       on a bay (lifts.js runs raise / work / lower, or the facility's own sequence)
+//   ready      finished, waiting for its departure slot (exitGap)
+//   reversing  straight back from the bay to the exit lane
 //   toPickup   forward along the exit lane to pickupStop
 //   waitOwner  at pickupStop until the owner hops in (4 s max)
 //   exiting    carExit -> despawn
 //   gone
+// Facility code may add its own modes; the car only drives itself in the modes above (`custom` = someone else
+// moves it, like 'driven').
 import * as THREE from 'three';
-import { createCar, randomCarLook, createZoneRing, updateLeaks } from '../models/index.js';
-import { LAYOUT as L, ECONOMY, CAR, CAR_TYPES, PLAYER } from '../config.js';
-import { state, unlockedPartTypes, isUnlocked, liftCount } from '../core/state.js';
-import { events } from '../core/events.js';
+import { createCar, createZoneRing } from '../models/index.js';
+import { ECONOMY, CAR, PLAYER } from '../config.js';
 import { ui } from '../ui/index.js';
 import { Tag, damp, lerpAngle, angleDiff, clamp, detach } from './util.js';
 
 const ACCEL = 6.5, BRAKE = 10;
 const HALF_SEG = (CAR.length - CAR.width) / 2;   // capsule half segment along the car
 const CAP_R = CAR.width / 2;
-const LANE_Z = L.queueLaneZ;
-const RING_DZ = L.queuePickupOffsetZ;
 const PICKUP_WAIT = 4;
 let uid = 0;
 
-/** Problem list for a new car: only unlocked types, duplicates allowed. */
-function rollProblems() {
-  const types = unlockedPartTypes();
-  const min = ECONOMY.problemsMin;
-  const max = Math.max(min, Math.min(ECONOMY.problemsCap, ECONOMY.problemsMaxBase + Math.floor(state.unlocked.length / ECONOMY.problemsPerUnlocks)));
-  const n = min + Math.floor(Math.random() * (max - min + 1));
-  const out = [];
-  for (let i = 0; i < n; i++) out.push(types[Math.floor(Math.random() * types.length)]);
-  return out;
-}
-
 export class Car {
   constructor(sys, opts = {}) {
-    this.sys = sys; this.ctx = sys.ctx; this.id = ++uid;
-    const vipChance = ECONOMY.vipChance * (isUnlocked('billboard') ? ECONOMY.billboardVipMult : 1);
-    // VIPs are events: never two on the lot at once
-    const vip = opts.vip ?? (!sys.list.some((c) => c.vip) && Math.random() < vipChance);
-    const look = randomCarLook({ vip });
-    if (opts.type && CAR_TYPES[opts.type] && !look.vip) look.type = opts.type;
+    const fac = sys.fac;
+    this.sys = sys; this.fac = fac; this.ctx = sys.ctx; this.id = ++uid;
+    this.opts = opts;
+    const look = opts.look || fac.h('rollLook', opts);
     this.look = look;
     this.vip = !!look.vip;
-    this.tier = (CAR_TYPES[look.type] || CAR_TYPES.compact).tier;
+    this.tier = fac.h('tier', look);
+    this.payMult = opts.payMult || 1;       // e.g. rescue x2.5 (repairPayout { mult })
     this.model = createCar(look);
     this.group = this.model.group;
     this.pos = this.group.position;
-    const types = (opts.problems && opts.problems.length ? opts.problems : rollProblems()).slice(0, 4);
+    const types = (opts.problems && opts.problems.length ? opts.problems : fac.h('rollJobs', opts, look)).slice(0, opts.maxJobs || 4);
     this.types = types;
     this.jobs = types.map((type) => ({ type, state: 'need', progress: 0, claim: null, incoming: false }));
     this.remaining = types.slice();
@@ -100,7 +87,7 @@ export class Car {
 
   startPatience() {
     if (this.patienceOn || this.patienceGone) return;
-    this.patienceMax = ECONOMY.patience * (isUnlocked('coffee') ? ECONOMY.coffeePatienceMult : 1) * (this.vip ? ECONOMY.vipPatienceMult : 1);
+    this.patienceMax = this.fac.h('patience', this);
     this.patience = this.patienceMax;
     this.patienceOn = true;
   }
@@ -127,7 +114,7 @@ export class Car {
     if (this.ghostT > 0) return null;
     const px = this.pos.x, pz = this.pos.z;
     const look = 3.15 + this.speed * 0.22;
-    const list = this.sys.list;
+    const list = this.ctx.allCars;
     for (let i = 0; i < list.length; i++) {
       const o = list[i];
       if (o === this || o.mode === 'gone' || o.mode === 'snap' || o.mode === 'lift' || o.mode === 'ready') continue;
@@ -142,6 +129,16 @@ export class Car {
       const dx = pl.pos.x - px, dz = pl.pos.z - pz;
       const along = dx * ux + dz * uz;
       if (along > 0.2 && along < 2.1 && Math.abs(dx * uz - dz * ux) < 1.05) return 'player';
+    }
+    // other moving things (player vehicles, towed cars, traffic): { pos, radius } in ctx.movers
+    const mv = this.ctx.movers;
+    for (let i = 0; i < mv.length; i++) {
+      const o = mv[i];
+      if (o.ignore === this || o.hidden) continue;
+      const dx = o.pos.x - px, dz = o.pos.z - pz;
+      const along = dx * ux + dz * uz;
+      const r = o.radius ?? 1;
+      if (along > 0.2 && along < look + r * 0.5 && Math.abs(dx * uz - dz * ux) < 0.85 + r) return 'player';
     }
     return null;
   }
@@ -229,12 +226,12 @@ export class Car {
   // ------------------------------------------------------------ per-frame
   update(dt) {
     if (this.ghostT > 0) this.ghostT -= dt;
-    const sys = this.sys;
+    const sys = this.sys, L = this.fac.L;
     switch (this.mode) {
       case 'arriving':
         if (this.drive(dt)) {
           this.mode = 'queued';
-          this.restYaw = Math.PI / 2;
+          this.restYaw = L.laneYaw;
           this.onFirstStop();
         }
         break;
@@ -266,22 +263,24 @@ export class Car {
         if (this.ownerIn || !o || (!boarding && (this.waitT > PICKUP_WAIT && !(close && this.waitT < 9)))) {
           if (o && !this.ownerIn) o.abandon();
           this.mode = 'exiting';
-          this.setPath(L.carExit.map((p) => ({ x: p.x, z: p.z })));
-          ui.sfx('engine');
+          this.setPath(this.fac.h('exitPath', this));
+          if (this.ctx.near(this.pos)) ui.sfx('engine');
         }
         break;
       }
       case 'exiting':
         if (this.drive(dt)) sys.remove(this);
         break;
-      case 'boarding': case 'driven': case 'snap': case 'lift': case 'ready':
-        // driven: player.js moves us; snap / lift / ready: lift.js owns the transform
+      default:
+        // boarding / driven: player.js moves us; snap / lift / ready: lifts.js owns the transform;
+        // any facility-specific mode: its own code does
         break;
     }
     if (this.mode === 'ready') this.readyT += dt;
     if (this.mode === 'gone') return;
     this.group.rotation.y = this.yaw;
-    this.model.update(dt, this.wheelSpeed);
+    // far from the camera: keep the logic, skip the model animation (wheels, smoke ...)
+    if (this.ctx.near(this.pos, 4)) this.model.update(dt, this.wheelSpeed);
     this.updateCapsule();
     this.updatePatience(dt);
     this.updateTag();
@@ -289,10 +288,10 @@ export class Car {
 
   onFirstStop() {
     if (this.owner) return;
-    this.sys.ctx.owners.spawnFor(this);
+    this.fac.owners.spawnFor(this);
     this.startPatience();
-    ui.sfx('honk');
-    events.emit('car:arrived', { vip: this.vip });
+    if (this.ctx.near(this.pos)) ui.sfx('honk');
+    this.fac.h('onArrived', this);
     this.tag.setVisible(true);
     this.jobsDirty = true;
   }
@@ -316,7 +315,11 @@ export class Car {
   updateTag() {
     if (!this.tag.visible) return;
     this.tag.place(this.pos.x, this.pos.y + (this.mode === 'lift' ? 0.15 : 0), this.pos.z);
-    if (this.jobsDirty) { this.jobsDirty = false; this.tag.setJobs(this.jobs); }
+    if (this.jobsDirty) {
+      this.jobsDirty = false;
+      // facilities may show jobs differently (paint: canister tiles in a colour; VIP: gold tiles)
+      this.tag.setJobs(this.fac.hooks.jobView ? this.jobs.map((j) => this.fac.h('jobView', j, this)) : this.jobs);
+    }
     const r = this.firstReady();
     this.tag.setProgress(r ? r.progress : 0);
   }
@@ -333,10 +336,12 @@ export class Car {
   }
 }
 
-export function createCars(ctx) {
+export function createCars(ctx, fac) {
+  const L = fac.L;
+  const LANE_Z = L.queueLaneZ;
+  const RING_DZ = L.queuePickupOffsetZ;
   const list = [];
   const lane = [];
-  ctx.capsules = [];
   let spawnT = ECONOMY.spawnInterval - 1.2;
   let lastDepart = -99, clock = 0;
   const noLift = new Tag({ text: 'No free lift!', kind: 'info' }, 1.7);
@@ -344,26 +349,48 @@ export function createCars(ctx) {
   const _v = new THREE.Vector3();
 
   const sys = {
-    ctx, list, lane,
+    ctx, fac, list, lane,
     get queued() { return lane; },
+    /** Paused spawner (e.g. a facility that is not built yet). */
+    paused: false,
 
-    /** Spawn a car at the street. Returns null when the lane is full. */
+    /** Lane slots held for cars that arrive later (reserveSlot); the spawner leaves them free. */
+    reserved: 0,
+    /** Hold a lane slot + a waiting spot for a car that comes later (rescue tow). false = no room. */
+    reserveSlot() {
+      if (lane.length + sys.reserved >= L.queueSlots.length || !fac.owners.canReserve()) return false;
+      sys.reserved++;
+      fac.owners.reserve();
+      return true;
+    },
+    releaseSlot() { if (sys.reserved > 0) { sys.reserved--; fac.owners.unreserve(); } },
+
+    /**
+     * Spawn a car (opts: { vip, type, problems, look, payMult, bonusText, at:{x,z,yaw}, path:[{x,z}], reserved }).
+     * Default: at the street entry, along entryPath to its lane slot. opts.reserved uses a reserveSlot() slot.
+     * null = lane full.
+     */
     spawn(opts = {}, force = false) {
-      if (lane.length >= L.queueSlots.length) return null;
-      if (!force && !ctx.owners.canReserve()) return null;
-      const car = new Car(sys, opts);
-      ctx.owners.reserve();
-      const s = L.carSpawn;
+      const res = !!opts.reserved && sys.reserved > 0;
+      if (lane.length + sys.reserved - (res ? 1 : 0) >= L.queueSlots.length) return null;
+      if (!res && !force && !fac.owners.canReserve()) return null;
+      const car = new fac.classes.Car(sys, opts);
+      if (res) sys.reserved--; else fac.owners.reserve();
+      if (opts.bonusText) { car.bonusText = opts.bonusText; car.tag.setBonus(opts.bonusText); }
+      const entry = fac.h('entryPath');
+      const s = opts.at || entry.spawn;
       car.pos.set(s.x, 0, s.z);
-      car.yaw = Math.PI / 2;
-      const path = L.carEntry.map((p) => ({ x: p.x, z: p.z }));
+      car.yaw = opts.at?.yaw ?? Math.PI / 2;
+      const path = opts.path ? opts.path.map((p) => ({ x: p.x, z: p.z })) : entry.path;
       path.push({ x: 0, z: LANE_Z });
-      car.setPath(path, { restYaw: Math.PI / 2 });
-      list.push(car);
+      car.setPath(path, { restYaw: L.laneYaw });
+      sys.add(car);
       lane.push(car);
       sys.relane();
       return car;
     },
+    /** Register a car created elsewhere with this facility (it joins ctx.allCars). */
+    add(car) { list.push(car); ctx.allCars.push(car); return car; },
 
     /** Re-target every lane car to its slot (cars behind roll forward). */
     relane() {
@@ -375,7 +402,7 @@ export function createCars(ctx) {
         if (car.mode === 'arriving') {
           car.path[car.path.length - 1].x = sx;
         } else if (car.mode === 'queued') {
-          car.setPath([{ x: sx, z: LANE_Z }], { restYaw: Math.PI / 2 });
+          car.setPath([{ x: sx, z: LANE_Z }], { restYaw: L.laneYaw });
           car.enterT = 0;
         }
       }
@@ -397,13 +424,14 @@ export function createCars(ctx) {
     setReady(car) { car.mode = 'ready'; car.readyT = 0; },
 
     depart(car) {
+      lastDepart = clock;
+      if (fac.hooks.depart && fac.h('depart', car)) return;   // facility moves it its own way
       const lift = car.lift;
       lift.release(car);
       car.lift = null;
       car.mode = 'reversing';
       car.pos.y = 0;
       car.setPath([{ x: lift.x, z: L.exitLaneZ }], { reverse: true, restYaw: Math.PI });
-      lastDepart = clock;
       ui.sfx('engine');
       car.tag.setVisible(false);
     },
@@ -412,6 +440,7 @@ export function createCars(ctx) {
       if (car.mode === 'gone') return;
       car.mode = 'gone';
       const i = list.indexOf(car); if (i >= 0) list.splice(i, 1);
+      const k = ctx.allCars.indexOf(car); if (k >= 0) ctx.allCars.splice(k, 1);
       const j = lane.indexOf(car); if (j >= 0) { lane.splice(j, 1); sys.relane(); }
       if (car.owner && !car.ownerIn) car.owner.abandon();
       if (car.lift && car.lift.car === car) car.lift.release(car);
@@ -421,9 +450,8 @@ export function createCars(ctx) {
     update(dt) {
       clock += dt;
       // ---- spawner
-      if (ctx.game.started) {
-        const base = Math.max(2.5, ECONOMY.spawnInterval - ECONOMY.spawnIntervalPerLift * (liftCount() - 1));
-        const interval = base * (isUnlocked('billboard') ? ECONOMY.billboardSpawnMult : 1);
+      if (!sys.paused && fac.h('canSpawn')) {
+        const interval = fac.h('spawnInterval');
         spawnT = Math.min(spawnT + dt, interval);
         if (spawnT >= interval && sys.spawn()) spawnT = 0;
       }
@@ -435,11 +463,6 @@ export function createCars(ctx) {
       }
       // ---- entities
       for (let i = list.length - 1; i >= 0; i--) list[i].update(dt);
-      updateLeaks(dt);   // oil drops + spots on the floor (they outlive the car that left them)
-      // ---- dynamic colliders for the player / driven car
-      const caps = ctx.capsules;
-      caps.length = 0;
-      for (const c of list) if (c.mode !== 'gone') caps.push(c.capsule);
       sys.updateRings(dt);
     },
 
@@ -460,7 +483,7 @@ export function createCars(ctx) {
         car.ring.position.x = rx; car.ring.position.z = rz;
         const inside = pl.onFoot && Math.hypot(pl.pos.x - rx, pl.pos.z - rz) < L.queuePickupRadius;
         if (inside) {
-          if (ctx.lifts.freeCount() > 0) {
+          if (fac.bays.freeCount() > 0) {
             car.enterT += dt;
             if (car.enterT >= PLAYER.enterCarDelay) { car.enterT = 0; pl.enterCar(car); }
           } else { car.enterT = 0; info = car; }
@@ -477,7 +500,10 @@ export function createCars(ctx) {
     },
 
     dispose() {
-      for (const c of list.slice()) { c.mode = 'gone'; c.dispose(); }
+      for (const c of list.slice()) {
+        c.mode = 'gone'; c.dispose();
+        const k = ctx.allCars.indexOf(c); if (k >= 0) ctx.allCars.splice(k, 1);
+      }
       list.length = 0; lane.length = 0;
       noLift.remove();
     },

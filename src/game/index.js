@@ -1,8 +1,8 @@
 // Gameplay entry: one rebuildable world per garage (the static environment is built by main.js).
 import { onUpdate } from '../core/engine.js';
 import { events } from '../core/events.js';
-import { state, addCash, isUnlocked, markUnlocked } from '../core/state.js';
-import { UNLOCKS } from '../config.js';
+import { state, addCash, isUnlocked, markUnlocked, openTown, openDistrict, addFame, fameNeed, fameLevel } from '../core/state.js';
+import { UNLOCKS, PROPERTIES, SERVICES, DISTRICTS, TOWN } from '../config.js';
 import { createWorld } from './world.js';
 import { updateTweens } from './tween.js';
 import { resetPartialPayments, padPosition } from './pads.js';
@@ -77,5 +77,59 @@ export function initGame() {
       const u = UNLOCKS.find((x) => x.id === id);
       if (u) { unlock(u); world.ctx.pads.refresh(true); world.ctx.checkComplete(); }
     },
+
+    // ---- Harbor Town (TOWN.md 6a)
+    get town() { return world.ctx.town; },
+    get vehicles() { return world.ctx.vehicles.list; },
+    get facilities() { return world.ctx.facilities; },
+    /** Open the town now (no need for valet + mechanic). */
+    openTown() { return openTown(); },
+    /** Add n fame levels (default 1). giveFame(0, xp) adds raw XP. */
+    giveFame(n = 1, xp = 0) {
+      if (xp) addFame(xp);
+      for (let i = 0; i < n; i++) {
+        const lv = fameLevel();
+        let need = 0, x = state.town.fameXp;
+        for (let L = 0; L <= lv; L++) need += fameNeed(L);
+        addFame(Math.max(1, need - x) / (1 + (state.town.pro.renown | 0) * 0.15));
+      }
+      return fameLevel();
+    },
+    /** Next level of a property for free (same path as paying: site, building, systems). */
+    buy(id) { if (!state.town.open) openTown(); return world.ctx.town.buy(id); },
+    openDistrict(id = 'main') { if (!state.town.open) openTown(); return openDistrict(id); },
+    /** Facility chain unlock(s): an id ('paint_lime') or the next n entries of a facility (default 'paint'). */
+    unlockTown(idOrN = 1, facilityId = 'paint') {
+      const facs = world.ctx.facilityList;
+      if (typeof idOrN === 'string') {
+        for (const f of facs) { const u = f.def.unlocks?.list.find((x) => x.id === idOrN); if (u && f.pads) { if (!f.def.unlocks.isUnlocked(u.id)) f.pads.complete(u); return true; } }
+        return false;
+      }
+      const f = world.ctx.facilities[facilityId];
+      if (!f || !f.pads) return 0;
+      let k = 0;
+      for (const u of f.def.unlocks.list) { if (k >= idOrN) break; if (!f.def.unlocks.isUnlocked(u.id)) { f.pads.complete(u); k++; } }
+      return k;
+    },
+    /** Teleport next to a place: property / service / district id, a parking bay id, 'garage', or {x, z}. */
+    tp(place = 'garage') {
+      const pl = world.ctx.player;
+      if (pl.mode !== 'foot') return false;
+      let p = null;
+      if (typeof place === 'object') p = place;
+      else if (place === 'garage') p = { x: 0, z: 2.4 };
+      else p = world.ctx.town.padPos(place) || TOWN.parking.find((b) => b.id === place) || null;
+      if (!p) return false;
+      pl.teleport(p.x + 1.2, p.z + 1.2);
+      return true;
+    },
+    /** Get into a player vehicle wherever it is (debug). */
+    drive(id = 'tow') {
+      const v = world.ctx.vehicles.get(id), pl = world.ctx.player;
+      if (!v || pl.mode !== 'foot' || v.mode !== 'parked') return false;
+      pl.teleport(v.pos.x, v.pos.z + 0.01);
+      return pl.enterVehicle(v);
+    },
+    places: () => [...Object.keys(PROPERTIES), ...Object.keys(SERVICES), ...Object.keys(DISTRICTS), ...TOWN.parking.map((b) => b.id)],
   };
 }

@@ -1,11 +1,11 @@
-// Lifts: capture a car (snap tween), raise, deliver parts, work, payout (cash pile), lower, release.
+// Bays (garage: lifts): capture a car (snap tween), raise, deliver parts, work, payout (cash pile), lower, release.
 // Phases: empty -> snap -> raise -> up -> lower -> done (car 'ready', leaves on its exitGap slot) -> empty.
+// A facility with another sequence (paint: mask / spray / cure) subclasses Bay and overrides onSnapped(),
+// updateActive(dt), isWorkable(), finish() (see TOWN.md 6a).
 import * as THREE from 'three';
 import { scene, camera } from '../core/engine.js';
-import { createLift, createZoneRing, LIFT_RISE, sparks, confetti } from '../models/index.js';
-import { LAYOUT as L, ECONOMY, PROBLEMS } from '../config.js';
-import { state, upgradeValue, repairPayout, setStreak, addGems } from '../core/state.js';
-import { events } from '../core/events.js';
+import { createZoneRing, LIFT_RISE, sparks, confetti } from '../models/index.js';
+import { ECONOMY } from '../config.js';
 import { ui } from '../ui/index.js';
 import { tween, ease, popIn, hop } from './tween.js';
 import { angleDiff, clamp, detach, fmt, makeArrow } from './util.js';
@@ -14,25 +14,21 @@ import { CashPile } from './cash.js';
 const _v = new THREE.Vector3();
 const _w = new THREE.Vector3();
 
-class Lift {
+export class Bay {
   constructor(sys, index, animate) {
-    const ctx = sys.ctx;
-    this.sys = sys; this.ctx = ctx; this.index = index;
-    const cfg = L.lifts[index];
+    const ctx = sys.ctx, fac = sys.fac, L = fac.L;
+    this.sys = sys; this.ctx = ctx; this.fac = fac; this.L = L; this.index = index;
+    const cfg = L.bays[index];
     this.x = cfg.x; this.z = cfg.z;
-    this.model = createLift();
+    this.model = fac.h('bayModel', index);
     this.model.group.position.set(cfg.x, 0, cfg.z);
     ctx.root.add(this.model.group);
     if (animate) popIn(this.model.group, 1, 0.5);
-    this.model.setHeight(0);
-    this.model.setLight('idle');
-    const po = L.liftPostOffsetX, hp = 0.22;
-    ctx.obstacles.push(
-      { minX: cfg.x - po - hp, maxX: cfg.x - po + hp, minZ: cfg.z - hp, maxZ: cfg.z + hp },
-      { minX: cfg.x + po - hp, maxX: cfg.x + po + hp, minZ: cfg.z - hp, maxZ: cfg.z + hp },
-    );
-    this.workPos = new THREE.Vector3(cfg.x, 0, cfg.z + L.liftWorkOffsetZ);
-    this.workRing = createZoneRing(L.liftWorkRadius);
+    this.model.setHeight?.(0);
+    this.model.setLight?.('idle');
+    for (const b of fac.h('bayObstacles', cfg)) ctx.obstacles.push(b);
+    this.workPos = new THREE.Vector3(cfg.x, 0, cfg.z + L.workOffsetZ);
+    this.workRing = createZoneRing(L.workRadius);
     this.workRing.position.x = this.workPos.x; this.workRing.position.z = this.workPos.z;
     this.workRing.visible = false;
     ctx.root.add(this.workRing);
@@ -44,7 +40,7 @@ class Lift {
     this.marker = makeArrow(0x5fd38d, 0x1f3b2e, 0.95);
     this.marker.visible = false;
     ctx.root.add(this.marker);
-    this.pile = new CashPile(ctx, cfg.x + L.liftCashOffset.x, 0, cfg.z + L.liftCashOffset.z, { radius: 1.25 });
+    this.pile = new CashPile(ctx, cfg.x + L.cashOffset.x, 0, cfg.z + L.cashOffset.z, { radius: 1.25 });
 
     this.car = null; this.reserved = null; this.outgoing = null;
     this.phase = 'empty'; this.h = 0;
@@ -60,7 +56,12 @@ class Lift {
     if (o && o.mode !== 'gone' && o.mode === 'reversing' && o.pos.z < this.z + 4.6) return false;
     return true;
   }
-  inCapture(p) { return Math.abs(p.x - this.x) < L.liftCapture.halfX && p.z < L.liftCapture.maxZ; }
+  inCapture(p) {
+    const c = this.L.capture;
+    return Math.abs(p.x - this.x) < c.halfX && p.z < c.maxZ;
+  }
+  /** Can staff work on this bay's car right now? */
+  isWorkable() { return !!this.car && (this.phase === 'raise' || this.phase === 'up') && !this.car.finished; }
 
   /** Snap `car` onto the lift. who: 'player' | 'valet' (the driver pops out when the snap ends). */
   capture(car, who, driver) {
@@ -87,33 +88,41 @@ class Lift {
         car.tag.setVisible(true); car.markJobsDirty();
         if (who === 'player') this.ctx.player.exitCar(this);
         else if (driver) driver.alight(this);
-        this.phase = 'raise';
-        this.model.setLight('busy');
-        ui.sfx('lift');
-        this.workRing.visible = true;
-        tween({
-          duration: ECONOMY.liftTime, ease: ease.inOutQuad,
-          onUpdate: (e) => { this.h = e; },
-          onComplete: () => { this.h = 1; if (this.phase === 'raise') this.phase = 'up'; },
-        });
+        this.onSnapped(car);
       },
     });
   }
+
+  /** The car sits on the bay. Garage: raise the lift (phase raise -> up). */
+  onSnapped(car) {
+    this.phase = 'raise';
+    this.model.setLight?.('busy');
+    ui.sfx('lift');
+    this.workRing.visible = true;
+    tween({
+      duration: ECONOMY.liftTime, ease: ease.inOutQuad,
+      onUpdate: (e) => { this.h = e; },
+      onComplete: () => { this.h = 1; if (this.phase === 'raise') this.phase = 'up'; },
+    });
+  }
+
+  /** Where the player pops out after driving a car onto this bay (inside the work zone). */
+  exitSpot(out) { return out.set(this.x + 0.95, 0, this.z + this.L.workOffsetZ + 0.45); }
 
   /** Car starts reversing: the lift is free again. */
   release(car) {
     if (this.car !== car) return;
     this.car = null; this.outgoing = car;
     this.phase = 'empty'; this.h = 0;
-    this.model.setHeight(0);
-    this.model.setLight('idle');
+    this.model.setHeight?.(0);
+    this.model.setLight?.('idle');
     this.workRing.visible = false;
   }
 
   /** Work rate (work-seconds per second) of the mechanics standing at this lift. */
   mechanicRate() {
     let r = 0;
-    for (const m of this.ctx.staff.mechanics) if (m.workingAt === this) r += ECONOMY.mechanicRate * upgradeValue('repair');
+    for (const m of this.fac.staff.mechanics) if (m.workingAt === this) r += this.fac.h('staffRate', m);
     return r;
   }
 
@@ -133,44 +142,64 @@ class Lift {
     });
   }
 
+  /** Player on foot inside this bay's work zone? */
+  playerInZone() {
+    const pl = this.ctx.player;
+    return pl.onFoot && Math.hypot(pl.pos.x - this.workPos.x, pl.pos.z - this.workPos.z) < this.L.workRadius;
+  }
+
+  /** Player delivers carried parts the car still needs (one per deliverInterval). */
+  deliverFromPlayer() {
+    const pl = this.ctx.player, car = this.car;
+    if (pl.dropTimer > 0) return;
+    const items = pl.stack.items;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const job = car.findNeed(items[i].userData.partType, null, true);
+      if (!job) continue;
+      const part = pl.stack.takeAt(i);
+      this.deliverPart(part, job);
+      pl.dropTimer = ECONOMY.deliverInterval;
+      break;
+    }
+  }
+
   update(dt) {
     this.t += dt;
-    this.model.update(dt);
+    const near = this.ctx.near(this.workPos, 3);
+    if (near) this.model.update(dt);
     const car = this.car;
     const pl = this.ctx.player;
     this.playerHere = false;
     if (car && car.mode !== 'snap') {
-      this.model.setHeight(this.h);
+      this.model.setHeight?.(this.h);
       car.pos.y = this.h * LIFT_RISE;
     }
-    if (car && (this.phase === 'raise' || this.phase === 'up')) {
+    if (car) this.updateActive(dt);
+    this.updateHighlights(dt);
+    if (this.outgoing && (this.outgoing.mode === 'gone' || this.outgoing.pos.z > this.z + 6)) this.outgoing = null;
+  }
+
+  /** Garage: deliver + work while raised; finish when every job is done. */
+  updateActive(dt) {
+    const car = this.car, pl = this.ctx.player;
+    if (this.phase === 'raise' || this.phase === 'up') {
       // ---- player delivers + works
-      const inZone = pl.onFoot && Math.hypot(pl.pos.x - this.workPos.x, pl.pos.z - this.workPos.z) < L.liftWorkRadius;
+      const inZone = this.playerInZone();
       let rate = 0;
       if (inZone) {
         this.playerHere = true;
         pl.workLift = this;
-        if (pl.dropTimer <= 0) {
-          const items = pl.stack.items;
-          for (let i = items.length - 1; i >= 0; i--) {
-            const job = car.findNeed(items[i].userData.partType, null, true);
-            if (!job) continue;
-            const part = pl.stack.takeAt(i);
-            this.deliverPart(part, job);
-            pl.dropTimer = ECONOMY.deliverInterval;
-            break;
-          }
-        }
+        this.deliverFromPlayer();
       }
       const ready = this.phase === 'up' ? car.firstReady() : null;
       if (ready) {
-        if (inZone) { rate += upgradeValue('repair'); pl.working = true; }
+        if (inZone) { rate += this.fac.h('playerRate'); pl.working = true; }
         rate += this.mechanicRate();
       }
       if (ready && rate > 0) {
-        ready.progress += (rate * dt) / PROBLEMS[ready.type].work;
+        ready.progress += (rate * dt) / this.fac.h('workTime', ready);
         this.sparkT -= dt;
-        if (this.sparkT <= 0) { this.sparkT = 0.16 + Math.random() * 0.12; sparks(scene, car.nose(_v, 0.7)); }
+        if (this.sparkT <= 0) { this.sparkT = 0.16 + Math.random() * 0.12; if (this.ctx.near(car.pos)) sparks(scene, car.nose(_v, 0.7)); }
         if (inZone) {
           this.wrenchT -= dt;
           if (this.wrenchT <= 0) { this.wrenchT = 1 / 6; ui.sfx('wrench'); }
@@ -184,8 +213,12 @@ class Lift {
       }
       if (this.phase === 'up' && car.finished) this.finish();
     }
-    // ---- free-lift highlight while driving
-    const showFree = pl.mode === 'driving' && this.canCapture;
+  }
+
+  /** Free-bay highlight while the player drives a car of this facility. */
+  updateHighlights(dt) {
+    const pl = this.ctx.player;
+    const showFree = pl.mode === 'driving' && pl.car && pl.car.fac === this.fac && this.canCapture;
     this.freeRing.visible = showFree;
     this.marker.visible = showFree;
     if (showFree) {
@@ -199,7 +232,6 @@ class Lift {
       const s = this.playerHere ? 1.06 : 1;
       this.workRing.scale.set(s, s, s);
     }
-    if (this.outgoing && (this.outgoing.mode === 'gone' || this.outgoing.pos.z > this.z + 6)) this.outgoing = null;
   }
 
   finish() {
@@ -207,21 +239,27 @@ class Lift {
     this.phase = 'lower';
     this.workRing.visible = false;
     car.stopPatience();
-    const speedy = car.patience > 0;
-    const pay = repairPayout(car.types, { tier: car.tier, vip: car.vip, speedy });
-    if (speedy) setStreak(state.streak + 1); else setStreak(0);
-    const st = state.stats;
-    st.repaired++; st.jobsDone += car.types.length;
-    if (car.vip) { st.vips++; addGems(ECONOMY.vipGems); }
+    const pay = this.fac.h('payout', car);
+    const speedy = !!pay.speedy;
 
     car.nose(_v, 1.2);
     confetti(scene, _v.set(car.pos.x, car.pos.y + 1.4, car.pos.z));
     car.model.setShine(true);
-    this.model.setLight('done');
+    this.model.setLight?.('done');
     ui.sfx('done');
     if (car.vip) ui.sfx('vip');
 
-    // cash bundles hop from the car onto the pile
+    this.payOut(car, pay);
+    if (pay.bonusText) ui.floatText(_w.set(car.pos.x - 0.9, car.pos.y + 2.2, car.pos.z), pay.bonusText, 'good');
+    if (car.vip) ui.floatText(_w.set(car.pos.x + 0.9, car.pos.y + 2.2, car.pos.z), '+' + ECONOMY.vipGems, 'gem');
+
+    if (car.owner) car.owner.carReady(speedy, car.vip);
+    this.fac.h('onFinished', car, pay);
+    this.lowerAndRelease(car);
+  }
+
+  /** Cash bundles hop from the car onto this bay's pile + "+$N" (and "Speedy!") float text. */
+  payOut(car, pay) {
     const n = clamp(2 + car.types.length * 2, 3, 10);
     const each = Math.floor(pay.total / n);
     for (let i = 0; i < n; i++) {
@@ -230,12 +268,11 @@ class Lift {
     }
     const top = _w.set(car.pos.x, car.pos.y + 2.6, car.pos.z);
     ui.floatText(top, '+$' + fmt(pay.total), 'cash');
-    if (speedy) ui.floatText(_w.set(car.pos.x, car.pos.y + 3.3, car.pos.z), 'Speedy!', 'good');
-    if (car.vip) ui.floatText(_w.set(car.pos.x + 0.9, car.pos.y + 2.2, car.pos.z), '+' + ECONOMY.vipGems, 'gem');
+    if (pay.speedy) ui.floatText(_w.set(car.pos.x, car.pos.y + 3.3, car.pos.z), 'Speedy!', 'good');
+  }
 
-    if (car.owner) car.owner.carReady(speedy, car.vip);
-    events.emit('car:repaired', { count: st.repaired, vip: car.vip, speedy, total: pay.total });
-
+  /** Garage: lower the lift, then the car is 'ready' (cars.js lets it leave on its exitGap slot). */
+  lowerAndRelease(car) {
     ui.sfx('lift');
     tween({
       duration: ECONOMY.liftTime, delay: 0.25, ease: ease.inOutQuad,
@@ -245,7 +282,7 @@ class Lift {
         if (this.car !== car) return;
         this.phase = 'done';
         car.pos.y = 0;
-        this.ctx.cars.setReady(car);
+        this.fac.cars.setReady(car);
       },
     });
   }
@@ -253,11 +290,11 @@ class Lift {
   dispose() {}
 }
 
-export function createLifts(ctx) {
+export function createBays(ctx, fac) {
   const list = [];
   const sys = {
-    ctx, list,
-    add(index, animate) { if (!list[index]) list[index] = new Lift(sys, index, animate); return list[index]; },
+    ctx, fac, list,
+    add(index, animate) { if (!list[index]) list[index] = new fac.classes.Bay(sys, index, animate); return list[index]; },
     get active() { return list.filter(Boolean); },
     freeCount() { let n = 0; for (const l of list) if (l && l.free) n++; return n; },
     capturableCount() { let n = 0; for (const l of list) if (l && l.canCapture) n++; return n; },
@@ -268,12 +305,8 @@ export function createLifts(ctx) {
       }
       return false;
     },
-    update(dt) {
-      ctx.player.workLift = null;
-      ctx.player.working = false;
-      for (const l of list) if (l) l.update(dt);
-    },
-    dispose() {},
+    update(dt) { for (const l of list) if (l) l.update(dt); },
+    dispose() { for (const l of list) if (l) l.dispose(); },
   };
   return sys;
 }
