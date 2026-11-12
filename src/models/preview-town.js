@@ -158,9 +158,16 @@ function rowView() {
     seatPeople();
     r = { cx: 17.4, cz: -4.5 }; zoom = 0.75;
   } else if (focus === 'paint') {
-    const h = BH.createPaintHall(); add(h);
-    paintInterior();
-    r = { cx: -30.5, cz: -1 }; zoom = 1.25;
+    // &show=hall (the hall alone, as bought) | tanks (8 tanks x progress 0 / 0.5 / 1 / cycling) | booths (4 states x
+    // IR off / on, timer 0 / .5 / 1, haze while spraying) | all (hall + booths + tanks + cars + people)
+    const show = q.get('show') || 'hall';
+    if (show === 'tanks') { paintTanks(); r = { cx: 0, cz: 2 }; zoom = 1.0; }
+    else if (show === 'booths') { paintBooths(); r = { cx: 0, cz: 4 }; zoom = 1.25; }
+    else {
+      const h = BH.createPaintHall(); add(h);
+      if (show === 'all') paintInterior();
+      r = { cx: -30.5, cz: -1 }; zoom = 1.25;
+    }
   } else if (focus === 'vip') {
     vipAll();
     r = { cx: 36, cz: -1 }; zoom = 1.2;
@@ -189,20 +196,55 @@ function seatPeople() {
   for (let i = 0; i < 3; i++) { const c = T.createCoinStack(); c.position.set(LOUNGE.vendingPile.x, i * 0.09, LOUNGE.vendingPile.z); scene.add(c); }
   person(cust(), LOUNGE.aisleX[0], -1.2, Math.PI);
 }
+/** Booths + tanks + cars + people in the paint hall. &paint=0: the hall alone (as bought), &paint=1: the starting
+ *  state (booth 1 idle, red / blue / white tanks), default: everything (booth 1 spraying, booth 2 curing with IR). */
 function paintInterior() {
+  const lvl = num('paint', 2);
+  if (lvl <= 0) return;
   PAINT.bays.forEach((b, i) => {
-    const bo = BH.createSprayBooth(); add(bo, b.x, b.z);
+    if (lvl < 2 && i > 0) return;
+    const bo = BH.createSprayBooth(i); add(bo, b.x, b.z);
+    if (lvl < 2) { bo.setLamp('idle'); return; }
     const st = ['spray', 'cure'][i]; bo.setLamp(st);
-    let k = 0; updaters.push((dt) => { k = (k + dt * 0.15) % 1; bo.setTimer(k); });
+    if (i === 0) bo.setHaze?.(PAINT_COLORS.teal.hex); else bo.setIR?.(true);
+    let k = 0; updaters.push((dt) => { k = (k + dt * 0.15) % 1; if (i) bo.setTimer(k); });
     const c = car(C?.randomCarLook?.() ?? {}, b.x, b.z, Math.PI);
   });
   for (const [id, s] of Object.entries(PAINT.stations)) {
+    if (lvl < 2 && !['red', 'blue', 'white'].includes(id)) continue;
     const tk = BH.createPaintTank(id); add(tk, s.x, s.z);
     let p = Math.random(); updaters.push((dt) => { p = (p + dt * 0.25) % 1.1; tk.setProgress(Math.min(1, p)); });
     if (M.createPart) for (let i = 0; i < 3; i++) { const pp = M.createPart(`spray:${id}`); pp.position.copy(tk.partAnchor.position); pp.position.y += i * (M.PART_H ?? 0.26); tk.group.add(pp); }
   }
   PAINT.queueSlots.forEach((s, i) => { if (i < 2) car(C?.randomCarLook?.() ?? {}, s.x, PAINT.queueLaneZ, Math.PI / 2); });
   PAINT.loungeSpots.forEach((s, i) => { if (i % 2 === 0) person(cust(), s.x, s.z, Math.PI); });
+}
+/** Eight tanks per row: restock progress 0 / 0.5 / 1 / cycling, three canisters on each shelf. */
+function paintTanks() {
+  const keys = Object.keys(PAINT_COLORS);
+  [0, 0.5, 1, -1].forEach((pr, row) => {
+    keys.forEach((id, i) => {
+      const x = (i - 3.5) * 2.1, z = row * 2.6;
+      const tk = BH.createPaintTank(id); add(tk, x, z);
+      if (pr >= 0) tk.setProgress(pr);
+      else { let p = i / 8; updaters.push((dt) => { p = (p + dt * 0.3) % 1.15; tk.setProgress(Math.min(1, p)); }); }
+      if (M.createPart) for (let j = 0; j < 3; j++) { const pp = M.createPart(`spray:${id}`); pp.position.copy(tk.partAnchor.position); pp.position.y += j * (M.PART_H ?? 0.26); tk.group.add(pp); }
+    });
+    if (q.get('labels') !== '0') label(pr >= 0 ? `progress ${pr}` : 'cycling', -9.6, 2.2, row * 2.6);
+  });
+}
+/** Spray booths in every state: row 1 IR off, row 2 IR on; idle (timer 0), spray (haze), cure (timer .5), done (1). */
+function paintBooths() {
+  const states = [['idle', 0, null], ['spray', 0, 0xe5484d], ['cure', 0.5, null], ['done', 1, null]];
+  [false, true].forEach((ir, row) => {
+    states.forEach(([st, tm, haze], i) => {
+      const x = (i - 1.5) * 5.2, z = row * 8.5;
+      const bo = BH.createSprayBooth(i); add(bo, x, z);
+      bo.setIR?.(ir); bo.setLamp(st); bo.setTimer(tm); if (haze) bo.setHaze?.(haze);
+      car(C?.randomCarLook?.() ?? {}, x, z, Math.PI);
+      if (q.get('labels') !== '0') label(`${st}${ir ? ' + IR' : ''}`, x, 3.4, z + 3.4);
+    });
+  });
 }
 function vipAll() {
   const h = BH.createVipHall(); add(h);
@@ -243,7 +285,11 @@ function bizAll() {
 // ---------------------------------------------------------------- game view
 async function gameView() {
   if (!q.has('noenv')) {
-    try { const E = await import('./environment.js'); const env = E.buildEnvironment(scene); updaters.push((dt) => env.update(dt, performance.now() / 1000)); }
+    try {
+      const E = await import('./environment.js'); const env = E.buildEnvironment(scene); updaters.push((dt) => env.update(dt, performance.now() / 1000));
+      // the plots whose buildings stand in this view lose their vacant-lot dressing (as gameplay does once built)
+      for (const id of ['paint', 'tow', 'wash', 'lounge']) E.setPlotCleared?.(id, true);
+    }
     catch (e) { console.warn('environment failed', e); plane(-70, 70, -40, 25, 0x7cc6b3, -0.02); }
   } else plane(-70, 70, -40, 25, 0x7cc6b3, -0.02);
   // tow shed + truck
@@ -299,6 +345,7 @@ function resize() {
 }
 addEventListener('resize', resize); resize();
 info.textContent = `${view} ${focus} ${location.search}`;
+if (q.get('nav') === '0') { document.getElementById('nav').style.display = 'none'; info.style.display = 'none'; }
 
 const clock = new THREE.Clock();
 let leaks = null;

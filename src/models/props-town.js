@@ -144,7 +144,7 @@ export function onRender(obj, fn) {
 export const flat = (b, x0, x1, z0, z1, y, h, c) => b.box(x1 - x0, h, z1 - z0, c, (x0 + x1) / 2, y, (z0 + z1) / 2);
 export function mixHex(a, b, k) { return new THREE.Color(a).lerp(new THREE.Color(b), k).getHex(); }
 
-/** Floor texture tiles: 'epoxy' | 'marble' | 'wood' | 'carpet' | 'gravel' | 'paving' | 'darkstone' | 'checker'. */
+/** Floor texture tiles: 'epoxy' | 'paintfloor' | 'marble' | 'wood' | 'carpet' | 'gravel' | 'paving' | 'darkstone' | 'checker'. */
 export function floorTex(kind, repeat) {
   const t = canvasTex(`floor|${kind}`, 256, 256, (g, w, h) => {
     let s = 7;
@@ -188,6 +188,10 @@ export function floorTex(kind, repeat) {
         g.fillStyle = `rgb(${210 + rnd() * 16},${200 + rnd() * 14},${180 + rnd() * 14})`; g.fillRect(i * 64 + off - 64, j * 32, 64, 32); g.fillRect(i * 64 + off, j * 32, 64, 32);
         g.fillStyle = 'rgba(110,90,60,0.3)'; g.fillRect(i * 64 + off, j * 32, 2, 32); g.fillRect(0, j * 32, w, 2);
       }
+    } else if (kind === 'paintfloor') {                                 // paint shop: light grey epoxy, sparse fine speckles
+      g.fillStyle = '#dadfe2'; g.fillRect(0, 0, w, h);
+      for (let k = 0; k < 160; k++) { g.fillStyle = ['rgba(120,130,140,0.22)', 'rgba(255,255,255,0.5)', 'rgba(150,158,166,0.18)'][(rnd() * 3) | 0]; g.fillRect(rnd() * w, rnd() * h, 1.5, 1.5); }
+      g.fillStyle = 'rgba(120,130,140,0.12)'; g.fillRect(0, 0, w, 1); g.fillRect(0, 0, 1, h);
     } else if (kind === 'checker') {
       for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? '#2f4858' : '#f6ecd8'; g.fillRect(i * 64, j * 64, 64, 64); }
     } else {
