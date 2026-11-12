@@ -101,7 +101,7 @@ export function roofSign(tex, w, h, { board = TC.CORAL, bulbs = true, tilt = -0.
   const grp = new THREE.Group();
   const g = geo(`roofSign|${w}|${h}|${board}|${bulbs}|${legs}`, (b) => {
     b.box(w + 0.2, h + 0.2, 0.2, board, 0, 0.25, 0);
-    if (legs) for (const s of [-1, 1]) b.box(0.24, 0.5, 0.24, TC.STEEL_DD, s * w * 0.36, -0.2, -0.02);
+    if (legs) for (const s of [-1, 1]) b.box(0.24, 0.5, 0.22, TC.STEEL_DD, s * w * 0.36, -0.2, -0.03);   // behind the board face
   });
   grp.add(mesh(g, litMat, { cast: true, receive: false }));
   if (bulbs) {

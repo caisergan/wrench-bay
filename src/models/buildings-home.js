@@ -1296,20 +1296,32 @@ function lampPt(s, lx, ly) {
   const B = BOOTH(), a = s * LENS_TILT, cx = s * (B.hw - 0.1), cy = BOOTH_RAIL + 0.15;
   return [cx + lx * Math.cos(a) - ly * Math.sin(a), cy + lx * Math.sin(a) + ly * Math.cos(a)];
 }
+/** Downdraft grate on the booth deck: one tile = 0.2 m with a long bar and a cross bar (mipmapped, so it blends
+ *  smoothly from the high camera instead of shimmering like sub-pixel bars). */
+function boothGrate() {
+  const { hw, z0, z1 } = BOOTH(), w = 2 * hw - 0.1, d = z1 - z0 - 0.1;
+  const tex = canvasTex('boothGrate', 64, 64, (g, W, H) => {
+    g.fillStyle = '#2a2f36'; g.fillRect(0, 0, W, H);
+    g.fillStyle = css(GRATE_L); g.fillRect(0, H * 0.44, W, H * 0.125);
+    g.fillStyle = css(GRATE); g.fillRect(W * 0.425, 0, W * 0.15, H);
+  }, { repeat: [w / 0.2, d / 0.2] });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshLambertMaterial({ map: tex }));
+  m.rotation.x = -R90; m.position.set(0, 0.026, (z0 + z1) / 2); m.receiveShadow = true;
+  return m;
+}
 function boothGeo() {
   return geo('booth|static', (b) => {
     const { hw, z0, z1, colX } = BOOTH(), zc = (z0 + z1) / 2, len = z1 - z0, zm = zc;
     // ---- downdraft grate deck (top 0.03), kerb angles, overspray blotches, hazard strips across both mouths
-    b.box(2 * hw - 0.1, 0.018, len - 0.1, 0x2a2f36, 0, 0, zc);
-    for (let x = -hw + 0.2; x < hw - 0.1; x += 0.2) b.box(0.03, 0.01, len - 0.14, GRATE, x, 0.018, zc);
-    for (let z = z0 + 0.15; z < z1 - 0.1; z += 0.2) b.box(2 * hw - 0.14, 0.01, 0.025, GRATE_L, 0, 0.018, z);
+    b.box(2 * hw - 0.1, 0.018, len - 0.1, 0x2a2f36, 0, 0, zc);                                // the grate is a texture on top (boothGrate)
     for (const s of [-1, 1]) { b.box(0.06, 0.03, len - 0.1, TC.STEEL, s * (hw - 0.08), 0, zc); b.box(0.025, 0.05, len - 0.1, TC.STEEL_D, s * (hw - 0.04), 0, zc); }
     // faint overspray settled along the walls (the extraction pulls it there): overlapping low-contrast patches
     const ov = [['red', 'blue', 'teal'], ['lime', 'purple', 'red']];
     for (const s of [-1, 1]) for (let i = 0, z = z0 + 0.3; z < z1 - 0.35; i++, z += 0.55) {
       const w = 0.14 + ((i * 7 + (s > 0 ? 3 : 0)) % 5) * 0.045, l = 0.45 + (i % 3) * 0.12, c = PAINT_COLORS[ov[s > 0 ? 1 : 0][i % 3]].hex;
-      b.box(w, 0.004, l, mixHex(GRATE, c, 0.06 + (i % 3) * 0.02), s * (hw - 0.13 - w / 2), 0.028, z);
-      if (i % 2) b.box(w * 0.5, 0.005, l * 0.6, mixHex(GRATE, c, 0.11), s * (hw - 0.13 - w * 0.25), 0.028, z + 0.06);
+      const y = 0.028 + (i % 2) * 0.0015;                                                       // neighbours overlap: never level
+      b.box(w, 0.004, l, mixHex(GRATE, c, 0.06 + (i % 3) * 0.02), s * (hw - 0.13 - w / 2), y, z);
+      if (i % 2) b.box(w * 0.5, 0.005, l * 0.6, mixHex(GRATE, c, 0.11), s * (hw - 0.13 - w * 0.25), y, z + 0.06);
     }
     for (const zz of [z0 + 0.12, z1 - 0.12]) for (let i = 0; i < 12; i++) b.box((2 * hw - 0.2) / 12, 0.006, 0.16, i % 2 ? P.hazardB : P.hazardA, -hw + 0.1 + (i + 0.5) * (2 * hw - 0.2) / 12, 0.028, zz);
     // ---- side walls: kick plate with filter slots + overspray speckle, posts, rails (glass is a separate mesh)
@@ -1440,6 +1452,7 @@ export function createSprayBooth(index = 0) {
   const B = BOOTH(), { hw, z0, z1, colX } = B, cz = B.colZ;
   const group = new THREE.Group();
   group.add(mesh(boothGeo(), litMat, { cast: true, receive: true }));
+  group.add(boothGrate());
   const glass = new THREE.Mesh(boothGlassGeo(), boothGlassMat);
   glass.renderOrder = 3;
   group.add(glass);
@@ -1622,6 +1635,13 @@ function hallMarkTex() {
       g.fillStyle = 'rgba(47,72,88,0.82)'; g.font = `700 0.5px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
       g.fillText(`BOOTH ${i + 1}`, bay.x, W.maxZ - 0.75);
     });
+    // trench drain across the open front (W.minX -> colour lab): steel frame, dark slot, grate bars. A mipmapped
+    // texture blends the bars smoothly at a distance instead of shimmering like sub-pixel geometry.
+    const dz = W.maxZ - 0.2, lx = PD.colourLab.minX;
+    g.fillStyle = css(TC.STEEL_DD); g.fillRect(W.minX, dz - 0.135, lx - W.minX, 0.27);
+    g.fillStyle = '#2a2f36'; g.fillRect(W.minX + 0.01, dz - 0.105, lx - W.minX - 0.02, 0.21);
+    g.fillStyle = css(TC.STEEL_D);
+    for (let x = W.minX + 0.08; x < lx - 0.04; x += 0.09) g.fillRect(x - 0.0125, dz - 0.105, 0.025, 0.21);
   });
 }
 /** All colour plates of the back wall on one transparent strip (y 1.88 .. 2.24). */
@@ -1694,14 +1714,17 @@ function paintHallShell(b, gl) {
   for (const sx of [-1, 1]) {
     const px = sx < 0 ? W.minX - T / 2 : W.maxX + T / 2, pz = W.maxZ - 0.15, top = H + 0.43;
     b.box(0.96, 0.14, 0.96, TC.MUSTARD, px, H + 0.29, pz);
-    const ring = [[-0.24, -0.4, 0.46, 0.16], [0.24, -0.4, 0.46, 0.16], [0.4, -0.24, 0.16, 0.46], [0.4, 0.24, 0.16, 0.46], [0.24, 0.4, 0.46, 0.16], [-0.24, 0.4, 0.46, 0.16], [-0.4, 0.24, 0.16, 0.46], [-0.4, -0.24, 0.16, 0.46]];
-    ring.forEach(([dx, dz, w, d], i) => b.box(w - 0.004, 0.07, d - 0.004, hx[i % hx.length], px + dx, top, pz + dz));
+    // eight cells of a 3 x 3 grid round the lamp (edges at +/-0.48 and +/-0.2): they must not overlap, or two
+    // colours with the same top fight for the same pixels
+    const e = [-0.48, -0.2, 0.2, 0.48], cells = [[0, 0], [1, 0], [2, 0], [2, 1], [2, 2], [1, 2], [0, 2], [0, 1]];
+    cells.forEach(([i, j], k) => {
+      const x0 = e[i], x1 = e[i + 1], z0 = e[j], z1 = e[j + 1];
+      b.box(x1 - x0 - 0.004, 0.07, z1 - z0 - 0.004, hx[k % hx.length], px + (x0 + x1) / 2, top, pz + (z0 + z1) / 2);
+    });
   }
-  // front: trench drain across the opening (W.minX -> colour lab), steel nosing on the slab edge
-  const dz = W.maxZ - 0.2, lx = PD.colourLab.minX;
-  b.box(lx - W.minX, 0.01, 0.27, TC.STEEL_DD, (W.minX + lx) / 2, 0.012, dz);
-  b.box(lx - W.minX - 0.02, 0.006, 0.21, 0x2a2f36, (W.minX + lx) / 2, 0.016, dz);
-  for (let x = W.minX + 0.08; x < lx - 0.04; x += 0.09) b.box(0.025, 0.008, 0.21, TC.STEEL_D, x, 0.016, dz);
+  // front: steel nosing on the slab edge. The trench drain grate is painted on the floor overlay (hallMarkTex):
+  // as geometry its 2.5 cm bars were under a pixel wide from the game camera and shimmered, and its layers fought.
+  const lx = PD.colourLab.minX;
   b.box(lx - W.minX, 0.03, 0.08, TC.STEEL, (W.minX + lx) / 2, 0, W.maxZ + 0.0);
   // ---- back wall: plate backing rail, paint manifold with valve stubs, compressed-air line
   const zw = W.minZ, st = Object.values(PAINT.stations), sx0 = Math.min(...st.map((s) => s.x)) - 0.9, sx1 = Math.max(...st.map((s) => s.x)) + 0.9;
@@ -1761,7 +1784,7 @@ function paintStacks(b) {
     for (let i = 0; i < 14; i++) {                                                            // open tube at the top
       const a = (i + 0.5) * (2 * PI / 14), ap = R * Math.cos(PI / 14) - 0.012;
       b.box(2 * R * Math.sin(PI / 14) + 0.004, STACK_TUBE, 0.024, TC.STEEL, st.x + Math.sin(a) * ap, top - STACK_TUBE, st.z + Math.cos(a) * ap, 0, a, 0);
-      b.box(2 * R * Math.sin(PI / 14) + 0.012, 0.05, 0.04, TC.STEEL_D, st.x + Math.sin(a) * (ap + 0.006), top - 0.05, st.z + Math.cos(a) * (ap + 0.006), 0, a, 0);
+      b.box(2 * R * Math.sin(PI / 14) + 0.012, 0.05, 0.04, TC.STEEL_D, st.x + Math.sin(a) * (ap + 0.006), top - 0.045, st.z + Math.cos(a) * (ap + 0.006), 0, a, 0);
     }
     for (const s of [-1, 1]) b.box(2 * R - 0.06, 0.03, 0.03, TC.STEEL_DD, st.x, top - STACK_TUBE + 0.06, st.z + s * 0.0, 0, s > 0 ? 0 : R90, 0);   // fan spider
     for (const y of [1.7, 2.45]) {                                                             // clamps strapped to the wall
@@ -1906,12 +1929,14 @@ function paintCorner(b, gl) {
   suits.forEach((z, i) => {
     const x = wx + 0.1 + i * 0.03, SU = i === 1 ? 0xf7f7f2 : 0xeeeee8;
     b.box(0.04, 0.06, 0.04, TC.STEEL_DD, wx + 0.05, 2.0, z);                                      // hook
+    b.push(0, -i * 0.015, 0);                                                                      // no two suits level
     b.box(0.12, 0.22, 0.2, SU, x, 1.82, z);                                                       // hood
     b.box(0.13, 0.13, 0.15, 0xd8d8d0, x + 0.02, 1.86, z);                                         // face opening
     b.box(0.12, 0.62, 0.36, SU, x, 1.2, z);                                                       // body
     for (const s of [-1, 1]) b.box(0.1, 0.56, 0.08, SU, x, 1.18, z + s * 0.2, s * 0.06);          // arms
     for (const s of [-1, 1]) b.box(0.1, 0.5, 0.15, SU, x, 0.72, z + s * 0.09);                    // legs
     b.box(0.13, 0.04, 0.37, 0xb9c4cc, x, 1.48, z);                                                // zip / collar band
+    b.pop();
   });
   for (const z of [Sr.z1 - 0.12, Sr.z1 - 0.02]) {
     b.box(0.04, 0.05, 0.03, TC.STEEL_DD, wx + 0.04, 1.62, z);
@@ -1920,12 +1945,15 @@ function paintCorner(b, gl) {
   }
   // spray-gun washer: steel cabinet, lid hinged at the back and propped slightly open, a gun on the rack inside
   const G = PD.gunWash, gw = 0.9, gd = 0.6, gh = 1.0;
-  b.box(gw, gh - 0.04, gd, TC.STEEL, G.x, 0, G.z);
+  const tub = gh - 0.14;                                                                           // floor of the open tub
+  b.box(gw, tub, gd, TC.STEEL, G.x, 0, G.z);
   b.box(gw + 0.02, 0.05, gd + 0.02, TC.STEEL_D, G.x, 0, G.z);
-  b.box(gw - 0.08, 0.04, gd - 0.08, 0x2a2f36, G.x, gh - 0.08, G.z);                                // dark inside
-  b.box(0.36, 0.05, 0.08, TC.DARK, G.x - 0.1, gh - 0.06, G.z + 0.05);                              // gun on the rack
-  b.box(0.08, 0.09, 0.06, TC.DARK, G.x - 0.02, gh - 0.1, G.z + 0.05);
-  b.box(0.1, 0.06, 0.1, TC.STEEL_D, G.x - 0.06, gh - 0.02, G.z + 0.02);                            // gun cup
+  b.box(gw, 0.1, 0.04, TC.STEEL, G.x, tub, G.z - gd / 2 + 0.02); b.box(gw, 0.1, 0.04, TC.STEEL, G.x, tub, G.z + gd / 2 - 0.02);
+  b.box(0.04, 0.1, gd - 0.08, TC.STEEL, G.x - gw / 2 + 0.02, tub, G.z); b.box(0.04, 0.1, gd - 0.08, TC.STEEL, G.x + gw / 2 - 0.02, tub, G.z);
+  b.box(gw - 0.08, 0.02, gd - 0.08, 0x2a2f36, G.x, tub, G.z);                                      // dark inside, sunk below the rim
+  b.box(0.36, 0.05, 0.08, TC.DARK, G.x - 0.1, tub + 0.05, G.z + 0.05);                             // gun on the rack
+  b.box(0.08, 0.09, 0.06, TC.DARK, G.x - 0.02, tub + 0.02, G.z + 0.05);
+  b.box(0.1, 0.06, 0.1, TC.STEEL_D, G.x - 0.06, tub + 0.1, G.z + 0.02);                            // gun cup
   b.push(G.x, gh - 0.04, G.z - gd / 2, 0, 1, -0.32);                                               // lid, hinged at the back
   b.box(gw, 0.04, gd, TC.STEEL_D, 0, 0, gd / 2);
   b.box(0.3, 0.03, 0.04, TC.STEEL_DD, 0, 0.04, gd - 0.06);
@@ -1940,7 +1968,7 @@ function paintCorner(b, gl) {
     b.box(0.04, 1.15, 0.04, TC.STEEL_DD, mx + sx * 0.2, 0.1, mz + sz * 0.48);
     b.cyl(0.05, 0.05, 0.04, TC.RUBBER, mx + sx * 0.2, 0.05, mz + sz * 0.48, 8, R90);
   }
-  for (const y of [0.1, 1.22]) for (const sx of [-1, 1]) b.box(0.04, 0.04, 1.0, TC.STEEL_D, mx + sx * 0.2, y, mz);
+  for (const y of [0.1, 1.22]) for (const sx of [-1, 1]) b.box(0.034, 0.04, 0.99, TC.STEEL_D, mx + sx * 0.2, y, mz);
   [[0.9, 0.38, 0.11], [0.6, 0.66, 0.1], [0.45, 0.94, 0.09]].forEach(([len, y, r]) => {
     cylZ(b, r, mz - len / 2, mz + len / 2, y, mx - 0.04, KR, 12);
     cylZ(b, r * 0.35, mz - len / 2 - 0.005, mz + len / 2 + 0.005, y, mx - 0.04, 0x8a6a46, 8);
@@ -1981,13 +2009,13 @@ function colourLab(b, gl) {
     const n = Math.max(1, Math.round(len / 1.0));
     for (let k = 0; k <= n; k++) {
       const p = r.a + k * len / n;
-      if (r.axis === 'x') b.box(0.05, 1.4, WT + 0.02, AL_D, p, 0.9, r.c); else b.box(WT + 0.02, 1.4, 0.05, AL_D, r.c, 0.9, p);
+      if (r.axis === 'x') b.box(0.05, 1.35, WT + 0.02, AL_D, p, 0.9, r.c); else b.box(WT + 0.02, 1.35, 0.05, AL_D, r.c, 0.9, p);
     }
   }
   // door in the west wall (closed glass door): frame, header, push bar, threshold
   const dz0 = LB.doorZ - LB.doorW / 2, dz1 = LB.doorZ + LB.doorW / 2;
-  for (const z of [dz0, dz1]) b.box(0.12, 2.3, 0.06, AL_D, x0, 0, z);
-  b.box(0.12, 0.1, LB.doorW, AL_D, x0, 2.2, LB.doorZ);
+  for (const z of [dz0, dz1]) b.box(0.12, 2.25, 0.06, AL_D, x0, 0, z);
+  b.box(0.12, 0.1, LB.doorW, AL_D, x0, 2.15, LB.doorZ);
   b.box(0.04, 2.1, LB.doorW - 0.06, AL, x0, 0.04, LB.doorZ - 0.0, 0, 0, 0);                    // door leaf frame (glass in it)
   b.box(0.08, 0.04, LB.doorW - 0.2, TC.STEEL, x0 - 0.06, 1.0, LB.doorZ);
   b.box(0.16, 0.012, LB.doorW, TC.STEEL_D, x0, 0.03, LB.doorZ);
@@ -2069,12 +2097,12 @@ function wasteDrum(b) {
   const dy = 0.14;
   b.cyl(0.29, 0.29, 0.88, RD, S.x, dy, S.z, 16);
   for (const y of [0.29, 0.59]) b.cyl(0.298, 0.298, 0.03, mixHex(RD, 0x000000, 0.25), S.x, dy + y, S.z, 16);
-  b.cyl(0.295, 0.295, 0.02, mixHex(RD, 0x000000, 0.3), S.x, dy + 0.86, S.z, 16);
+  b.cyl(0.295, 0.295, 0.025, mixHex(RD, 0x000000, 0.3), S.x, dy + 0.86, S.z, 16);                 // rim, proud of the body top
   b.cyl(0.28, 0.27, 0.05, Y, S.x, dy + 0.88, S.z, 16);                                             // yellow funnel lid
   b.cyl(0.2, 0.06, 0.08, mixHex(Y, 0x000000, 0.12), S.x, dy + 0.93, S.z, 14);
   b.cyl(0.06, 0.06, 0.02, 0x2a2f36, S.x, dy + 0.995, S.z, 10);
   b.box(0.06, 0.04, 0.12, TC.DARK, S.x + 0.2, dy + 0.93, S.z);                                    // lid latch
-  b.box(0.22, 0.22, 0.02, TC.WHITE, S.x, dy + 0.4, S.z + 0.285);                                  // hazard label
+  b.box(0.22, 0.2, 0.02, TC.WHITE, S.x, dy + 0.38, S.z + 0.285);                                  // hazard label
   b.box(0.12, 0.12, 0.022, 0xf2813a, S.x, dy + 0.45, S.z + 0.288, 0, 0, PI / 4);
   b.box(0.04, 0.06, 0.024, TC.DARK, S.x, dy + 0.48, S.z + 0.29);
 }
@@ -2129,7 +2157,7 @@ function paintForecourt(b, gl) {
   // timber deck island (0.07 high)
   b.box(S.maxX - S.minX, 0.04, S.maxZ - S.minZ, TC.WOOD_D, cx, 0, (S.minZ + S.maxZ) / 2);
   for (let z = S.minZ + 0.07, i = 0; z < S.maxZ - 0.05; z += 0.145, i++) b.box(S.maxX - S.minX - 0.06, 0.03, 0.13, i % 2 ? TC.WOOD : TC.WOOD_L, cx, 0.04, z);
-  b.box(S.maxX - S.minX + 0.04, 0.07, 0.05, TC.WOOD_D, cx, 0, S.maxZ);
+  b.box(S.maxX - S.minX + 0.04, 0.075, 0.05, TC.WOOD_D, cx, 0, S.maxZ);
   // two slim steel posts at the ends, beam, rafters, coral frame (the clear sheet is a separate mesh)
   const px0 = S.minX - 0.05, px1 = S.maxX + 0.05, rz0 = S.minZ - 0.2, rz1 = S.maxZ + 0.2;
   for (const x of [px0, px1]) { b.box(0.2, 0.02, 0.2, TC.STEEL_DD, x, 0, S.postZ); b.box(0.09, ry - 0.08, 0.09, TC.STEEL_D, x, 0, S.postZ); }
@@ -2164,8 +2192,8 @@ function paintForecourt(b, gl) {
   for (const p of PD.planters) {
     const z = PD.planterZ;
     b.box(1.4, 0.4, 0.5, SLATE, p.x, 0, z);
-    b.box(1.44, 0.05, 0.54, SLATE_L, p.x, 0.4, z);
-    b.box(1.3, 0.04, 0.4, 0x5a4636, p.x, 0.41, z);
+    for (const s of [-1, 1]) { b.box(1.44, 0.05, 0.07, SLATE_L, p.x, 0.4, z + s * 0.235); b.box(0.07, 0.05, 0.4, SLATE_L, p.x + s * 0.685, 0.4, z); }
+    b.box(1.3, 0.04, 0.4, 0x5a4636, p.x, 0.39, z);                                                // soil, below the rim
     for (let i = 0; i < 4; i++) {
       const x = p.x - 0.48 + i * 0.32, c = i % 2 ? TC.LEAF : 0x2f8f7f, s = 0.26 + ((i * 7 + Math.round(p.x)) % 3) * 0.04;
       b.box(s, s * 0.9, s, c, x, 0.43, z, 0, i * 0.5, 0);
