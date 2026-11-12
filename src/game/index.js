@@ -62,6 +62,16 @@ export function initGame() {
     set timeScale(v) { dbg.timeScale = v; },
     state,
     start,
+    /**
+     * Rebuild the dynamic world from the save, as the ferry does (dev tool: after editing unlocks, properties, fame).
+     * A player on foot keeps their spot.
+     */
+    rebuild() {
+      const p = world.ctx.player;
+      const at = p.mode === 'foot' ? { x: p.pos.x, z: p.pos.z } : null;
+      events.emit('shop:changed');
+      if (at) world.ctx.player.teleport(at.x, at.z);
+    },
     teleport(x, z) { world.ctx.player.teleport(x, z); },
     giveCash(n) { addCash(n); },
     /** opts: { vip, type, problems: ['tire', ...] } */
