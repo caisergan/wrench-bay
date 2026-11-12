@@ -206,17 +206,20 @@ Floor plan mirrors the garage (`PAINT`): paint tanks on the back wall, two glass
 drop-off lane on its own forecourt, its own customers, waiting awning, exit.
 1. A paint customer arrives (own spawner; any unlocked car class) and waits like a garage customer. The job
    bubble shows canister tiles in the colour they want (never the car's current colour); count from `PAINT.cans`.
-2. Drive the car into a free booth (capture box, like a lift). It is **masked** automatically: paper and tape
-   over glass, lights and wheels (`setMasked`), booth lamps on.
+2. Drive the car into a free booth through its south (vehicle) end (capture box, like a lift). It is **masked**
+   automatically: paper and tape over glass, lights and wheels (`setMasked`), booth lamps on.
 3. Fetch canisters of the right colour from the tanks (carry stack, capacity upgrade applies; a wrong colour is
-   useless: scrap bin by the wall). Deliver them in the work zone in front of the nose.
-4. Spray: stand in the work zone; each delivered canister is `work` seconds; the player holds a spray gun, a
-   mist in that colour, and the new colour **sweeps over the body from nose to tail** as progress rises
-   (`setColor(hex, k)`), one section per canister.
-5. Cure: all canisters sprayed -> heat lamps glow, a timer ring counts `cure` s. You are free to leave; this is
-   the juggling moment (start the next car, fetch paint).
-6. Done: masking off, gloss, confetti, payout pile beside the booth (`resprayPayout`), the car backs out, picks
-   up its owner at `PAINT.pickupStop` and leaves in its new colour.
+   useless: the waste-paint drum at `PAINT.scrapBin`, beside the colour lab). Deliver them in the work zone in
+   front of the nose: the booth's open north (personnel) end, inside the glass.
+4. Spray: stand in the work zone; each delivered canister is `work` seconds; the booth's clear curtain rolls down
+   behind the car (`setLamp('spray')`), the player holds a spray gun, a mist in that colour and a soft haze inside
+   the glass (`booth.setHaze(hex)`), and the new colour **sweeps over the body from nose to tail** as progress
+   rises (`setColor(hex, k)`), one section per canister.
+5. Cure: all canisters sprayed -> the booth bakes (`setLamp('cure')`, amber lights; with the IR upgrade
+   `setIR(true)` the infra-red arrays glow), its timer ring counts `cure` s (`setTimer`). You are free to leave;
+   this is the juggling moment (start the next car, fetch paint).
+6. Done: `setLamp('done')` (curtain up, green beacon), masking off, gloss, confetti, payout pile beside the booth
+   (`resprayPayout`), the car backs out, picks up its owner at `PAINT.pickupStop` and leaves in its new colour.
 - Speedy / streak rules as in the garage (one shared streak). Repair-speed, capacity, supply and price upgrades
   apply here too.
 - Chain (`PAINT_UNLOCKS`): more colours (customers only ask for colours you stock; more colours = more
@@ -387,11 +390,16 @@ update(dt, speed) }` (footprint 1.7 x 3.6; `hitch` = Object3D at the hook; level
 `createWashKiosk(tier)`;
 `createLoungeAnnex(tier) -> { group, update(dt) }` (walls, glass front, floor, sofas at `LOUNGE.seats`, TV
 flicker, reception, vending machine; tier 2 adds bar, aquarium with moving fish, arcade, rug);
-`createPaintHall() -> { group, update(dt) }` (shell, floor, sign "SPRAY BAY", wall decor, compressor, awning +
-bench at `PAINT.loungeSpots`); `createSprayBooth() -> { group, setLamp('idle' | 'spray' | 'cure' | 'done'),
-setTimer(0..1), update(dt) }` (glass side walls, floor grate, overhead lamp frame that leaves the car visible);
+`createPaintHall() -> { group, update(dt) }` (world coords; shell with the spectrum band, floor + markings,
+"SPRAY BAY" sign, colour plates + supply manifold on the back wall, exhaust stacks, compressor yard, painters'
+corner, colour lab, waste drum at `PAINT.scrapBin`, forecourt markings, waiting shelter at `PAINT.loungeSpots`,
+prep desk, planters; every position in `PAINT.decor`; full design: `docs/town-agents/briefs/painthall.txt`);
+`createSprayBooth(index = 0) -> { group, setLamp('idle' | 'spray' | 'cure' | 'done'), setTimer(0..1),
+setHaze(hex | null), setIR(bool), update(dt) }` (origin = car centre, open personnel end at -z, roll-down clear
+curtain at the +z vehicle end while spraying / curing, glass side walls, downdraft grate, light boxes, control
+column with timer ring and beacon; `group.userData.obstacles` = local wall + column boxes);
 `createPaintTank(colorId) -> station API` (`{ group, partAnchor, setProgress, update }`, footprint
-`PAINT.stationSize`, colour unmistakable from the camera);
+`PAINT.stationSize`, colour unmistakable from the camera; a canister fills on its filler while `0 < k < 1`);
 `createVipHall() -> { group, update(dt) }` (shell, marble / dark floor, gold trim, lounge corner with sofas at
 `VIP.loungeSpots`, velvet ropes, sign), `createVipBar()`, `createGoldLift() -> lift API`,
 `createPremiumCabinet() -> station API`, `createTurntable() -> { group, platform, setAngle(rad), setGlow(bool),

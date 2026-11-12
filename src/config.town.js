@@ -355,8 +355,11 @@ export const PAINT = {
   walls: { minX: -41.2, maxX: -19.8, minZ: -11.4, maxZ: 1.2, height: 2.6, thickness: 0.4 },
   forecourt: { minX: -43.5, maxX: -17.5, minZ: 1.2, maxZ: 11.0 },
   // Spray booths (index 0 from the start). Car centred here, nose towards -z (yaw = PI).
+  // A booth is 3.6 x 6.1: the car drives in at the south end (a clear roll-down curtain closes it while spraying
+  // and curing); the north end is the open personnel end where the painter stands, so the work zone in front of
+  // the nose (bay.z + workOffsetZ) is inside the glass. Design: docs/town-agents/briefs/painthall.txt.
   bays: [{ x: -34.6, z: -3.4 }, { x: -27.4, z: -3.4 }],
-  boothHalfW: 1.8, boothZ: [-6.0, -0.8],                        // glass side walls (obstacles), open at both ends
+  boothHalfW: 1.8, boothZ: [-6.9, -0.8],                        // glass side walls (obstacles); north end clear of the staff lane
   bayPostOffsetX: 1.8,
   workOffsetZ: -2.5, workRadius: 1.15,
   staffSpotOffset: { x: -0.7, z: -2.2 },
@@ -369,7 +372,9 @@ export const PAINT = {
     teal: { x: -29.2, z: -10.2 }, black: { x: -26.7, z: -10.2 }, gold: { x: -24.2, z: -10.2 }, purple: { x: -21.7, z: -10.2 },
   },
   stationSize: { w: 1.9, d: 1.2 }, stationPickupOffsetZ: 1.5, stationZoneRadius: 1.0,
-  queueLaneZ: 7.6, queueSlots: [{ x: -24.6 }, { x: -28.2 }, { x: -31.8 }],
+  // Slots sit west of the prep desk and the shelter (as the garage's do), so the prep tech's route to a booth
+  // clears them: slot -> (x + 0.4, laneZ - 2.4) -> booth.
+  queueLaneZ: 7.6, queueSlots: [{ x: -28.0 }, { x: -31.6 }, { x: -35.2 }],
   queuePickupOffsetZ: -1.55, queuePickupRadius: 0.9,
   carEntry: [{ x: -42.2, z: 14.4 }, { x: -42.2, z: 7.6 }],
   exitLaneZ: 3.0, pickupStop: { x: -21.6, z: 3.0 }, ownerCurb: { x: -21.6, z: 4.2 },
@@ -379,10 +384,34 @@ export const PAINT = {
     { x: -23.6, z: 5.0 }, { x: -22.8, z: 5.0 }, { x: -22.0, z: 5.0 }, { x: -21.2, z: 5.0 }, { x: -23.6, z: 5.9 }, { x: -22.8, z: 5.9 },
   ],
   ownerWalkZ: 6.25,
-  valetStand: { x: -25.2, z: 5.4 },                             // prep tech idles here
+  valetStand: { x: -25.0, z: 5.4 },                             // prep tech idles here
   staffIdle: [{ x: -40.2, z: -7.6 }, { x: -40.2, z: -6.4 }],    // painters
   // Player may drive a customer's car anywhere inside this rectangle (not out into town).
   driveArea: { minX: -43.5, maxX: -17.5, minZ: -10.9, maxZ: 11.0 },
+  // Waste-paint drum beside the colour lab: walking up to it with canisters dumps them (wrong colours).
+  scrapBin: { x: -21.0, z: -3.95 }, scrapBinRadius: 0.9,
+
+  // Fixed fittings of the hall (createPaintHall reads these; gameplay keeps its own positions above clear of them).
+  decor: {
+    sign: { x: -30.5, w: 5.4, h: 1.35 },                        // "SPRAY BAY" board on top of the back wall
+    stacks: [{ x: -36.9, z: -12.15 }, { x: -24.1, z: -12.15 }], // booth exhaust stacks behind the back wall
+    stackH: 4.4, stackR: 0.28,
+    // plant yard outside the west wall (front +x, towards the wall): compressor, air receiver, dryer, flammables
+    compressor: { x: -42.55, z: -9.0 }, receiver: { x: -42.55, z: -6.3 }, dryer: { x: -42.55, z: -4.2 },
+    flammables: { x: -42.55, z: -2.0 },
+    airLineY: 2.3, manifoldY: 1.72,                             // blue air line / paint supply manifold on the walls
+    // glass-walled mixing room in the front-east corner, door in its west wall, shop window onto the forecourt
+    colourLab: { minX: -23.4, maxX: -19.8, minZ: -2.8, maxZ: 1.2, doorZ: -1.0, doorW: 0.9 },
+    // painters' corner along the west wall
+    lockers: { x: -40.95, z0: -3.4, z1: -1.6 },                 // three PPE lockers against the wall
+    suitRack: { x: -41.05, z0: -1.3, z1: -0.3 },                // wall hooks: overalls + respirators
+    gunWash: { x: -40.3, z: 0.45 },                             // spray-gun washer cabinet
+    maskTrolley: { x: -38.3, z: -0.9 },                         // masking-paper trolley beside booth 1
+    // waiting shelter on the forecourt island (cantilevered clear roof, posts at the two ends only)
+    shelter: { minX: -24.3, maxX: -20.2, minZ: 4.55, maxZ: 6.3, roofY: 2.35, postZ: 5.45 },
+    prepDesk: { x: -25.0, z: 4.6 },                             // prep tech's key podium (the prep tech idles at valetStand)
+    planters: [{ x: -38.0 }, { x: -33.5 }, { x: -29.0 }, { x: -24.5 }, { x: -21.0 }], planterZ: 10.6,
+  },
 
   // economy
   spawnInterval: 11, spawnIntervalPerBay: 3,                    // seconds between paint customers
@@ -401,7 +430,7 @@ export const PAINT_UNLOCKS = [
   { id: 'paint_teal',    type: 'tank', key: 'teal',    price: 5000,  label: 'Sea teal paint in stock!' },
   { id: 'paint_bay1',    type: 'bay', index: 1,        price: 8000,  label: 'Second spray booth!' },
   { id: 'paint_black',   type: 'tank', key: 'black',   price: 7000,  label: 'Midnight paint in stock!' },
-  { id: 'preptech',      type: 'preptech',             price: 12000, label: 'Prep tech hired! Cars roll into the booths', pad: { x: -25.2, z: 6.2 } },
+  { id: 'preptech',      type: 'preptech',             price: 12000, label: 'Prep tech hired! Cars roll into the booths', pad: { x: -25.0, z: 6.2 } },
   { id: 'irlamps',       type: 'irlamps',              price: 16000, label: 'Infra-red lamps! Paint cures twice as fast', pad: { x: -31.0, z: -0.4 } },
   { id: 'painter1',      type: 'painter', index: 1,    price: 24000, label: 'Second painter hired!', pad: { x: -39.8, z: -4.8 } },
   { id: 'paint_gold',    type: 'tank', key: 'gold',    price: 36000, label: 'Metallic gold! Premium resprays' },
@@ -515,7 +544,7 @@ export const PRO_UPGRADES = {
 // Floor managers collect every cash pile of their facility into one safe and keep it running offline.
 export const MANAGERS = {
   garage: { price: 25000, fame: 6,  safe: { x: 7.9, z: -8.8 },    label: 'Garage manager hired!' },
-  paint:  { price: 40000, fame: 8,  safe: { x: -21.0, z: -8.0 },  label: 'Paint shop manager hired!' },
+  paint:  { price: 40000, fame: 8,  safe: { x: -20.4, z: -6.4 },  label: 'Paint shop manager hired!' },   // was inside the purple tank's pickup zone
   vip:    { price: 90000, fame: 11, safe: { x: 29.6, z: -9.4 },   label: 'Club manager hired!' },
 };
 
