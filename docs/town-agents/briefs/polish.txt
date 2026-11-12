@@ -1,0 +1,101 @@
+YOUR ROLE: `polish`. Two jobs:
+(A) make the town's surfaces and empty places stop looking bland;
+(B) move the car wash off the garage exit into a drive-through of its own, and make it work.
+The game's owner asked for both after playing the current `dev` build.
+
+REPO: /Users/egeayyildiz/Desktop/personal-projects/wrench-bay (branch `dev`; do not commit, branch, stash or reset).
+- Dev server: http://localhost:5190. If it is down, check `lsof -iTCP:5190 -sTCP:LISTEN` and only then start `npm run dev` in the background.
+- No other agent is running, so you may edit any file the jobs below need. Keep changes focused on these two jobs.
+
+READ FIRST
+- CONTRACTS.md: the base game and the art direction.
+- TOWN.md: section 0 holds the rules you work under (including real-world logic), section 3 the map and camera facts, 4.6 the wash, 6a the gameplay API as built, 8 the environment.
+- src/config.town.js.
+- docs/town-agents/README.md, and the reports and progress files of env, envdress, bhome and core in docs/town-agents/.
+- The two screenshots from the owner:
+  - docs/town-agents/briefs/polish-ref-1-vacant-plot.png: the empty Spray Bay plot, x -43.5..-17.5. They boxed the concrete slab area. The flat gravel and the huge slabs with giant drawn cracks look bland and fake.
+  - docs/town-agents/briefs/polish-ref-2-wash-on-exit.png: the wash arches standing on the garage's exit driveway.
+
+LOGS: keep docs/town-agents/progress/polish.md current from your first minutes:
+- what is done and verified;
+- what is in progress;
+- what comes next;
+- known issues.
+
+Your final report goes to docs/town-agents/reports/polish.md as well as your last message. Write in small increments (one area or function at a time, `node --check` after each); a cut-off must lose little.
+
+BROWSER: the `search` MCP (ToolSearch `select:mcp__search__tabs_context,mcp__search__tabs_create,mcp__search__navigate,mcp__search__computer,mcp__search__read_console_messages,mcp__search__javascript_tool,mcp__search__resize_page,mcp__search__batch`).
+- Open your own tab with tabs_create at about 420 x 860 (portrait phone) and always pass its tabId. Never touch other tabs.
+- Judge everything from the real game camera, not close-ups.
+- Useful URLs: `/?nogame&cam=x,z` (environment only, camera pinned), `/?autoplay&save=polish` (game), and `__game` debug helpers (TOWN.md 6a): giveCash, giveFame, buy(id), openTown, tp(placeId).
+
+=====================================================================================================
+(A) TOWN POLISH
+Goal: every screen of the town looks hand-made and lived-in at the density of the garage lot, with no large flat or repetitive surface and no fake-looking texture.
+
+1. Ground surfaces. Rework the town's textures and surfaces (env-kit.js textures, env-streets.js and wherever the surfaces are made): concrete, gravel, asphalt, alley paving, sidewalks, plaza paving, kerbs.
+   - Real scale: concrete slabs about 1.5-3 m with thin saw-cut joints, not 4 m tiles with giant drawn cracks. Hairline cracks at believable size, the occasional patched or replaced slab, oil and rust stains near where cars stand, tyre scuffs at driveways, weeds in joints and along edges, worn paint.
+   - No visible tiling: vary colour and pattern per patch (texture variants, random offset or rotation per piece, subtle vertex-colour tint, merged stain and patch decals).
+   - Real edges between surfaces: kerbs, edging strips, gutters, broken asphalt edges, grass verges. Two flat colours must not simply meet in a straight line.
+   - Keep the art family: stylised and clean, chunky, flat-shaded. Detail must read at game-camera distance without becoming noise.
+2. Vacant plots. Every PROPERTIES / SERVICES plot that is not built yet: Spray Bay, Platinum Club, the Main Street plots, the gas and Quick-Fit corners, the ferry plaza, the lounge plot.
+   - Each gets its own believable vacant-lot character that tells you something will be built there. For example: an old disused yard with faded bay lines and patched asphalt behind a low chain-link fence; a grassy lot with wildflowers, a few young trees and a path trodden across it; a demolished building's footprint with old foundation lines and a rubble heap. Plus period details: a skip, stacked pallets, a rusty trailer, an old "Coming soon" board.
+   - Everything taller than a painted line goes in a per-plot dressing group. Add a small API from the environment (for example `setPlotCleared(propId, bool)`, exported through src/models/index.js) and call it from src/game/town.js.
+   - The dressing disappears the moment the plot is bought (the construction site replaces it). It stays hidden after a reload for owned properties. A shop:changed rebuild gives it back for unowned ones.
+   - Never block the pay pad, the for-sale sign, the walkway to the pad, parking bays, rescue spots, golden wrenches or any lane. Things on the south side of a walkable area stay low or see-through (camera looks north).
+3. Town pass. Walk the camera over the whole town (TOWN.camClamp) in steps of about 12 units at phone size, with screenshots you look at.
+   - Fix every bland, empty, repetitive or unrealistic spot you find: large empty surfaces, flat walls with no detail, objects floating or sunk, z-fighting, visible world edges.
+   - Write down what you changed per area.
+   - The garage lot itself (LAYOUT) is known and liked: only touch it where your surfaces meet it.
+4. Performance: measure draw calls and triangles (renderer.info) at five or six camera spots before and after. Keep them reasonable; per-view triangles are now about 80-115k with shadows. Merge static geometry per chunk, share textures and materials, allocate nothing per frame. Report the numbers.
+
+=====================================================================================================
+(B) CAR WASH: OWN DRIVE-THROUGH INSTEAD OF ARCHES ON THE EXIT (lead's design; follow it)
+Today the three wash arches stand over the garage's exit driveway (WASH.x = 13.5), so every leaving car rolls through them and the exit looks blocked. New design:
+
+- Where: a drive-through wash building of its own on the garden block, east of the exit driveway: TOWN.garden is x 15.4..23.6, z 2.4..10.8. An invented name and sign, for example "Suds & Shine".
+  - Tunnel axis east-west along the north part of the garden: entry at the west end, around x 15.5, axis about z 3.6-4.0; exit at the east end.
+  - The camera sees the whole wash sequence side-on, left to right.
+  - The rest of the garden, roughly z 6..10.8, stays a small park. Rebuild envdress's garden (env-life.js) and the lawn in env-streets.js to fit.
+  - Move the 'garden' parking bay, golden wrench w06 and the wash pay pad and for-sale sign if the new footprint covers them; keep them reachable.
+- Route of a car that takes a wash:
+  1. It leaves its lift as today, along the exit lane (z 3.0) to the pickup stop, where the owner gets in.
+  2. Then it carries on east past the exit driveway (x 13.5) into the wash entry.
+  3. It stops briefly at the pay kiosk on the driver's side.
+  4. It rolls slowly through soap arch, brushes, rinse, blower.
+  5. It leaves at the east end into the east alley (x 24.2..27.2) and turns south to Harbor St (z 11 -> lane 12.8), where it drives east and out like every other leaving car.
+  Cars that do not take a wash leave straight down the exit driveway as today. The exit driveway becomes a plain driveway: no arches.
+- Who takes a wash:
+  - Level 1: only dirty cars (WASH.dirtyChance of arrivals are dirty, `setDirt`).
+  - From level 2 (wax & polish): every leaving car.
+  - Put the rule in the config, for example `WASH.cleanCarsFromLevel: 2`.
+- Camera and realism:
+  - The car must stay visible the whole way through. A real tunnel has a roof and walls, so use an open steel gantry frame with a see-through polycarbonate roof, and keep the south side open or glazed (low wall at most).
+  - Order along the drive direction is physically right: soap, then brushes, then rinse, then blower.
+  - Foam only builds up after the soap arch. Brushes spin and lean in only while a car is at them; nozzles spray only while a car is under them.
+  - The car is wet after the rinse, dry after the blower, then clean. Wax tier: coloured foam and a gloss at the end; turbo tier: bigger blower and neon.
+  - A car queues behind another if the tunnel is busy; it never drives through it.
+  - The building must read as a car wash at a glance: entry sign with an arrow, the kiosk, guide rails on the floor, a drain grate, the exit sign, vacuum stations in the park strip if room allows.
+- Money: the wash fee (state `washFee(tier)`) lands as coins on a coin pile at the exit (WASH.pile, moved), with float text "+$18 Wash". Emit `wash:done { total }` and add to `state.town.stats.washes`, as TOWN.md 5 lists. The player collects the coins by walking past, like other cash piles.
+- Implementation:
+  - Reshape WASH and PROPERTIES.wash in config.town.js: plot, pad, entry / exit path waypoints, kiosk stop, arch positions along the lane, zone, pile.
+  - Rebuild `createWashArches(tier)` / `createWashKiosk(tier)` in buildings-home.js for the new layout. Keep the return shape; the building now stands on its own plot.
+  - Update town.js: colliders, building-site parts, sale sign placement.
+  - Write the behaviour in a new src/game/wash.js registered through the feature registry (TOWN.md 6a). Use the facility's leaving-car path hook, or add a clean one, without changing how the garage plays for cars that do not wash.
+  - Update TOWN.md 4.6 (and the map in config.town.js's header comment) to the new design.
+- Verify:
+  - A fresh save: open the town, `__game.buy('wash')`, watch at 1x from the game camera several dirty and clean cars leave with the wash at levels 1, 2 and 3. Include two cars back to back, so one queues.
+  - Watch a reload in the middle of a wash.
+  - A garage without the wash plays exactly as before (`?autoplay`, timeScale 4, a few minutes).
+  - No console errors.
+
+=====================================================================================================
+REAL-WORLD LOGIC (the owner rejects anything that could not happen in real life, however readable): check every object, effect and car movement against "would it look and behave like that in real life in this state?". Stylised is fine, illogical is not.
+
+FINAL REPORT (last message, also saved to docs/town-agents/reports/polish.md):
+- what you changed per area, with before / after numbers;
+- the new wash layout, route and rule;
+- the files touched;
+- how you verified each part and what you saw;
+- what is not done or not verified;
+- anything later agents must know: the lounge, paint shop and VIP work still has to be built on top of this.

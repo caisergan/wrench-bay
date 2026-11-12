@@ -24,6 +24,7 @@ From now on, agents write their progress and reports here (`docs/town-agents/pro
 | bmain | Sonnet | buildings-main.js, preview-main.* | **Done.** All 8 Main Street and corner buildings, with levels. |
 | people | Sonnet | characters.js, fx.js, props.js, critters.js | **Done** (first run). |
 | ui | Sonnet | src/ui/* | **Done** (first run). |
+| polish | Opus (high), then the lead | surfaces, vacant plots, car wash move (`briefs/polish.txt`) | **Done.** Wash moved off the garage exit into its own drive-through (`wash.js`), real-scale ground textures without tiling, worn streets and edges, vacant-lot dressing for 12 plots (`env-plots.js`, `setPlotCleared`). Report: `reports/polish.md`. |
 
 ## Next
 1. Finish wave 0 from the progress files: core first (it gates everything), then bhome, env, envdress and cars.
