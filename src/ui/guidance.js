@@ -5,7 +5,7 @@
 // button columns, the hint / chip stack) and the lower part of the screen where the thumb rests, glide instead of
 // jumping, never overlap each other, and vanish as soon as their target is on screen. At most 3 show at once.
 import * as THREE from 'three';
-import { onUpdate, worldToScreen, root } from '../core/engine.js';
+import { onUpdate, worldToScreen, root, viewSize } from '../core/engine.js';
 import { ICON } from './icons.js';
 import { html, mmss } from './format.js';
 
@@ -86,7 +86,7 @@ const _s = { x: 0, y: 0 };
 let tMeasure = 0;
 function updatePointers(dt) {
   if (!all.length) return;
-  const W = root.clientWidth, H = root.clientHeight;
+  const W = viewSize.w, H = viewSize.h;
   tMeasure -= dt;
   if (tMeasure <= 0) { tMeasure = 0.25; measure(W); }
   const hud = root.querySelector('.hud');

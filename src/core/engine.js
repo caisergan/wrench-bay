@@ -11,7 +11,7 @@ scene.fog = new THREE.Fog(0x9fd8cb, 45, 90);
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;   // three r18x dropped PCFSoftShadowMap (it fell back to this anyway)
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
@@ -38,6 +38,23 @@ const SUN_OFFSET = new THREE.Vector3(-8, 18, 10);
 const SUN_DIR = SUN_OFFSET.clone().normalize();
 const PHONE_SHADOW = { size: 2048, left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 60 };
 const shadowCentre = new THREE.Vector2();   // shadow box centre, relative to camTarget (browser view)
+// Light-space axes of the sun's shadow camera (three.js aims it from the sun at its target, up = +y).
+const SUN_X = new THREE.Vector3(), SUN_Y = new THREE.Vector3();
+new THREE.Matrix4().lookAt(SUN_DIR, new THREE.Vector3(), THREE.Object3D.DEFAULT_UP).extractBasis(SUN_X, SUN_Y, new THREE.Vector3());
+const _sp = new THREE.Vector3();
+/**
+ * Aim the sun at ground point (x, z) from `dist` away, moving the shadow box in whole shadow-map texels only. A box
+ * that follows the camera by fractions of a texel re-rasterises every shadow edge each frame, so all the shadows
+ * crawl and flicker while the player walks; whole-texel steps keep every edge on the same texels.
+ */
+function placeSun(x, z, dist) {
+  const sc = sun.shadow.camera, ms = sun.shadow.mapSize;
+  const ux = (sc.right - sc.left) / ms.x, uy = (sc.top - sc.bottom) / ms.y;
+  _sp.set(x, 0, z);
+  const a = Math.round(_sp.dot(SUN_X) / ux) * ux, b = Math.round(_sp.dot(SUN_Y) / uy) * uy, c = _sp.dot(SUN_DIR);
+  sun.target.position.set(0, 0, 0).addScaledVector(SUN_X, a).addScaledVector(SUN_Y, b).addScaledVector(SUN_DIR, c);
+  sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, dist);
+}
 
 // ---- follow camera ----
 let followObj = null;
@@ -89,22 +106,24 @@ function updateCamera(dt, snap = false) {
   camera.lookAt(camTarget.x, 0, camTarget.z - 1.2);
   // keep the shadow frustum centred on what we see
   if (isBrowserView()) {
-    if (Math.abs(zoom - shadowZoom) > 0.02) fitShadow();
-    sun.target.position.set(camTarget.x + shadowCentre.x, 0, camTarget.z + shadowCentre.y);
-    sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, SUN_DIST);
+    // Re-fit the box once per zoom change, not all through the ease: every re-fit changes the texel size and so moves
+    // each shadow edge once. Pulling out (driving) fits the wider framing straight away; pushing back in waits until
+    // the camera has settled.
+    const fitK = zoomGoal > shadowZoom + 1e-3 || Math.abs(zoom - zoomGoal) < 0.01 ? zoomGoal : shadowZoom;
+    if (Math.abs(fitK - shadowZoom) > 1e-3) fitShadow(fitK);
+    placeSun(camTarget.x + shadowCentre.x, camTarget.z + shadowCentre.y, SUN_DIST);
   } else {
-    sun.position.set(camTarget.x - 8, 18, camTarget.z + 10);
-    sun.target.position.set(camTarget.x, 0, camTarget.z);
+    placeSun(camTarget.x, camTarget.z, PHONE_SUN_DIST);
   }
 }
 
 // ---- browser view: what the camera sees on the ground, and a shadow box that covers it ----
 const SUN_DIST = 70;          // sun distance from the shadow box centre (room for tall casters towards the sun)
+const PHONE_SUN_DIST = SUN_OFFSET.length();   // phone frame: the sun sits at SUN_OFFSET from the camera target
 const SEE_FAR = 92;           // fog is solid past ~90 m: ground further than this from the camera never shows
 const ROOF = 9;               // receivers up to roof height also need shadows
 const probe = new THREE.PerspectiveCamera();
-const _p = new THREE.Vector3(), _dir = new THREE.Vector3(), _ax = new THREE.Vector3(), _ay = new THREE.Vector3(), _az = new THREE.Vector3();
-const _lm = new THREE.Matrix4();
+const _p = new THREE.Vector3(), _dir = new THREE.Vector3();
 let shadowZoom = -1;
 /** Ground (y = h) points under the four screen corners for a camera at zoom k on target (0, 0, 0). */
 function screenCorners(k, h, out) {
@@ -121,15 +140,12 @@ function screenCorners(k, h, out) {
   }
   return out;
 }
-/** Size the sun's shadow box to the ground (and roofs) on screen at the current zoom. Browser view only. */
-function fitShadow() {
-  shadowZoom = zoom;
+/** Size the sun's shadow box to the ground (and roofs) on screen at camera zoom k. Browser view only. */
+function fitShadow(k) {
+  shadowZoom = k;
   const pts = [];
-  screenCorners(zoom, 0, pts);
-  screenCorners(zoom, ROOF, pts);
-  // light space axes (same basis three.js gives the shadow camera: looking from the sun along -SUN_DIR, up = +y)
-  _lm.lookAt(SUN_DIR, _p.set(0, 0, 0), THREE.Object3D.DEFAULT_UP);
-  _lm.extractBasis(_ax, _ay, _az);
+  screenCorners(k, 0, pts);
+  screenCorners(k, ROOF, pts);
   // box centre: middle of the ground footprint
   let cx = 0, cz = 0;
   for (let i = 0; i < 12; i += 3) { cx += pts[i] / 4; cz += pts[i + 2] / 4; }
@@ -137,7 +153,7 @@ function fitShadow() {
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minD = Infinity, maxD = -Infinity;
   for (let i = 0; i < pts.length; i += 3) {
     _p.set(pts[i] - cx, pts[i + 1], pts[i + 2] - cz);
-    const x = _p.dot(_ax), y = _p.dot(_ay), d = SUN_DIST - _p.dot(_az);
+    const x = _p.dot(SUN_X), y = _p.dot(SUN_Y), d = SUN_DIST - _p.dot(SUN_DIR);
     minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
     minD = Math.min(minD, d); maxD = Math.max(maxD, d);
   }
@@ -156,7 +172,7 @@ function applyViewShadow() {
   const sc = sun.shadow.camera;
   if (isBrowserView()) {
     setShadowSize(Math.min(4096, renderer.capabilities.maxTextureSize || 4096));
-    fitShadow();
+    fitShadow(Math.max(zoom, zoomGoal));
     // how far the screen reaches on the ground (driving zooms out to 1.15: measure there, plus a margin)
     const pts = screenCorners(1.15, 0, []);
     let x = 0, back = 0, front = 0;
@@ -172,6 +188,12 @@ function applyViewShadow() {
   }
 }
 
+/**
+ * Size of #game-root in CSS pixels, kept up to date by resize(). Per-frame code reads this instead of
+ * root.clientWidth: that read forces a full style + layout pass whenever a label moved earlier in the frame.
+ */
+export const viewSize = { w: 1, h: 1 };
+
 // ---- resize: phone frame = keep a portrait phone aspect on desktop; browser view = fill the window ----
 // The browser view draws up to this many device pixels (a 4K-ish budget), so a big retina window stays smooth.
 const BROWSER_MAX_PIXELS = 4.2e6;
@@ -183,6 +205,7 @@ function resize() {
   if (!wide && w / h > maxAspect) w = Math.round(h * maxAspect);
   root.style.width = w + 'px';
   root.style.height = h + 'px';
+  viewSize.w = w; viewSize.h = h;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   renderer.setPixelRatio(wide ? Math.max(1, Math.min(dpr, Math.sqrt(BROWSER_MAX_PIXELS / (w * h)))) : dpr);
   renderer.setSize(w, h);
@@ -221,6 +244,6 @@ export function start() { updateCamera(0, true); frame(); }
 const _v = new THREE.Vector3();
 export function worldToScreen(pos) {
   _v.copy(pos).project(camera);
-  const w = root.clientWidth, h = root.clientHeight;
+  const w = viewSize.w, h = viewSize.h;
   return { x: (_v.x * 0.5 + 0.5) * w, y: (-_v.y * 0.5 + 0.5) * h, visible: _v.z < 1 };
 }
