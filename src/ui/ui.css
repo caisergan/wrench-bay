@@ -214,6 +214,8 @@ button:disabled { cursor: default; }
 /* ---------- world labels ---------- */
 .wl { position: absolute; left: 0; top: 0; visibility: hidden; opacity: 0; transition: opacity .15s; will-change: transform; pointer-events: none; white-space: nowrap; }
 .wl.on { visibility: visible; opacity: 1; }
+/* a bubble covering the player's character goes see-through (labels.js seeThrough) */
+.wl.on.see { opacity: .28; transition-duration: .2s; }
 .wl b { font-weight: 700; }
 .wl-price { display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .wl-price .pill {

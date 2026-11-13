@@ -50,6 +50,7 @@ export function createPlayer(ctx) {
   group.position.set(L.playerStart.x, 0, L.playerStart.z);
   ctx.root.add(group);
   follow(group);
+  ui.seeThrough(group);   // bubbles go see-through while they cover the character
 
   const stack = new PartStack(ch.carryAnchor, ctx.root, { hopHeight: 0.8 });
   const maxTag = new Tag({ text: 'MAX', kind: 'max' }, 2.45);
@@ -188,6 +189,7 @@ export function createPlayer(ctx) {
     },
     dispose() {
       maxTag.remove(); stayTag.remove();
+      ui.seeThrough(null);
       if (player.car && (player.mode === 'driving' || player.mode === 'entering')) events.emit('drive:end', {});
     },
   };

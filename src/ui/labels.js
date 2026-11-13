@@ -32,6 +32,9 @@ const ANCHOR = {
   call: 'translate(-50%,-100%)',
 };
 const BAR_KINDS = new Set(['price', 'till', 'tag', 'call']);
+// Bubbles that float over cars and stations go see-through while they cover the player's character on screen (see
+// seeThrough). Not the player's own tags (max, info) and not the pad / till labels the player stands on to pay.
+const SEE_KINDS = new Set(['job', 'stars', 'call', 'emote', 'station', 'timer']);
 const MAX_JOBS = 4;
 const JOB_STATES = ['need', 'ready', 'done'];
 const EMOTES = { happy: ICON.happy, angry: ICON.angry, wait: ICON.wait, star: ICON.star };
@@ -125,6 +128,7 @@ function makeLabel(kind) {
     remove() {
       if (!active.delete(L)) return;
       L.hide();
+      if (L.see) { L.see = false; el.classList.remove('see'); }
       L.lx = L.ly = NaN; L.has = false; L.text = null; L.prog = -1; L.icon = null;
       if (bar) bar.style.transform = 'scaleX(0)';
       if (kind === 'job') L.resetJob();
@@ -146,7 +150,56 @@ function makeLabel(kind) {
   // every label answers every setter, so a caller never has to know which kind it holds (unknown kinds must not throw)
   for (const m of ['setJobs', 'setPatience', 'setVip', 'setBonus', 'setStars', 'setInfo', 'setWork', 'setNear']) if (!L[m]) L[m] = () => L;
   layer.appendChild(el);
+  if (SEE_KINDS.has(kind)) {
+    // box size for the see-through test: measured by a ResizeObserver, so the per-frame test never forces a layout
+    L.w = 0; L.h = 0; L.see = false;
+    L.ay = L.anchor.includes('-100%') ? 1 : 0.5;   // how much of the box sits above the anchor point
+    byEl.set(el, L);
+    sizes.observe(el);
+  }
   return L;
+}
+
+// ---- see-through: a bubble covering the player's character fades, so you can always see yourself move ----
+const SEE_H = 1.65;    // character height (top of the head, measured 1.63), world units
+const SEE_R = 0.38;    // character half width / depth
+const SEE_GAP = 6;     // px a faded bubble must clear the character by before it comes back (no flicker on the edge)
+const byEl = new WeakMap();
+const sizes = new ResizeObserver((entries) => {
+  for (const e of entries) {
+    const L = byEl.get(e.target);
+    const b = e.borderBoxSize?.[0];
+    if (L) { L.w = b ? b.inlineSize : e.contentRect.width; L.h = b ? b.blockSize : e.contentRect.height; }
+  }
+});
+let seeObj = null;
+const seeBox = { x0: 0, y0: 0, x1: 0, y1: 0, on: false };
+
+/** Fade SEE_KINDS bubbles while they cover this Object3D (the player's character) on screen. null switches it off. */
+export function seeThrough(obj) { seeObj = obj || null; }
+
+// the character's screen box: feet at the front edge to the top of the head at the back edge, one radius each side
+function updateSeeBox() {
+  seeBox.on = false;
+  if (!seeObj || !seeObj.visible) return;
+  const p = seeObj.position;
+  const feet = worldToScreen(_p.set(p.x, p.y, p.z + SEE_R));
+  if (!feet.visible) return;
+  const fy = feet.y;
+  const head = worldToScreen(_p.set(p.x, p.y + SEE_H, p.z - SEE_R));
+  const hy = head.y, cx = head.x;
+  const side = worldToScreen(_p.set(p.x + SEE_R, p.y + SEE_H * 0.5, p.z));
+  const hw = Math.abs(side.x - cx);
+  seeBox.x0 = cx - hw; seeBox.x1 = cx + hw;
+  seeBox.y0 = Math.min(hy, fy); seeBox.y1 = Math.max(hy, fy);
+  seeBox.on = true;
+}
+
+function coversPlayer(L, x, y) {
+  if (!seeBox.on || !L.w) return false;
+  const g = L.see ? SEE_GAP : 0;
+  const x0 = x - L.w * 0.5, y0 = y - L.h * L.ay;
+  return x0 - g < seeBox.x1 && x0 + L.w + g > seeBox.x0 && y0 - g < seeBox.y1 && y0 + L.h + g > seeBox.y0;
 }
 
 // ---- job bubble: up to 4 part tiles + owner mood row + VIP. Every setter early-outs when unchanged. ----
@@ -320,6 +373,7 @@ export function label(opts = {}) {
 }
 
 function update() {
+  updateSeeBox();
   for (const L of active) {
     if (!L.wantVisible || !L.has) continue;
     const s = worldToScreen(L.pos);
@@ -330,6 +384,10 @@ function update() {
       L.el.style.transform = `translate3d(${x}px,${y}px,0) ${L.anchor}`;
     }
     if (!L.shown) { L.shown = true; L.el.classList.add('on'); }
+    if (L.see !== undefined) {
+      const see = coversPlayer(L, x, y);
+      if (see !== L.see) { L.see = see; L.el.classList.toggle('see', see); }
+    }
   }
 }
 
