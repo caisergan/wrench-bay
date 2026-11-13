@@ -198,6 +198,35 @@ const SOUNDS = {
     tone(330 * p, 0.2, { vol: 0.07, type: 'triangle', at: 0.38 });
   },
   thud(p) { tone(130 * p, 0.2, { to: 55 * p, vol: 0.35, type: 'sine', a: 0.003 }); noise(0.08, { freq: 300, q: 0.7, vol: 0.12, filter: 'lowpass' }); },
+  // spray booth doors: bi-fold leaves rolling along the top track, meeting on their seals, the latch; opening: the
+  // seal lets go with a breath of air, the latch, the rollers; the north sliding doors: a soft glide
+  boothShut(p) {
+    noise(1.0, { freq: 520, q: 1.2, vol: 0.05 });
+    tone(92 * p, 0.95, { to: 70 * p, vol: 0.045, type: 'triangle', a: 0.12 });
+    tone(118 * p, 0.18, { to: 58 * p, vol: 0.2, type: 'sine', at: 1.1, a: 0.004 });
+    noise(0.06, { freq: 800, q: 0.8, vol: 0.08, at: 1.1, filter: 'lowpass' });
+    tone(1400 * p, 0.035, { vol: 0.045, type: 'square', at: 1.2 });
+  },
+  boothOpen(p) {
+    noise(0.2, { freq: 3800, q: 0.6, vol: 0.05 });
+    tone(1250 * p, 0.035, { vol: 0.045, type: 'square', at: 0.03 });
+    noise(0.75, { freq: 520, q: 1.2, vol: 0.05, at: 0.1 });
+    tone(78 * p, 0.7, { to: 98 * p, vol: 0.045, type: 'triangle', at: 0.1, a: 0.12 });
+  },
+  // the player's paint suit: coverall rustling up the legs, the zip, the respirator strap; off: zip down, rustle
+  suitUp(p) {
+    noise(0.3, { freq: 2600, q: 0.7, vol: 0.06 });
+    noise(0.24, { freq: 3400, q: 0.9, vol: 0.05, at: 0.36 });
+    tone(900 * p, 0.16, { to: 2300 * p, vol: 0.035, type: 'sawtooth', at: 0.52, a: 0.01 });
+    noise(0.16, { freq: 5200, q: 2, vol: 0.03, at: 0.52 });
+    tone(520 * p, 0.05, { vol: 0.06, type: 'triangle', at: 0.84 });
+  },
+  suitOff(p) {
+    tone(2100 * p, 0.14, { to: 900 * p, vol: 0.03, type: 'sawtooth', a: 0.01 });
+    noise(0.14, { freq: 5000, q: 2, vol: 0.025 });
+    noise(0.34, { freq: 2400, q: 0.7, vol: 0.05, at: 0.18 });
+  },
+  slideDoor(p) { noise(0.34, { freq: 1500, q: 0.6, vol: 0.03 }); tone(150 * p, 0.32, { to: 118 * p, vol: 0.03, type: 'sine', a: 0.05 }); },
   horn(p) {
     tone(330 * p, 0.42, { vol: 0.09, type: 'sawtooth', a: 0.02 });
     tone(415 * p, 0.42, { vol: 0.08, type: 'sawtooth', a: 0.02 });
@@ -225,7 +254,7 @@ const SOUNDS = {
     tone(56 * p, 1.0, { vol: 0.14, type: 'sine', a: 0.08 });
   },
 };
-const MIN_GAP = { pickup: 60, pay: 60, coin: 45, drop: 50, cash: 80, click: 40, wrench: 90, honk: 200, engine: 250, lift: 300, fix: 80, spray: 200, wash: 300, polish: 150, winch: 300, radio: 400, gull: 600, coins: 120, thud: 100, build: 160, bell: 200, horn: 250 };
+const MIN_GAP = { pickup: 60, pay: 60, coin: 45, drop: 50, cash: 80, click: 40, wrench: 90, honk: 200, engine: 250, lift: 300, fix: 80, spray: 200, wash: 300, polish: 150, winch: 300, radio: 400, gull: 600, coins: 120, thud: 100, build: 160, bell: 200, horn: 250, boothShut: 400, boothOpen: 400, slideDoor: 250, suitUp: 500, suitOff: 500 };
 const last = {};
 
 export function sfx(name) {

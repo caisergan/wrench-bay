@@ -394,9 +394,10 @@ export const PAINT = {
   walls: { minX: -41.2, maxX: -19.8, minZ: -11.4, maxZ: 1.2, height: 2.6, thickness: 0.4 },
   forecourt: { minX: -43.5, maxX: -17.5, minZ: 1.2, maxZ: 11.0 },
   // Spray booths (index 0 from the start). Car centred here, nose towards -z (yaw = PI).
-  // A booth is 3.6 x 6.1: the car drives in at the south end (a clear roll-down curtain closes it while spraying
-  // and curing); the north end is the open personnel end where the painter stands, so the work mat in front of
-  // the nose (bay.z + workOffsetZ) is inside the glass. Design: docs/town-agents/briefs/painthall.txt.
+  // A booth is 3.6 x 6.1: the car drives in at the south end (glazed bi-fold doors fold shut while spraying and
+  // curing); the north end is the personnel end with automatic sliding doors (open for anyone walking through, shut
+  // while the booth works), where the painter stands, so the work mat in front of the nose (bay.z + workOffsetZ) is
+  // inside the glass. Design: docs/town-agents/briefs/painthall.txt.
   bays: [{ x: -34.6, z: -3.4 }, { x: -27.4, z: -3.4 }],
   boothHalfW: 1.8, boothZ: [-6.9, -0.8],                        // glass side walls (obstacles); north end clear of the staff lane
   bayPostOffsetX: 1.8,
@@ -461,7 +462,10 @@ export const PAINT = {
   cans: { default: 2, pickup: 3, van: 3, suv: 3, camper: 3, limo: 3 },   // canisters per car type
   pricePerCan: 55, work: 2.4, restock: 3.4, stationMax: 4,
   cure: 6.0, cureIR: 3.0,                                       // seconds under the lamps after spraying
-  curtainUp: 1.0,                                               // seconds after curing before the car may back out
+  // booth doors: release = seconds after curing before the car may back out (the bi-fold doors fold open in 0.9 s);
+  // north sliding doors: open for anyone within bandOut m outside / bandIn m inside the leaves, or walking up to them
+  // fast enough to get there within lead s; shut hold s after the last one went through
+  doors: { release: 1.0, bandOut: 0.36, bandIn: 0.45, lead: 0.45, hold: 0.5 },
   premiumMult: 1.6,                                             // gold / purple jobs
   stripeChance: 0.3, stripeMult: 1.5,                           // two-tone: +1 canister of a second colour
   offlineCarTime: 24,                                           // offline: seconds one painter + booth needs per car
