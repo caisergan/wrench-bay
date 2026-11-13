@@ -40,7 +40,12 @@ const TAIL = 0xe0443e;
 const AMBER = 0xf6a53a;
 const SPARE_RIM = 0xf6c453;   // space-saver spare wheel
 const SPARE_K = 0.8;          // its radius relative to a normal wheel
-const SAG = 0.38;             // a soft tyre loses this much of its height
+const FLAT_DROP = 0.38;       // a flat tyre's rim sinks this much of the radius towards the floor (bead at 0.6 r)
+const FLAT_BULGE = 0.4;       // and its sidewalls bulge out up to this much of the tyre width at the contact patch
+const FLAT_SPREAD = 0.16;
+const LEAN_GIVE = 0.005;      // a corner may settle this much lower than its own wheel (the arch keeps 3 cm of air)     // the squashed tread spreads along the floor, fore and aft, by up to this much
+const WORN = 0x56534d, WORN_L = 0x67635b, WORN_D = 0x3e3b37, CRACK = 0x25272b;   // bald, sun-dried rubber
+const CORD = 0xbfc4c8, CORD_RUST = 0x9a6a44;                                       // the steel belt showing through
 const PRIMER = 0xa3a8ad;
 const PRIMER_D = 0x868c93;
 const RUST = 0xa8552e;
@@ -57,6 +62,7 @@ export const TOW_LIFT = 0.42;
 
 const _c = new THREE.Color();
 const _c2 = new THREE.Color();
+const _roll = new THREE.Vector3();
 const shade = (hex, k) => _c.set(hex).multiplyScalar(k).getHex();
 const lerpHex = (a, b, k) => _c.set(a).lerp(_c2.set(b), k).getHex();
 const lum = (hex) => { _c.set(hex); return 0.3 * _c.r + 0.59 * _c.g + 0.11 * _c.b; };
@@ -71,7 +77,9 @@ const brightness = (hex) => (0.3 * ((hex >> 16) & 255) + 0.59 * ((hex >> 8) & 25
 // lights ('round' | 'slim' | 'quad' | 'covered' | 'none'), hub (rim colour), rim ('std' | 'white' | 'wire'),
 // cabColor / roofColor, top (override of the highest flat surface), deck (false: no open rear deck),
 // hw (hood width, default W - 0.06; narrower between fenders), engine ('front' | 'mid' | 'rear': where smoke and oil come
-// from), bayEngine (false: the battery bay shows no engine cover, e.g. a front trunk), batteryZ (battery along the hood).
+// from), bayEngine (false: the battery bay shows no engine cover, e.g. a front trunk), batteryZ (battery along the hood),
+// lift (raises the whole body: room for a fender over the arches), hump (false: never a fender hump; the type brings its own
+// fenders).
 const SPECS = {
   compact: {
     L: 2.3, W: 1.28, r: 0.27, wr: 0.25, ax: 0.74, axR: -0.74, y0: 0.2, yb: 0.64, noseCh: 0.13, tailCh: 0.05,
@@ -81,7 +89,7 @@ const SPECS = {
   sedan: {
     L: 2.7, W: 1.28, r: 0.27, wr: 0.25, ax: 0.86, axR: -0.86, y0: 0.2, yb: 0.6, noseCh: 0.1, tailCh: 0.08,
     cab: { r0: -0.8, f0: 0.4, r1: -0.52, f1: 0.06, yt: 1.1, w: 1.14 }, pillars: [-0.22],
-    bumper: TRIM, chromeStrip: true,
+    bumper: TRIM, chromeStrip: true, lift: 0.02,
   },
   pickup: {
     L: 2.76, W: 1.32, r: 0.33, wr: 0.28, ax: 0.9, axR: -0.86, y0: 0.32, yb: 0.8, noseCh: 0.1, tailCh: 0.0,
@@ -95,7 +103,7 @@ const SPECS = {
   },
   sports: {
     L: 2.72, W: 1.36, r: 0.28, wr: 0.27, ax: 0.88, axR: -0.86, y0: 0.16, yb: 0.5, noseCh: 0.15, tailCh: 0.1,
-    cab: { r0: -0.84, f0: 0.22, r1: -0.52, f1: -0.18, yt: 0.95, w: 1.1 }, pillars: [],
+    cab: { r0: -0.84, f0: 0.22, r1: -0.52, f1: -0.18, yt: 0.95, w: 0.88 }, pillars: [],
     bumper: DARK, stripes: true, spoiler: true, slimLights: true, grille: 'intake', hub: 0x9aa5ad,
   },
 
@@ -111,8 +119,8 @@ const SPECS = {
     bumper: DARK, hub: 0x9aa5ad,
   },
   muscle: {  // long hood, fastback, scoop, twin stripes, fat rear tyres, side pipes
-    L: 2.8, W: 1.42, r: 0.3, wr: 0.32, rf: 0.28, wrf: 0.26, ax: 0.94, axR: -0.9, y0: 0.2, yb: 0.58, noseCh: 0.05,
-    tailCh: 0.05, cab: { r0: -1.24, f0: 0.06, r1: -0.52, f1: -0.24, yt: 1.02, w: 1.12 }, pillars: [-0.5],
+    L: 2.8, W: 1.42, r: 0.3, wr: 0.28, rf: 0.28, wrf: 0.26, ax: 0.94, axR: -0.9, y0: 0.2, yb: 0.58, noseCh: 0.05,
+    tailCh: 0.05, cab: { r0: -1.24, f0: 0.06, r1: -0.52, f1: -0.24, yt: 1.02, w: 0.86 }, pillars: [-0.5],
     bumper: CHROME, grille: 'wide', lights: 'quad', hub: 0x9aa5ad,
   },
   camper: {  // motorhome: small cab, tall living box with an alcove over the cab
@@ -145,7 +153,7 @@ const SPECS = {
   classic: { // open-top classic tourer: flowing fenders, chrome headlamps, boat tail, whitewalls
     L: 2.8, W: 1.28, r: 0.3, wr: 0.2, ax: 0.98, axR: -0.86, wx: 0.6, y0: 0.3, yb: 0.66, noseCh: 0.06, tailCh: 0.3,
     cab: { r0: -0.52, f0: 0.06, r1: -0.52, f1: -0.04, yt: 1.0, w: 1.12 }, pillars: [], open: true,
-    bumper: CHROME, grille: 'tall', lights: 'none', rim: 'white',
+    bumper: CHROME, grille: 'tall', lights: 'none', rim: 'white', hump: false,
   },
   gsuv: {    // luxury 4x4: bolt-upright, chrome grille, running boards
     L: 2.78, W: 1.44, r: 0.34, wr: 0.3, ax: 0.9, axR: -0.92, y0: 0.38, yb: 0.92, noseCh: 0.06, tailCh: 0.03,
@@ -171,22 +179,203 @@ const SPECS = {
     bayEngine: false,
   },
   hotrod: {  // Flame Rod: narrow body, exposed big wheels, blower through the hood, chopped roof, flames
-    L: 2.7, W: 0.96, r: 0.36, wr: 0.32, rf: 0.27, wrf: 0.2, wx: 0.58, wxf: 0.56, ax: 0.98, axR: -0.84, y0: 0.32,
-    yb: 0.74, noseCh: 0.04, tailCh: 0.12, cab: { r0: -0.9, f0: -0.08, r1: -0.84, f1: -0.2, yt: 1.12, w: 0.92 },
+    L: 2.7, W: 0.9, r: 0.36, wr: 0.26, rf: 0.27, wrf: 0.2, wx: 0.62, wxf: 0.6, ax: 0.98, axR: -0.84, y0: 0.32,
+    yb: 0.74, noseCh: 0.04, tailCh: 0.12, cab: { r0: -0.9, f0: -0.08, r1: -0.84, f1: -0.2, yt: 1.12, w: 0.86 },
     pillars: [], bumper: null, grille: 'none', lights: 'none', bayEngine: false, batteryZ: 0.86,
   },
   finback: { // Finback Eight: long fifties saloon with tail fins and a chrome spear
     L: 2.8, W: 1.42, r: 0.27, wr: 0.25, ax: 0.92, axR: -0.9, y0: 0.22, yb: 0.6, noseCh: 0.08, tailCh: 0.04,
     cab: { r0: -0.8, f0: 0.36, r1: -0.52, f1: 0.12, yt: 1.06, w: 1.24 }, pillars: [-0.2],
-    bumper: CHROME, roofColor: CREAM, grille: 'wide', lights: 'quad', rim: 'white',
+    bumper: CHROME, roofColor: CREAM, grille: 'wide', lights: 'quad', rim: 'white', lift: 0.02,
   },
   gt: {      // Gran Corsa: sixties grand tourer, long tapering nose, covered lamps, wire wheels, racing roundel
     L: 2.74, W: 1.36, r: 0.27, wr: 0.25, ax: 0.88, axR: -0.86, y0: 0.18, yb: 0.5, noseCh: 0.24, tailCh: 0.06,
-    cab: { r0: -1.02, f0: 0.02, r1: -0.62, f1: -0.28, yt: 0.98, w: 1.06 }, pillars: [-0.5],
+    cab: { r0: -1.02, f0: 0.02, r1: -0.62, f1: -0.28, yt: 0.98, w: 0.92 }, pillars: [-0.5],
     bumper: CHROME, grille: 'oval', lights: 'covered', rim: 'wire',
   },
 };
+// ---------------------------------------------------------------- wheel arches
+// Every tyre sits in an arch: a keep-out around its axle (radius r + TREAD + ARCH_GAP) that runs from ARCH_GAPX inside
+// the tyre's inner face outwards, cut out of the lower body. The lower body is a core between the wheel wells plus an
+// outer strip per side carrying the arches; a dark well wall stands behind each tyre. Nothing of the body or of an
+// overlay may enter a keep-out (CarBuilder cuts side panels around it), so a tyre never runs through a panel, flat or
+// not. Where the belt line is too low for a fender over the arch (sports cars, roadsters, the GT) the fender rises in
+// a hump over the wheel, and the hood fits between the front humps.
+const TREAD = 0.0135;        // tread blocks stand this far proud of the rubber
+const ARCH_GAP = 0.03;       // air between the tread and the arch
+const ARCH_GAPX = 0.03;      // air between the tyre's inner face and the wheel-well wall
+const FENDER_MIN = 0.035;    // thinnest fender over an arch before it gets a hump
+const HUMP_T = 0.06;         // fender thickness over a humped arch
+const WELL = 0x1c2025;
+
+/** y on a polyline of [z, y] points (ascending z), held flat past the ends. */
+function polyAt(pts, z) {
+  if (z <= pts[0][0]) return pts[0][1];
+  for (let i = 1; i < pts.length; i++) {
+    if (z > pts[i][0]) continue;
+    const [za, ya] = pts[i - 1], [zb, yb] = pts[i];
+    return zb - za < 1e-9 ? yb : ya + (yb - ya) * (z - za) / (zb - za);
+  }
+  return pts[pts.length - 1][1];
+}
+/** The plain lower-body side profile (chamfered box), its top edge and its bottom edge. */
+const bodyProfile = (s) => [
+  [s.zr + 0.06, s.y0], [s.zf - 0.06, s.y0], [s.zf, s.y0 + 0.06], [s.zf, s.yb - s.noseCh], [s.zf - s.noseCh, s.yb],
+  [s.zr + s.tailCh, s.yb], [s.zr, s.yb - s.tailCh], [s.zr, s.y0 + 0.06],
+];
+const profTop = (s, z) => polyAt([[s.zr, s.yb - s.tailCh], [s.zr + s.tailCh, s.yb], [s.zf - s.noseCh, s.yb], [s.zf, s.yb - s.noseCh]], z);
+const profBase = (s, z) => polyAt([[s.zr, s.y0 + 0.06], [s.zr + 0.06, s.y0], [s.zf - 0.06, s.y0], [s.zf, s.y0 + 0.06]], z);
+/** Top of an arch's keep-out at z: a half circle over the axle with straight sides down to the floor. */
+const archTop = (a, z) => { const dz = Math.abs(z - a.z); return dz <= a.R + 1e-9 ? a.cy + Math.sqrt(Math.max(0, a.R * a.R - dz * dz)) : -Infinity; };
+/** A fender hump: flat over the middle of the arch, sloping down to the belt line, HUMP_T thick over the arch. */
+const humpTop = (a, z) => (a.hump ? a.cy + a.R + HUMP_T - Math.max(0, Math.abs(z - a.z) - a.R * 0.55) * 1.25 : -Infinity);
+const archSamples = (a, n = 10) => Array.from({ length: n + 1 }, (_, i) => a.z - a.R * Math.cos((i / n) * Math.PI));
+
+/** Upper envelope of some functions of z, as a polyline: the given sample points plus every point where the
+ *  topmost function changes (found by bisection), so arcs, ramps and chamfers meet exactly. */
+function envelope(fns, zs, z0, z1) {
+  zs = [...new Set(zs.filter((z) => z >= z0 && z <= z1).concat(z0, z1).map((z) => +z.toFixed(6)))].sort((a, b) => a - b);
+  const top = (z) => { let m = -Infinity, k = -1; for (let i = 0; i < fns.length; i++) { const v = fns[i](z); if (v > m) { m = v; k = i; } } return [m, k]; };
+  const out = [];
+  const add = (z, y) => { const l = out[out.length - 1]; if (!l || Math.abs(l[0] - z) > 1e-5 || Math.abs(l[1] - y) > 1e-5) out.push([z, y]); };
+  for (let i = 0; i < zs.length; i++) {
+    const [y, k] = top(zs[i]);
+    add(zs[i], y);
+    if (i + 1 === zs.length || top(zs[i + 1])[1] === k) continue;
+    let a = zs[i], b = zs[i + 1];
+    for (let it = 0; it < 40; it++) { const m = (a + b) / 2; if (top(m)[1] === k) a = m; else b = m; }
+    add(a, top(a)[0]);
+    add(b, top(b)[0]);
+  }
+  return out;
+}
+
+function setupArches(s) {
+  // keep-outs round every tyre (overlays are cut around them); arches: those that cut into the body (a wheel standing
+  // clear of a narrow body, like the hot rod's, needs no arch but still no mud or foam inside it)
+  s.keeps = [[s.ax, s.rf, s.wrf, s.wxf, true], [s.axR, s.r, s.wr, s.wx, false]]
+    .map(([z, r, w, x, front]) => ({ z, cy: r, R: r + TREAD + ARCH_GAP, xin: x - w / 2 - ARCH_GAPX, front, hump: false }));
+  s.xk = Math.min(...s.keeps.map((a) => a.xin));
+  s.sagY = Math.max(...s.keeps.map((a) => a.cy + a.R)) + 0.01;   // foam sags towards this height while rinsed: never into an arch
+  s.arches = s.keeps.filter((a) => a.xin < s.W / 2 - 0.01);
+  if (!s.arches.length) { s.xi = s.W / 2; return; }
+  s.xi = Math.min(...s.arches.map((a) => a.xin));
+  for (const a of s.arches) {
+    let thin = Infinity;
+    for (const z of archSamples(a)) thin = Math.min(thin, profTop(s, z) - archTop(a, z));
+    a.hump = s.hump !== false && thin < FENDER_MIN;
+  }
+  if (s.arches.some((a) => a.front && a.hump)) s.hw = Math.min(s.hw, 2 * s.xi - 0.02);
+  for (const a of s.arches) {   // a cabin over a tyre that rises past the belt line keeps 4 cm clear of it (the body rolls on a flat)
+    const ro = a.R - ARCH_GAP, up = s.yb - a.cy, half = up < ro ? Math.sqrt(ro * ro - up * up) : -1;
+    if (!s.open && half > 0 && s.cab.w / 2 + 0.04 > a.xin + ARCH_GAPX && s.cab.r0 < a.z + half && s.cab.f0 > a.z - half) {
+      console.warn(`cars: ${s.id}: the cabin stands over a tyre`);
+    }
+  }
+  const zs = s.arches.flatMap((a) => archSamples(a));
+  // the outer strip's profile: bottom edge raised over the arches, top edge over the humps
+  const bottom = envelope([(z) => profBase(s, z), ...s.arches.map((a) => (z) => archTop(a, z))],
+    [s.zr + 0.06, s.zf - 0.06, ...zs], s.zr, s.zf);
+  const top = envelope([(z) => profTop(s, z), ...s.arches.map((a) => (z) => humpTop(a, z))],
+    [s.zr + s.tailCh, s.zf - s.noseCh, ...s.arches.flatMap((a) => [a.z - a.R * 0.55, a.z + a.R * 0.55])], s.zr, s.zf);
+  for (const [z, y] of bottom) {
+    if (y > polyAt(top, z) + 0.001) console.warn(`cars: ${s.id}: arch cuts through the top at z=${z.toFixed(2)}`);
+  }
+  s.stripProfile = cleanLoop([...bottom, ...top.reverse()]);
+  // the wheel-well wall behind each tyre: the arch opening, down to the bottom edge of the plain profile
+  for (const a of s.arches) {
+    const z0 = Math.max(s.zr, a.z - a.R), z1 = Math.min(s.zf, a.z + a.R);
+    const arc = archSamples(a, 10).filter((z) => z > z0 && z < z1).map((z) => [z, archTop(a, z)]);
+    a.well = cleanLoop([[z0, profBase(s, z0)], [z1, profBase(s, z1)], [z1, archTop(a, z1)], ...arc.reverse(), [z0, archTop(a, z0)]]);
+    // under a hump the arch rises past the core's top: close the hump's inboard side there (the inner fender)
+    if (a.hump) {
+      const over = (z) => archTop(a, z) - profTop(s, z), zs2 = archSamples(a, 12).filter((z) => over(z) > 0);
+      if (zs2.length > 1) {
+        const edge = (zin, zout) => { for (let i = 0; i < 40; i++) { const m = (zin + zout) / 2; if (over(m) > 0) zin = m; else zout = m; } return zin; };
+        const za = edge(zs2[0], Math.max(s.zr, a.z - a.R)), zb = edge(zs2[zs2.length - 1], Math.min(s.zf, a.z + a.R));
+        const mid = zs2.filter((z) => z > za && z < zb);
+        a.cap = cleanLoop([[za, profTop(s, za)], ...mid.map((z) => [z, profTop(s, z)]), [zb, profTop(s, zb)],
+          ...[zb, ...mid.reverse(), za].map((z) => [z, archTop(a, z)])]);
+      }
+    }
+  }
+}
+/** A polygon without repeated points (an extrusion turns a zero-length edge into NaNs). */
+function cleanLoop(pts) {
+  const out = [];
+  for (const p of pts) {
+    if (!Number.isFinite(p[0]) || !Number.isFinite(p[1])) { console.warn('cars: bad profile point', p); continue; }
+    const l = out[out.length - 1];
+    if (!l || Math.hypot(p[0] - l[0], p[1] - l[1]) > 1e-5) out.push(p);
+  }
+  while (out.length > 2 && Math.hypot(out[0][0] - out[out.length - 1][0], out[0][1] - out[out.length - 1][1]) <= 1e-5) out.pop();
+  return out;
+}
+/** A band following an arch's lip, from radius R + r0 to R + r1, down to `low` above the axle on both legs. */
+function archBandPts(a, r0, r1, low = 0) {
+  const n = 10, pts = [], e = Math.asin(Math.max(-1, Math.min(1, low / (a.R + r1))));
+  for (let i = 0; i <= n; i++) {
+    const t = e + (Math.PI - 2 * e) * (i / n);
+    pts.push([a.z - (a.R + r1) * Math.cos(t), a.cy + (a.R + r1) * Math.sin(t)]);
+  }
+  for (let i = n; i >= 0; i--) {
+    const t = e + (Math.PI - 2 * e) * (i / n);
+    pts.push([a.z - (a.R + r0) * Math.cos(t), a.cy + (a.R + r0) * Math.sin(t)]);
+  }
+  return pts;
+}
+
+/** Builder for chassis-space car parts: any axis-aligned box that would reach into a wheel-arch keep-out is cut
+ *  around it in a few steps (side panels, trims, mud, gloss streaks ... stop at the arch like the real thing). */
+class CarBuilder extends Builder {
+  constructor(s) { super(); this.s = s; }
+  box(w, h, d, color, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) {
+    const s = this.s;
+    if (rx || ry || rz) return super.box(w, h, d, color, x, y, z, rx, ry, rz);
+    const pieces = cutArches(s, x - w / 2, x + w / 2, y, y + h, z - d / 2, z + d / 2);
+    if (!pieces) return super.box(w, h, d, color, x, y, z);
+    for (const [x0, x1, y0, y1, z0, z1] of pieces) super.box(x1 - x0, y1 - y0, z1 - z0, color, (x0 + x1) / 2, y0, (z0 + z1) / 2);
+    return this;
+  }
+}
+/** Pieces of the box [x0,x1]x[y0,y1]x[z0,z1] outside every arch keep-out, or null when it touches none. */
+function cutArches(s, x0, x1, y0, y1, z0, z1) {
+  const XI = s.xk - 0.004;
+  const hit = s.keeps.filter((a) => z1 > a.z - a.R && z0 < a.z + a.R && y0 < archTop(a, Math.max(z0, Math.min(z1, a.z))));
+  if (!hit.length || (x1 <= XI && x0 >= -XI)) return null;
+  const out = [];
+  const xs = [];
+  if (x0 < -XI) xs.push([x0, Math.min(x1, -XI), true]);
+  if (x1 > -XI && x0 < XI) xs.push([Math.max(x0, -XI), Math.min(x1, XI), false]);
+  if (x1 > XI) xs.push([Math.max(x0, XI), x1, true]);
+  for (const [xa, xb, cut] of xs) {
+    if (!cut) { out.push([xa, xb, y0, y1, z0, z1]); continue; }
+    const top = Math.max(...hit.map((a) => archTop(a, Math.max(z0, Math.min(z1, a.z)))));
+    if (y1 > top) out.push([xa, xb, Math.max(y0, top), y1, z0, z1]);
+    const yt = Math.min(y1, top);
+    if (yt <= y0) continue;
+    const n = Math.max(1, Math.min(3, Math.floor((yt - y0) / 0.025)));
+    let prev = null;
+    for (let k = 0; k < n; k++) {
+      const ya = y0 + (yt - y0) * k / n, yb = y0 + (yt - y0) * (k + 1) / n;
+      let free = [[z0, z1]];
+      for (const a of hit) {   // the arch takes its widest chord in the band, at the band's bottom
+        const hw = ya <= a.cy ? a.R : Math.sqrt(Math.max(0, a.R * a.R - (ya - a.cy) ** 2));
+        free = free.flatMap(([p, q]) => [[p, Math.min(q, a.z - hw)], [Math.max(p, a.z + hw), q]]).filter(([p, q]) => q - p > 0.008);
+      }
+      const key = free.map((f) => f.join()).join('|');
+      if (prev && prev.key === key) { for (const b of prev.boxes) b[3] = yb; continue; }
+      const boxes = free.map(([p, q]) => [xa, xb, ya, yb, p, q]);
+      out.push(...boxes);
+      prev = { key, boxes };
+    }
+  }
+  return out;
+}
+
+for (const [id, s] of Object.entries(SPECS)) s.id = id;
 for (const s of Object.values(SPECS)) {
+  if (s.lift) { s.y0 += s.lift; s.yb += s.lift; s.cab.yt += s.lift; }
   s.zf = s.L / 2 - 0.06;                         // body front face (bumper pokes out to L/2)
   s.zr = -s.L / 2 + 0.06;
   s.hz0 = s.cab.f0 + 0.01;                       // hood hinge
@@ -196,6 +385,7 @@ for (const s of Object.values(SPECS)) {
   s.wrf = s.wrf ?? s.wr;
   s.wxf = s.wxf ?? Math.min(0.75 - s.wrf / 2, s.W / 2);
   s.hw = s.hw ?? s.W - 0.06;
+  setupArches(s);
   const c = s.cab;
   // highest flat surface (roof): foam, dirt, gloss, primer, crown, sparkles sit on it
   s.top = s.top ?? (s.open
@@ -283,7 +473,6 @@ const EXTRAS = {
     const st = stripeCol(o.col);
     for (const sx of [-1, 1]) {
       b.box(0.15, 0.012, cab.f1 - cab.r1 + 0.04, st, sx * 0.13, cab.yt + 0.09, (cab.f1 + cab.r1) / 2);   // roof stripes
-      b.box(0.07, 0.13, 0.9, o.col, sx * (W / 2 + 0.02), yb - 0.24, s.axR + 0.05);   // rear haunches
       b.cyl(0.045, 0.045, 0.9, o.CH, sx * (W / 2 + 0.03), y0 - 0.0, -0.02, 8, Math.PI / 2);  // side pipes
     }
     b.box(W - 0.04, 0.05, 0.16, o.colD, 0, yb, zr + 0.09, 0.25);                     // ducktail
@@ -332,8 +521,8 @@ const EXTRAS = {
     }
     for (const sx of [-1, 1]) {
       const x = sx * (W / 2 + 0.007);
-      b.box(0.014, 0.1, 1.5, WHITE, x, y0 + 0.08, -0.1, 0.32);                        // livery swoosh
-      b.box(0.014, 0.05, 1.3, 0xf6c453, x, y0 + 0.2, -0.1, 0.32);
+      b.box(0.014, 0.1, 0.94, WHITE, x, y0 + 0.1, 0, 0.2);                            // livery swoosh, between the arches
+      b.box(0.014, 0.05, 0.84, 0xf6c453, x, y0 + 0.22, 0, 0.2);
       discX(b, 0.13, 0.016, WHITE, x * 1.004, (y0 + yb) / 2 + 0.04, 0.2, 12);         // door roundel + number
       b.box(0.02, 0.13, 0.035, DARK, x * 1.012, (y0 + yb) / 2 - 0.02, 0.2);
       b.box(0.02, 0.03, 0.07, DARK, x * 1.012, (y0 + yb) / 2 + 0.08, 0.18);
@@ -342,16 +531,9 @@ const EXTRAS = {
   },
   supercar(b, s, o) {
     const { W, y0, yb, zr, zf, cab } = s;
-    // fender humps over all four wheels (a low wedge whose wheels rise into sculpted arches); the frunk lid sits
+    // a low wedge whose wheels rise into fender humps (the arches' own, see setupArches); the frunk lid sits
     // between the front pair, the engine deck between the rear pair
-    const fw = (W - s.hw) / 2 - 0.01, lo = yb - 0.03;
     for (const sx of [-1, 1]) {
-      const x = sx * (W / 2 - fw / 2 + 0.005);
-      const fr = s.rf, ft = fr * 2 + 0.08, fz = s.ax;
-      sideExtrude(b, [[fz - fr - 0.2, lo], [zf - s.noseCh, lo], [zf - 0.02, yb - s.noseCh + 0.06], [fz + fr * 0.75, ft], [fz - fr * 0.75, ft]], fw, o.col, x);
-      const rr = s.r, rt = rr * 2 + 0.09, rz = s.axR;
-      sideExtrude(b, [[zr + 0.02, lo], [rz + rr + 0.24, lo], [rz + rr * 0.7, rt], [rz - rr * 0.7, rt], [zr + 0.04, rt - 0.05]], fw, o.col, x);
-      b.box(0.02, 0.03, 0.62, o.colD, sx * (W / 2 + 0.006), lo + 0.02, fz - 0.06);       // crease along the arch tops
       b.box(0.06, 0.32, 0.08, DARK, sx * 0.3, yb, zr + 0.16);                         // wing posts
       b.box(0.02, 0.2, 0.46, DARK, sx * (W / 2 + 0.004), y0 + 0.06, -0.36);           // side intakes
       b.box(0.03, 0.04, 0.5, o.colD, sx * (W / 2 + 0.01), y0 + 0.27, -0.33);
@@ -379,12 +561,13 @@ const EXTRAS = {
     for (const sx of [-1, 1]) {
       const x = sx * 0.6;
       // flowing front fender: rises over the wheel, sweeps down into the running board
-      b.box(0.28, 0.08, 0.62, o.col, x, s.rf * 1.85, s.ax);
-      b.box(0.28, 0.08, 0.34, o.col, x, s.rf * 1.5, s.ax + 0.42, 0.75);
-      b.box(0.28, 0.08, 0.5, o.col, x, s.rf * 1.3, s.ax - 0.5, -0.5);
+      const [fa, ra] = s.arches, fx = sx * s.wxf;
+      sideExtrude(b, archBandPts(fa, 0.004, 0.084), 0.3, o.col, fx);
+      b.box(0.3, 0.08, 0.36, o.col, fx, fa.cy + 0.005, fa.z + fa.R + 0.12, 0.75);
+      b.box(0.3, 0.08, 0.5, o.col, fx, fa.cy - 0.02, fa.z - fa.R - 0.26, -0.5);
       b.box(0.26, 0.05, 0.9, DARK, sx * 0.62, y0 - 0.02, (s.ax + s.axR) / 2 + 0.02);  // running board
-      b.box(0.28, 0.08, 0.6, o.col, x, s.r * 1.85, s.axR);                           // rear fender
-      b.box(0.28, 0.08, 0.34, o.col, x, s.r * 1.45, s.axR - 0.4, -0.75);
+      sideExtrude(b, archBandPts(ra, 0.004, 0.084), 0.3, o.col, x);                   // rear fender
+      b.box(0.3, 0.08, 0.34, o.col, x, ra.cy - 0.03, ra.z - ra.R - 0.15, -0.75);
       // chrome headlamps on a bar
       discZ(b, 0.11, 0.16, o.CH, sx * 0.4, yb + 0.02, zf - 0.02, 12);
       discZ(b, 0.085, 0.17, o.variant === 'wreck' && sx > 0 ? 0x15181c : HEAD, sx * 0.4, yb + 0.02, zf - 0.01, 12);
@@ -460,18 +643,18 @@ const EXTRAS = {
     b.box(0.5, yb - y0 - 0.02, 0.1, o.CH, 0, y0 + 0.02, zf - 0.04);                   // grille shell
     b.box(0.4, yb - y0 - 0.12, 0.02, DARK, 0, y0 + 0.07, zf + 0.012);
     for (let i = -3; i <= 3; i++) b.box(0.02, yb - y0 - 0.14, 0.024, o.CH, i * 0.055, y0 + 0.08, zf + 0.014);
-    b.box(1.14, 0.06, 0.08, DARK, 0, s.rf - 0.03, s.ax);                               // exposed front axle
+    b.box(2 * (s.wxf - s.wrf / 2) - 0.06, 0.06, 0.08, DARK, 0, s.rf - 0.03, s.ax);    // exposed front axle
     for (const sx of [-1, 1]) {
       b.box(0.06, 0.2, 0.06, DARK, sx * 0.34, yb - 0.24, zf - 0.08);                  // lamp stalks
       discZ(b, 0.12, 0.16, o.CH, sx * 0.38, yb - 0.02, zf - 0.04, 12);
       discZ(b, 0.09, 0.17, o.variant === 'wreck' && sx > 0 ? 0x15181c : HEAD, sx * 0.38, yb - 0.02, zf - 0.03, 12);
       // rear fenders over the big wheels
-      b.box(0.36, 0.08, 0.86, o.col, sx * s.wx, s.r * 2 + 0.02, s.axR);
-      b.box(0.36, 0.08, 0.3, o.col, sx * s.wx, s.r * 1.55, s.axR + 0.5, 0.9);
-      b.box(0.36, 0.08, 0.3, o.col, sx * s.wx, s.r * 1.55, s.axR - 0.5, -0.9);
+      b.box(0.3, 0.08, 0.86, o.col, sx * s.wx, s.r * 2 + TREAD + ARCH_GAP, s.axR);
+      b.box(0.3, 0.08, 0.3, o.col, sx * s.wx, s.r * 1.62, s.axR + 0.52, 0.9);
+      b.box(0.3, 0.08, 0.3, o.col, sx * s.wx, s.r * 1.62, s.axR - 0.52, -0.9);
       // exhaust headers out of the engine bay
-      for (let i = 0; i < 3; i++) b.box(0.05, 0.05, 0.3, o.CH, sx * (W / 2 + 0.03), yb - 0.16 - i * 0.02, 0.3 + i * 0.18, 0.5);
-      b.box(0.06, 0.06, 1.0, o.CH, sx * (W / 2 + 0.05), y0 - 0.02, -0.1);
+      for (let i = 0; i < 3; i++) b.box(0.05, 0.05, 0.3, o.CH, sx * (W / 2 + 0.03), yb - 0.16 - i * 0.02, 0.25 + i * 0.17, 0.5);
+      b.box(0.06, 0.06, 0.82, o.CH, sx * (W / 2 + 0.05), y0 - 0.02, -0.01);
       // flames along the nose
       const x = sx * (W / 2 + 0.006), fy = (y0 + yb) / 2 - 0.06;
       if (o.variant !== 'wreck') {
@@ -498,7 +681,7 @@ const EXTRAS = {
       sideExtrude(b, [[zr, yb - 0.02], [-0.25, yb - 0.02], [zr + 0.1, yb + 0.3], [zr, yb + 0.3]], 0.1, o.col, fx - 0.05);
       discZ(b, 0.045, 0.06, o.variant === 'wreck' ? 0x6a2a24 : TAIL, fx, yb + 0.2, zr - 0.02, 8);
       b.box(0.014, 0.03, 1.7, o.CH, sx * (W / 2 + 0.008), yb - 0.13, 0.22);           // chrome spear
-      b.box(0.014, 0.03, 0.5, o.CH, sx * (W / 2 + 0.008), yb - 0.22, -0.8, 0.35);
+      b.box(0.014, 0.03, 0.5, o.CH, sx * (W / 2 + 0.008), s.arches[1].cy + s.arches[1].R + 0.004, -0.8);   // kick over the rear arch
       b.box(0.08, 0.16, 0.08, o.CH, sx * 0.38, s.y0 - 0.02, s.L / 2 - 0.04);          // bumper overriders
     }
   },
@@ -506,8 +689,8 @@ const EXTRAS = {
     const { W, y0, yb, zf } = s;
     for (const sx of [-1, 1]) {
       // lamps under glass covers on the nose chamfer
-      b.box(0.24, 0.09, 0.2, o.variant === 'wreck' && sx > 0 ? 0x15181c : HEAD, sx * 0.42, yb - s.noseCh + 0.02, zf - 0.13);
-      slab(b, zf - 0.24, yb - 0.02, zf - 0.02, yb - s.noseCh + 0.06, 0.28, 0.02, GLASS, sx * 0.42, 0.0);
+      b.box(0.2, 0.09, 0.2, o.variant === 'wreck' && sx > 0 ? 0x15181c : HEAD, sx * 0.35, yb - s.noseCh + 0.02, zf - 0.13);
+      slab(b, zf - 0.24, yb - 0.02, zf - 0.02, yb - s.noseCh + 0.06, 0.24, 0.02, GLASS, sx * 0.35, 0.0);
       const x = sx * (W / 2 + 0.008);
       if (o.variant !== 'wreck') {
         discX(b, 0.13, 0.016, WHITE, x, (y0 + yb) / 2 + 0.02, -0.15, 12);             // racing roundel
@@ -538,12 +721,9 @@ function cockpit(b, s, o, seatCol, hoops) {
   b.box(W - 0.2, 0.1, 0.12, DARK, 0, yb, cab.f0 - 0.08);                              // dash
   b.cyl(0.1, 0.1, 0.03, DARK, -0.25, yb + 0.16, cab.f0 - 0.2, 10, -0.9);              // steering wheel
 }
-function archTrims(b, s, color, t) {
-  for (const sx of [-1, 1]) for (const [z, r] of [[s.ax, s.rf], [s.axR, s.r]]) {
-    const x = sx * (s.W / 2 + 0.01);
-    b.box(t, 0.06, r * 1.3, color, x, r * 1.82, z);
-    for (const d of [-1, 1]) b.box(t, 0.06, r * 0.7, color, x, r * 1.35, z + d * r * 0.86, d * -0.9);
-  }
+/** Trim (or a flare, when wide) around the lip of every arch, standing `t` proud of the body side. */
+function archTrims(b, s, color, t, wide = 0.055) {
+  for (const a of s.arches) for (const sx of [-1, 1]) sideExtrude(b, archBandPts(a, 0, wide), t, color, sx * (s.W / 2 + 0.002 + t / 2));
 }
 function roofRails(b, s, color, bars) {
   const c = s.cab, y = s.top.y, rl = c.f1 - c.r1, rz = (c.f1 + c.r1) / 2;
@@ -598,17 +778,22 @@ function bodyGeo(look, variant = 'clean') {
     const CH = variant === 'wreck' ? DULL_CHROME : CHROME;
     const o = { col, colD, colL, CH, variant, look };
     const { L, W, y0, yb, zf, zr, cab } = s;
-    const b = new Builder();
+    const b = new CarBuilder(s);
 
     // underbody (dark chassis between the wheels)
     b.box(W - 0.14, 0.08, L - 0.5, DARK, 0, y0 - 0.07, 0);
 
-    // lower body: side profile with chamfered corners
+    // lower body: side profile with chamfered corners; the outer strips carry the wheel arches (and any fender humps)
     const yr = yb;  // rear deck height
-    sideExtrude(b, [
-      [zr + 0.06, y0], [zf - 0.06, y0], [zf, y0 + 0.06], [zf, yb - s.noseCh], [zf - s.noseCh, yb],
-      [zr + s.tailCh, yr], [zr, yr - s.tailCh], [zr, y0 + 0.06],
-    ], W, col);
+    if (s.arches.length) {
+      const xi = s.xi, sw = W / 2 - xi;
+      sideExtrude(b, bodyProfile(s), 2 * xi, col);
+      for (const sx of [-1, 1]) {
+        sideExtrude(b, s.stripProfile, sw, col, sx * (xi + sw / 2));
+        for (const a of s.arches) sideExtrude(b, a.well, 0.005, WELL, sx * (xi + 0.0055));   // wheel-well wall
+        for (const a of s.arches) if (a.cap) sideExtrude(b, a.cap, 0.006, col, sx * (xi - 0.001));   // inner fender
+      }
+    } else sideExtrude(b, bodyProfile(s), W, col);
     // darker rocker band + belt crease
     b.box(W + 0.012, 0.07, L - 0.42, colD, 0, y0 + 0.02, 0);
     if (s.chromeStrip) b.box(W + 0.014, 0.03, L - 0.6, CH, 0, yb - 0.17, 0.02);
@@ -694,10 +879,7 @@ function bodyGeo(look, variant = 'clean') {
       b.box(0.06, 0.32, 0.06, TRIM, -0.3, y0 + 0.08, L / 2 - 0.02);
       b.box(0.06, 0.32, 0.06, TRIM, 0.3, y0 + 0.08, L / 2 - 0.02);
       b.box(0.68, 0.06, 0.06, TRIM, 0, y0 + 0.36, L / 2 - 0.02);
-      // fender flares
-      for (const sx of [-1, 1]) for (const z of [s.ax, s.axR]) {
-        b.box(0.1, 0.06, s.r * 2 + 0.12, DARK, sx * (W / 2 + 0.01), y0 + s.r * 0.2 + 0.04, z);
-      }
+      archTrims(b, s, DARK, 0.06, 0.08);                                         // fender flares
     }
     if (s.twoTone) {
       // cream waist stripe on the van
@@ -811,36 +993,120 @@ function hoodGeo(look, variant = 'clean') {
   });
 }
 
-function wheelGeo(r, w, hub, style = 'std') {
-  return memo(geoCache, `wheel|${r}|${w}|${hub}${style === 'std' ? '' : '|' + style}`, () => {
-    const b = new Builder();
-    const Z = Math.PI / 2;
+// A wheel is a tyre (rubber + tread, the whitewall on 'white') and a rim (disc, spokes, cap). A healthy or worn wheel is
+// one merged mesh; a flat one is a rim that spins plus its own tyre, squashed against the floor every frame.
+function tyreParts(b, r, w, style, worn) {
+  const Z = Math.PI / 2;
+  if (!worn) {
     b.cyl(r, r, w, RUBBER, 0, -w / 2, 0, 12, 0, 0, Z);
-    // tread blocks
-    for (let i = 0; i < 12; i++) {
-      const a = (i / 12) * Math.PI * 2 + 0.26;
-      b.box(w * 0.8, 0.035, 0.08, 0x3a3f48, 0, (r - 0.004) * Math.cos(a) - 0.0175, (r - 0.004) * Math.sin(a), a);
+    treadBlocks(b, r, w);
+  } else {
+    // worn out: sun-dried grey rubber, the tread rubbed off to a smooth polished band with a few shallow stubs left on
+    // the shoulders, the steel belt showing through in places, and the sidewalls crazed with cracks
+    b.cyl(r, r, w, WORN, 0, -w / 2, 0, 16, 0, 0, Z);
+    b.cyl(r + 0.003, r + 0.003, w * 0.66, WORN_L, 0, -w * 0.33, 0, 16, 0, 0, Z);
+    const at = (a, rr, h) => [rr * Math.cos(a) - h / 2, rr * Math.sin(a)];
+    for (const [a, sx] of [[0.4, 1], [1.1, -1], [2.5, 1], [3.3, -1], [4.6, 1], [5.6, -1]]) {
+      const [y, z] = at(a, r + 0.002, 0.012);
+      b.box(w * 0.18, 0.012, 0.06, WORN_D, sx * w * 0.4, y, z, a);
     }
-    if (style === 'white') b.cyl(r * 0.82, r * 0.82, w + 0.012, WHITE, 0, -(w + 0.012) / 2, 0, 12, 0, 0, Z);   // whitewall
-    b.cyl(r * 0.6, r * 0.6, w + 0.02, hub, 0, -(w + 0.02) / 2, 0, 10, 0, 0, Z);
-    const hd = shade(hub, 0.62);
-    if (style === 'wire') {
-      for (let i = 0; i < 8; i++) b.box(w + 0.03, r * 1.0, 0.025, hd, 0, -r * 0.5, 0, i * Math.PI / 8);   // wire spokes
-      b.cyl(r * 0.18, r * 0.18, w + 0.08, hub, 0, -(w + 0.08) / 2, 0, 6, 0, 0, Z);                     // knock-off
-    } else {
-      b.box(w + 0.03, r * 0.95, 0.06, hd, 0, -r * 0.475, 0);                          // spokes: a cross so spin reads
-      b.box(w + 0.03, 0.06, r * 0.95, hd, 0, -0.03, 0);
+    for (const [a, l] of [[1.5, 0.13], [3.9, 0.09], [5.2, 0.1]]) {
+      const [y, z] = at(a, r + 0.003, 0.012), [y2, z2] = at(a + 0.04, r + 0.008, 0.012);
+      b.box(w * 0.5, 0.012, l, CORD, 0, y, z, a);
+      b.box(w * 0.22, 0.012, l * 0.5, CORD_RUST, w * 0.06, y2, z2, a + 0.04);
     }
-    b.cyl(r * 0.2, r * 0.2, w + 0.05, hub, 0, -(w + 0.05) / 2, 0, 8, 0, 0, Z);
+    const rnd = mulberry32(Math.round(r * 1000 + w * 100));
+    for (const sx of [-1, 1]) for (let i = 0; i < 9; i++) {
+      const a = (i + rnd() * 0.7) * (Math.PI * 2 / 9), rr = r * (0.7 + rnd() * 0.18), l = 0.035 + rnd() * 0.045;
+      const tw = (rnd() - 0.5) * 1.1, [y, z] = at(a, rr, l);
+      b.box(0.008, l, 0.02, CRACK, sx * (w / 2 + 0.003), y, z, a + tw);
+      if (rnd() < 0.5) { const [y2, z2] = at(a + 0.12, rr + l * 0.3, l * 0.6); b.box(0.008, l * 0.6, 0.018, CRACK, sx * (w / 2 + 0.003), y2, z2, a + tw + 0.9); }
+    }
+  }
+  if (style === 'white') b.cyl(r * 0.82, r * 0.82, w + 0.012, worn ? 0xd6cdb8 : WHITE, 0, -(w + 0.012) / 2, 0, 12, 0, 0, Z);   // whitewall
+}
+function treadBlocks(b, r, w) {
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 + 0.26;
+    b.box(w * 0.8, 0.035, 0.08, 0x3a3f48, 0, (r - 0.004) * Math.cos(a) - 0.0175, (r - 0.004) * Math.sin(a), a);
+  }
+}
+function rimParts(b, r, w, hub, style) {
+  const Z = Math.PI / 2;
+  b.cyl(r * 0.6, r * 0.6, w + 0.02, hub, 0, -(w + 0.02) / 2, 0, 10, 0, 0, Z);
+  const hd = shade(hub, 0.62);
+  if (style === 'wire') {
+    for (let i = 0; i < 8; i++) b.box(w + 0.03, r * 1.0, 0.025, hd, 0, -r * 0.5, 0, i * Math.PI / 8);   // wire spokes
+    b.cyl(r * 0.18, r * 0.18, w + 0.08, hub, 0, -(w + 0.08) / 2, 0, 6, 0, 0, Z);                     // knock-off
+  } else {
+    b.box(w + 0.03, r * 0.95, 0.06, hd, 0, -r * 0.475, 0);                          // spokes: a cross so spin reads
+    b.box(w + 0.03, 0.06, r * 0.95, hd, 0, -0.03, 0);
+  }
+  b.cyl(r * 0.2, r * 0.2, w + 0.05, hub, 0, -(w + 0.05) / 2, 0, 8, 0, 0, Z);
+}
+function wheelGeo(r, w, hub, style = 'std', worn = false) {
+  return memo(geoCache, `wheel|${r}|${w}|${hub}${style === 'std' ? '' : '|' + style}${worn ? '|worn' : ''}`, () => {
+    const b = new Builder();
+    tyreParts(b, r, w, style, worn);
+    rimParts(b, r, w, hub, style);
     return b.build();
   });
+}
+function rimGeo(r, w, hub, style = 'std') {
+  return memo(geoCache, `rim|${r}|${w}|${hub}|${style}`, () => {
+    const b = new Builder();
+    rimParts(b, r, w, hub, style);
+    return b.build();
+  });
+}
+/** The tyre of a flat wheel: a finer ring (rubber from the bead at 0.6 r out to the tread) whose vertices squashTyre
+ *  moves; every car with a flat gets its own copy. */
+function flatTyreGeo(r, w, style) {
+  return memo(geoCache, `flattyre|${r}|${w}|${style}`, () => {
+    const b = new Builder(), rb = r * 0.6, h = w / 2, V = (x, y) => new THREE.Vector2(x, y);
+    const ring = (pts, col) => b._add(new THREE.LatheGeometry(pts, 24), col, 0, 0, 0, 0, 0, -Math.PI / 2);
+    ring([V(rb, -h), V(r * 0.72, -h), V(r * 0.84, -h), V(r * 0.94, -h), V(r, -h), V(r, 0), V(r, h), V(r * 0.94, h), V(r * 0.84, h), V(r * 0.72, h), V(rb, h)], RUBBER);
+    if (style === 'white') for (const sx of [-1, 1]) {
+      const x = sx * (h + 0.004), pts = [V(r * 0.62, x), V(r * 0.72, x), V(r * 0.82, x)];
+      ring(sx < 0 ? pts : pts.reverse(), WHITE);
+    }
+    treadBlocks(b, r, w);
+    return b.build();
+  });
+}
+/** Squash a flat tyre against the floor: along every spoke that would reach below the floor the rubber between the
+ *  bead and the tread is compressed so the tread just meets it, and the squeezed sidewalls bulge out sideways. Done in
+ *  the wheel's upright frame after turning the rest shape by the spin, so the flat patch stays down while it rolls. */
+function squashTyre(w, d) {
+  const { rest, g } = w.flat, arr = g.attributes.position.array;
+  const a = w.spin.rotation.x, c = Math.cos(a), sn = Math.sin(a);
+  const r = w.r, rb = r * 0.6, hc = r * (1 - FLAT_DROP * d), bulge = FLAT_BULGE * w.wr;
+  for (let i = 0; i < arr.length; i += 3) {
+    const x = rest[i], ry = rest[i + 1], rz = rest[i + 2];
+    let y = ry * c - rz * sn, z = ry * sn + rz * c, nx = x;
+    const rho = Math.hypot(y, z);
+    if (y < 0 && rho > rb) {
+      const reach = hc * rho / -y;   // distance from the axle to the floor along this spoke
+      if (reach < r) {
+        const k = (Math.max(reach, rb + 0.003) - rb) / (r - rb), f = (rb + (rho - rb) * k) / rho;
+        const out = (1 - k) * Math.min(1, (rho - rb) / (r - rb));   // 0 at the bead and outside the patch
+        y *= f;
+        z *= f * (1 + FLAT_SPREAD * out);
+        if (Math.sign(x) === w.sx) nx = x + Math.sign(x) * bulge * out;   // the outer wall (the inner one, under the car, stays clear of it)
+      }
+    }
+    arr[i] = nx;
+    arr[i + 1] = y;
+    arr[i + 2] = z;
+  }
+  g.attributes.position.needsUpdate = true;
 }
 
 // ---------------------------------------------------------------- overlays
 // Anything lying on the hood must move with it (it opens for battery trouble), so overlays are built as a pair:
 // chassis space + hood space. dual(s) collects both; .c / .h are Builders, .hb() takes chassis coordinates.
 function dual(s) {
-  const c = new Builder(), h = new Builder();
+  const c = new CarBuilder(s), h = new Builder();
   let nc = 0, nh = 0;
   const d = {
     s, hl: s.hz1 - s.hz0, hw: s.hw, hoodTop: s.yb + 0.062,
@@ -859,7 +1125,7 @@ const onHood = (s, z) => z > s.hz0 + 0.03 && z < s.hz1 - 0.03;
 function paintGeo(type) {
   return memo(geoCache, `paint|${type}`, () => {
     const s = SPECS[type], { W, y0, yb, cab } = s;
-    const b = new Builder();
+    const b = new CarBuilder(s);
     const roofTop = s.top.y - 0.02, rz = s.top.z, rl = s.top.l, rw = s.open ? s.top.w * 0.5 : cab.w;
     // primer patches on the roof
     b.box(rw * 0.56, 0.014, rl * 0.6, PRIMER, -0.13, roofTop + 0.02, rz - rl * 0.12);
@@ -922,17 +1188,6 @@ function propRodGeo(type) {
     return b.build();
   });
 }
-/** Sagging rubber where a deflated tyre meets the floor (pivot space, origin on the floor). */
-function bulgeGeo(r, w) {
-  return memo(geoCache, `bulge|${r}|${w}`, () => {
-    const b = new Builder();
-    b.box(w * 1.6, 0.08, r * 1.1, RUBBER, 0, 0, 0);
-    b.box(w * 1.3, 0.07, r * 1.5, RUBBER, 0, 0, 0);
-    b.box(w * 1.75, 0.05, r * 0.7, 0x3a3f48, 0, 0, 0);
-    return b.build();
-  });
-}
-
 // --- the surfaces of a body, for overlays: each entry is a flat patch to cover
 // kind: 'hood' (hood space) | 'top' | 'deck' | 'nose' | 'tail' | 'side' (sx) | 'cabside' (sx) | 'ws' | 'rw'
 function surfaces(s) {
@@ -971,8 +1226,8 @@ function dirtGeo(type, level) {
           const hh = 0.06 + rnd() * h * (0.25 + level * 0.15);
           d.cb(0.022, hh, 0.05 + rnd() * 0.08, rnd() < 0.5 ? MUD : MUD_D, x, y0 + 0.02, zz);
         }
-        d.cb(0.022, 0.05, r * 1.6, MUD_D, x, r * 1.75, z);                             // arch lip
       }
+      for (const a of s.arches) d.cext(archBandPts(a, 0.004, 0.05 + level * 0.012, 0.03), 0.022, MUD_D, x);   // arch lips
       if (level >= 2) {
         for (let i = 0; i < 6 + level * 3; i++) {
           const zz = zr + 0.15 + rnd() * (s.L - 0.4);
@@ -1020,14 +1275,15 @@ function foamGeo(type, level, tri) {
     const pal = tri ? FOAM_TRI : FOAM;
     const pick = () => pal[Math.floor(rnd() * pal.length)];
     const k = 0.7 + level * 0.15;
-    const blob = (put, x, y, z, big = 1) => {
+    const blob = (put, x, y, z, big = 1, lim = Infinity) => {
       const w = (0.12 + rnd() * 0.16) * k * big, h = (0.06 + rnd() * 0.1) * k * big;
+      x = Math.max(-lim + w / 2, Math.min(lim - w / 2, x));
       put(w, h, w * (0.8 + rnd() * 0.4), pick(), x, y, z);
       if (rnd() < 0.6) put(w * 0.6, h * 0.8, w * 0.6, pick(), x + (rnd() - 0.5) * w * 0.4, y + h * 0.7, z + (rnd() - 0.5) * w * 0.4);
     };
     const t = s.top;
     for (let i = 0; i < 5 + level * 5; i++) blob(d.cb, (rnd() - 0.5) * t.w * 0.9, t.y - 0.02, t.z + (rnd() - 0.5) * t.l * 0.9, 1.2);
-    for (let i = 0; i < 2 + level * 4; i++) blob(d.hb, (rnd() - 0.5) * d.hw * 0.85, d.hoodTop - 0.02, s.hz0 + d.hl * (0.1 + rnd() * 0.8));
+    for (let i = 0; i < 2 + level * 4; i++) blob(d.hb, (rnd() - 0.5) * d.hw * 0.85, d.hoodTop - 0.02, s.hz0 + d.hl * (0.1 + rnd() * 0.8), 1, d.hw / 2);
     if (s.deck && !s.bed && !s.open) for (let i = 0; i < 1 + level * 2; i++) blob(d.cb, (rnd() - 0.5) * W * 0.8, yb - 0.02, s.zr + 0.1 + rnd() * (cab.r0 - s.zr - 0.2));
     if (level >= 2) {
       const [za, ya, zb, yb2] = wsLine(s);
@@ -1080,11 +1336,13 @@ function maskGeo(type) {
     d.cslab(ws[2] - (ws[2] - ws[0]) * 0.06, ws[3] - (ws[3] - ws[1]) * 0.06, ws[2], ws[3], cab.w, 0.02, TAPE, 0, 0.03);
     if (!s.open) {
       const rw = rwLine(s);
+      if (s.arches.some((a) => a.hump)) { rw[0] += (rw[2] - rw[0]) * 0.08; rw[1] += (rw[3] - rw[1]) * 0.08; }   // clear of the rear tyres
       d.cslab(...rw, cab.w - 0.02, 0.016, PAPER, 0, 0.02);
       d.cslab(rw[0], rw[1], rw[0] + (rw[2] - rw[0]) * 0.08, rw[1] + (rw[3] - rw[1]) * 0.08, cab.w, 0.02, TAPE, 0, 0.03);
       // side windows: paper over each hole, a tape line along the bottom
       for (const hole of windowHoles(s)) {
-        const pts = hole.map(([z, y], i) => [z + (i === 0 || i === 3 ? -0.03 : 0.03), y + (i < 2 ? -0.03 : 0.03)]);
+        const lo = s.arches.some((a) => a.hump) ? 0 : 0.03;   // a narrow cabin between fender humps: clear of the tyres
+        const pts = hole.map(([z, y], i) => [z + (i === 0 || i === 3 ? -0.03 : 0.03), y + (i < 2 ? -lo : 0.03)]);
         for (const sx of [-1, 1]) {
           d.cext(pts, 0.016, PAPER, sx * (cab.w / 2 + 0.03));
           const zz0 = pts[0][0], zz1 = pts[1][0];
@@ -1128,7 +1386,7 @@ function wheelMaskGeo(r, w) {
 // --- hazard lamps: the four indicators + the repeaters on the mirrors (those read from the high camera)
 function hazardGeo(type) {
   return memo(geoCache, `haz|${type}`, () => {
-    const s = SPECS[type], b = new Builder(), A = 0xffb13b;
+    const s = SPECS[type], b = new CarBuilder(s), A = 0xffb13b;
     for (const sx of [-1, 1]) {
       b.box(0.13, 0.08, 0.05, A, sx * (s.W / 2 - 0.08), s.y0 + 0.16, s.zf + 0.006);
       b.box(0.11, 0.07, 0.05, A, sx * (s.W / 2 - 0.08), s.yb - s.tailCh - 0.16, s.zr - 0.01);
@@ -1214,7 +1472,7 @@ function wreckGeo(type) {
       d.cb(0.02, 0.1, s.L - 0.6, RUST_D, x, y0 + 0.02, 0);                               // rotten sills
       for (let i = 0; i < 7; i++) d.cb(0.02, 0.05 + rnd() * 0.14, 0.06 + rnd() * 0.18, rust(), x, y0 + 0.04 + rnd() * (yb - y0) * 0.6, s.zr + 0.2 + rnd() * (s.L - 0.4));
       for (let i = 0; i < 2; i++) d.cb(0.024, 0.06, 0.08, 0x15181c, x * 1.002, y0 + 0.05, s.zr + 0.4 + rnd() * (s.L - 0.8));   // holes
-      for (const [z, r] of [[s.ax, s.rf], [s.axR, s.r]]) d.cb(0.022, 0.06, r * 1.4, RUST_D, x, r * 1.72, z);
+      for (const a of s.arches) d.cext(archBandPts(a, 0.004, 0.065, 0.05), 0.022, RUST_D, x);   // rotten arch lips
     }
     // cracked windshield: white crack lines in a star
     const [za, ya, zb, yb2] = wsLine(s);
@@ -1346,35 +1604,54 @@ export function createCar(look = randomCarLook()) {
   hood.add(hoodMesh);
   chassis.add(hood);
 
-  // wheels: pivot (position) > squash (deflated tyre) > spin (+ the space-saver spare, when fitted)
+  // wheels: pivot (position; sinks when flat) > hold > spin (the wheel, or just its rim when flat), plus the flat tyre,
+  // the space-saver spare and the paint-booth cover when they are in use
   const hubCol = look.vip ? 0xffd54d : s.hub ?? CHROME;
-  const wheelLook = (front, style) => wheelGeo(front ? s.rf : s.r, front ? s.wrf : s.wr,
-    style === 'rust' ? 0x8a5a3c : hubCol, style === 'rust' ? 'std' : style);
   const wheels = [];
   for (const [sx, front] of [[-1, true], [1, true], [-1, false], [1, false]]) {
     const r = front ? s.rf : s.r, wr = front ? s.wrf : s.wr;
     const pivot = new THREE.Group();
     pivot.position.set(sx * (front ? s.wxf : s.wx), r, front ? s.ax : s.axR);
-    const squash = new THREE.Group();
-    const spin = mesh(wheelLook(front, s.rim ?? 'std'));
-    squash.add(spin);
-    pivot.add(squash);
+    const hold = new THREE.Group();
+    const w = { pivot, hold, spin: null, sx, x: pivot.position.x, z: front ? s.ax : s.axR, r, wr, front, def: 0, target: 0,
+      style: s.rim ?? 'std', worn: false, flatOn: false, flat: null, spare: null, mask: null };
+    w.spin = mesh(wheelGeo(r, wr, hubCol, w.style));
+    hold.add(w.spin);
+    pivot.add(hold);
     tow.add(pivot);
-    wheels.push({ pivot, squash, spin, sx, z: front ? s.ax : s.axR, r, wr, front, def: 0, target: 0, spare: null, bulge: null, mask: null });
+    wheels.push(w);
   }
-  // Tyre problems: one wheel per 'tire' job, so a car with two tyre jobs has two bad wheels. A bad tyre is soft:
-  // it sags, the body leans onto it and it thumps once per turn while driving (a deflated tyre is still drivable).
-  // Some owners already swapped the first bad one for the little space-saver spare (yellow rim, sits lower).
+  /** Put the right geometry on a wheel for its style, wear and flatness. */
+  function applyLook(w) {
+    const hub = w.style === 'rust' ? 0x8a5a3c : hubCol, st = w.style === 'rust' ? 'std' : w.style;
+    if (w.flatOn) {
+      if (!w.flat || w.flat.st !== st) {
+        if (w.flat) { w.hold.remove(w.flat.m); w.flat.g.dispose(); }
+        const g = flatTyreGeo(w.r, w.wr, st).clone();   // its own copy: squashTyre rewrites it
+        g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), w.r * 1.4);
+        w.flat = { st, g, rest: g.attributes.position.array.slice(), m: mesh(g), d: -1, a: 0 };
+        w.hold.add(w.flat.m);
+      }
+      w.spin.geometry = rimGeo(w.r, w.wr, hub, st);
+    } else w.spin.geometry = wheelGeo(w.r, w.wr, hub, st, w.worn);
+    if (w.flat) w.flat.m.visible = w.flatOn && w.spin.visible;
+  }
+  // Tyre problems: one bad wheel per 'tire' job, so a car with two tyre jobs has two. Each car has one story for
+  // them: flat tyres (the rim sinks, the tyre squashes and bulges at the floor, the body settles onto it and it thumps
+  // once per turn while driving; a flat is still drivable), flats where the owner already put the little space-saver
+  // spare on the first one (yellow rim, sits lower), or tyres worn bald (no tread, steel belt showing, cracked).
   // The rear wheel on local -x goes first: it faces the camera both in the lane and on a lift.
   const TIRE_ORDER = [2, 0, 3, 1];
-  const spareSlot = Math.random() < 0.4 ? 0 : -1;
+  const rollY = (s.y0 + 2 * s.r) / 2;   // the lean pivots halfway up the wheel wells: they swing least past the tyres
+  let tyreStory = Math.random() < 0.5 ? 'worn' : Math.random() < 0.35 ? 'spare' : 'flat';
   function setSpare(w, on) {
     if (on && !w.spare) {
       w.spare = mesh(wheelGeo(+(w.r * SPARE_K).toFixed(3), +(w.wr * 0.62).toFixed(3), SPARE_RIM));
-      w.squash.add(w.spare);
+      w.hold.add(w.spare);
     }
     if (w.spare) w.spare.visible = on;
     w.spin.visible = !on;
+    if (w.flat) w.flat.m.visible = w.flatOn && !on;
   }
 
   // ---- overlays: built lazily, then only toggled
@@ -1451,7 +1728,7 @@ export function createCar(look = randomCarLook()) {
         fx.smoke.push({ m, age: i / 10, ox: (Math.random() - 0.5) * 0.5, oz: 0, rot: Math.random() * 3, big: 0.8 + Math.random() * 0.4 });
       }
     } else {
-      o = new THREE.Group(); // 'tire': handled by the wheel squash + lean
+      o = new THREE.Group(); // 'tire': handled by the wheels (applyTyres) + the lean
       group.add(o);
     }
     dmg[type] = o;
@@ -1464,10 +1741,18 @@ export function createCar(look = randomCarLook()) {
 
   function applyTyres() {
     for (let k = 0; k < TIRE_ORDER.length; k++) {
-      const w = wheels[TIRE_ORDER[k]], on = k < nTireJobs;
-      if (k === spareSlot && !flatAll) { setSpare(w, on); w.target = 0; }
-      else { if (w.spare) setSpare(w, false); w.target = on || flatAll ? 1 : 0; }
+      const w = wheels[TIRE_ORDER[k]], on = k < nTireJobs && !flatAll;
+      const worn = on && tyreStory === 'worn';
+      if (worn !== w.worn) { w.worn = worn; applyLook(w); }
+      if (k === 0 && tyreStory === 'spare' && !flatAll) { setSpare(w, on); w.target = 0; }
+      else { if (w.spare) setSpare(w, false); w.target = (on && tyreStory !== 'worn') || flatAll ? 1 : 0; }
     }
+  }
+  /** Force how this car's tyre jobs look: 'flat' | 'spare' | 'worn' (random per car otherwise). */
+  function setTyreStory(story) {
+    if (!['flat', 'spare', 'worn'].includes(story)) return;
+    tyreStory = story;
+    applyTyres();
   }
   function setProblems(types = []) {
     const want = new Set(types);
@@ -1588,7 +1873,7 @@ export function createCar(look = randomCarLook()) {
     if (on && !maskOv) maskOv = overlay(maskGeo(look.type));
     showOv(maskOv, on);
     for (const w of wheels) {
-      if (on && !w.mask) { w.mask = mesh(wheelMaskGeo(w.r, w.wr), litMat, { cast: false }); w.squash.add(w.mask); }
+      if (on && !w.mask) { w.mask = mesh(wheelMaskGeo(w.r, w.wr), litMat, { cast: false }); w.hold.add(w.mask); }
       if (w.mask) w.mask.visible = on;
     }
   }
@@ -1632,7 +1917,7 @@ export function createCar(look = randomCarLook()) {
     if (foamOv && lv) {
       // rinsing: the suds sag and slide down (squash towards the ground); building up: they swell in
       const f = up ? 0.85 + 0.15 * Math.min(1, (foamShow * 3) % 1 + 0.4) : 0.55 + 0.45 * Math.min(1, foamShow * 1.6);
-      if (foamOv.c) foamOv.c.scale.set(1, f, 1);
+      if (foamOv.c) { foamOv.c.scale.set(1, f, 1); foamOv.c.position.y = s.sagY * (1 - f); }
       if (foamOv.h) foamOv.h.scale.set(1, f, 1);
     }
   }
@@ -1711,7 +1996,7 @@ export function createCar(look = randomCarLook()) {
   // ---- restore stages (classics): 0 wreck, 1 runs but dull + patched, 2 painted, 3 show condition
   let restore = -1, wreckOv = null, patchOv = null, showStage = false;
   function setWheelStyle(style) {
-    for (const w of wheels) w.spin.geometry = wheelLook(w.front, style);
+    for (const w of wheels) { w.style = style; applyLook(w); }
   }
   function setRestore(stage = 3) {
     stage = Math.max(0, Math.min(3, Math.round(stage)));
@@ -1759,46 +2044,61 @@ export function createCar(look = randomCarLook()) {
     const mv = Math.min(1, Math.abs(sp) / 4);
     const roll = (sp * dt) / s.r;
 
-    // tyres: soft ones sag + bulge at the floor, the spare sits lower; the body leans onto the low corners
-    let tilt = 0, pitch = 0, sink = 0, thump = 0;
+    // tyres: a flat one squashes against the floor and its rim sinks, the spare sits lower. The body settles onto the
+    // low corners as a rigid lid (the least-squares plane through the corner drops, lifted until no corner sinks
+    // further than its own wheel) and rolls about the middle of the wheel wells' height (rollY), so every tyre keeps
+    // its air gap in its arch.
+    let thump = 0, n = 0, Sx = 0, Sz = 0, Sxx = 0, Sxz = 0, Szz = 0, Sh = 0, Shx = 0, Shz = 0;
     for (const w of wheels) {
       let h;   // how far this corner sits below normal
-      const wroll = w.front && towed ? 0 : (sp * dt) / w.r;   // lifted wheels hang still
+      const lifted = w.front && towed;
+      const wroll = lifted ? 0 : (sp * dt) / w.r;   // lifted wheels hang still
       if (w.spare && w.spare.visible) {
         w.def = 0;
-        w.squash.scale.set(1, 1, 1);
+        if (w.flatOn) { w.flatOn = false; applyLook(w); }
         w.pivot.position.y = w.r * SPARE_K;
         w.spare.rotation.x += wroll / SPARE_K;
         h = w.r * (1 - SPARE_K);
       } else {
         w.def += (w.target - w.def) * Math.min(1, dt * (w.target ? 6 : 10));
         if (w.def < 0.002) w.def = 0;
-        const d = w.front && towed ? w.def * (1 - towK) : w.def;   // off the ground a soft tyre rounds out
-        w.squash.scale.set(1 + 0.6 * d, 1 - SAG * d, 1 + 0.2 * d);
-        w.pivot.position.y = w.r * (1 - SAG * d);
+        const d = lifted ? w.def * (1 - towK) : w.def;   // off the ground a flat tyre rounds out
+        if ((d > 0) !== w.flatOn) { w.flatOn = d > 0; applyLook(w); }
+        w.pivot.position.y = w.r * (1 - FLAT_DROP * d);
         w.spin.rotation.x += wroll;
-        h = w.r * SAG * d;
-        if (d > 0 && !w.bulge) { w.bulge = mesh(bulgeGeo(w.r, w.wr), litMat, { cast: false }); w.pivot.add(w.bulge); }
-        if (w.bulge) {
-          w.bulge.visible = d > 0.02;
-          w.bulge.position.set(w.sx * 0.06 * d, -w.pivot.position.y, 0);   // sags outward, out from under the body
-          w.bulge.scale.set(0.6 + 0.4 * d, d, 0.6 + 0.4 * d);
+        if (w.flatOn && (d !== w.flat.d || w.spin.rotation.x !== w.flat.a)) {
+          squashTyre(w, d);
+          w.flat.d = d;
+          w.flat.a = w.spin.rotation.x;
         }
+        h = w.r * FLAT_DROP * d;
         thump += d * Math.pow(Math.abs(Math.sin(w.spin.rotation.x)), 12);   // the flat bit comes round
       }
-      if (!(w.front && towed)) {
-        tilt += -w.sx * h;
-        pitch += (w.z > 0 ? 1 : -1) * h;
-        sink += h;
+      w.h = lifted ? 0 : h;   // a wheel hanging in the tow cradle holds its corner up
+      n++; Sx += w.x; Sz += w.z; Sxx += w.x * w.x; Sxz += w.x * w.z; Szz += w.z * w.z;
+      Sh += w.h; Shx += w.h * w.x; Shz += w.h * w.z;
+    }
+    // the plane a + b x + c z through the corner drops
+    let la = 0, lb = 0, lc = 0;
+    if (Sh > 1e-5) {
+      const det = n * (Sxx * Szz - Sxz * Sxz) - Sx * (Sx * Szz - Sxz * Sz) + Sz * (Sx * Sxz - Sxx * Sz);
+      if (Math.abs(det) > 1e-6) {
+        la = (Sh * (Sxx * Szz - Sxz * Sxz) - Sx * (Shx * Szz - Sxz * Shz) + Sz * (Shx * Sxz - Sxx * Shz)) / det;
+        lb = (n * (Shx * Szz - Sxz * Shz) - Sh * (Sx * Szz - Sxz * Sz) + Sz * (Sx * Shz - Shx * Sz)) / det;
+        lc = (n * (Sxx * Shz - Shx * Sxz) - Sx * (Sx * Shz - Shx * Sz) + Sh * (Sx * Sxz - Sxx * Sz)) / det;
       }
+      let over = 0;   // springs give a little (LEAN_GIVE), never more than the air over a tyre allows
+      for (const w of wheels) over = Math.max(over, la + lb * w.x + lc * w.z - w.h - LEAN_GIVE);
+      la -= over;
     }
     let shake = 0;
     if (crankT > 0) { crankT = Math.max(0, crankT - dt); shake = crankT / CRANK; }
     const dead = (parked && active.has('battery')) || towed || restore === 0;   // engine off: no idle vibration
-    chassis.position.y = Math.sin(t * 17) * 0.012 * mv + (dead ? 0 : Math.sin(t * 43) * 0.004) - sink * 0.3
-      - thump * 0.03 * mv + Math.abs(Math.sin(t * 41)) * 0.02 * shake;
-    chassis.rotation.z = (tilt / s.wx) * 1.05 + Math.sin(t * 63) * 0.03 * shake;
-    chassis.rotation.x = pitch * 0.55 + Math.sin(t * 9) * 0.004 * mv;
+    chassis.rotation.z = -lb + Math.sin(t * 63) * 0.03 * shake;
+    chassis.rotation.x = lc + Math.sin(t * 9) * 0.004 * mv;
+    _roll.set(0, rollY, 0).applyEuler(chassis.rotation);   // turn about (0, rollY, 0), not the floor
+    chassis.position.set(-_roll.x, rollY - _roll.y + Math.sin(t * 17) * 0.012 * mv + (dead ? 0 : Math.sin(t * 43) * 0.004) - la
+      + Math.min(1, thump) * 0.015 * mv + Math.abs(Math.sin(t * 41)) * 0.02 * shake, -_roll.z);   // the flat bit kicks it up
 
     // dead battery: the hood pops up once the car stands still (and shuts before it drives: nobody drives blind)
     const hoodTarget = parked && active.has('battery') && !towed ? 1 : 0;   // nobody opens the hood on the hook
@@ -1943,10 +2243,10 @@ export function createCar(look = randomCarLook()) {
   setProblems([]);
   update(0, 0);
   return {
-    group, look, setProblems, setShine, update,
+    group, look, setProblems, setTyreStory, setShine, update,
     setColor, setStripe, setMasked, setDirt, setFoam, setWet, setGloss, setHazard, setTowed, setRestore,
     /** Axle positions etc. for gameplay (towing: the front axle sits over the truck's hitch). */
     // setTowed(k): the front axle centre stays at local (0, wheelRF + TOW_LIFT * k, ax); its tyres' bottoms at TOW_LIFT * k.
-    dims: { ax: s.ax, axR: s.axR, length: s.L, width: s.W, wheelR: s.r, wheelRF: s.rf, towLift: TOW_LIFT },
+    dims: { ax: s.ax, axR: s.axR, length: s.L, width: s.W, wheelR: s.r, wheelRF: s.rf, tyreW: s.wr, tyreWF: s.wrf, towLift: TOW_LIFT },
   };
 }

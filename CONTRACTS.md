@@ -158,16 +158,20 @@ Build static geometry with `voxel.js` `Builder` (one merged vertex-coloured mesh
   workbench with a small hoist, paint shelf / mixer with coloured cans. `partAnchor`: front ledge at hand height
   where finished parts stack upward (4 high). `setProgress` drives a progress bar or dial on the front;
   `update` animates idle details.
-- `createCar(look) -> { group, look, setProblems(types[]), setShine(bool), update(dt, speed) }` and
+- `createCar(look) -> { group, look, setProblems(types[]), setTyreStory(story), setShine(bool), update(dt, speed) }` and
   `randomCarLook({ vip = false }) -> { type, color, vip }` (`type` in `CAR_TYPES`, weighted by `weight`).
   Five distinct chunky body types (compact, sedan, pickup, van, sports) in a curated palette; all fit inside
   `CAR` (1.5 wide x 2.8 long), ~1.1-1.5 tall, windows, lights, bumpers, 4 separate wheels that spin in `update`
-  (`speed` in m/s, negative = reversing) plus a slight body bob. VIP = gold sports car with a crown or star on the
+  (`speed` in m/s, negative = reversing) plus a slight body bob. Every tyre sits in a wheel arch with a dark well
+  and ~3 cm of air; nothing of the body or of an overlay ever enters it, flat tyre or not (low cars get fender
+  humps over the wheels, the hood between them). VIP = gold sports car with a crown or star on the
   roof. `setProblems(types)` takes the list of problems still unfixed (may be called any time, idempotent) and
   shows damage for each type present. Every effect must make sense on a car that is still being driven:
-  tire -> one bad wheel per `'tire'` entry (camera-side rear wheel first): a soft tyre that sags and bulges onto
-  the floor, the body leans onto it and thumps once per wheel turn while driving; ~40% of cars have the first bad
-  one already swapped for a small yellow-rimmed space-saver spare. oil -> drops fall from under the engine and stay
+  tire -> one bad wheel per `'tire'` entry (camera-side rear wheel first). Each car has one tyre story (random,
+  `setTyreStory('flat' | 'spare' | 'worn')` forces it): flat (~30%: the round rim sinks towards the floor, the
+  tyre squashes flat at the floor with bulging sidewalls, the body settles onto the low corner and kicks once per
+  wheel turn while driving; a flat is still drivable), flat with the first one already swapped for a small
+  yellow-rimmed space-saver spare (~20%), or worn out (~50%: bald grey rubber, steel belt showing, cracked sidewalls). oil -> drops fall from under the engine and stay
   on the floor in world space (`leak.js`): a moving car leaves a drip trail, a parked one grows a puddle that stays
   behind when it drives off; spots shrink away after ~10-16 s; nothing rides along with the car. battery -> only
   while parked (stopped > 0.6 s): hood pops up, blinking red warning light, electric zaps crackling at the
