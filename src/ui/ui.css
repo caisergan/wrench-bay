@@ -549,7 +549,7 @@ button:disabled { cursor: default; }
   white-space: nowrap; box-shadow: 0 2px 0 var(--navy-d); animation: ribbonIn .45s var(--bounce);
 }
 @keyframes ribbonIn { from { transform: translateX(-50%) rotate(-2deg) scale(.4); opacity: 0; } }
-#ui .jb[data-k='spray'][data-s='done'] .jb-i svg.ico, #ui .jb[data-k='sprayGun'][data-s='done'] .jb-i svg.ico { filter: none; opacity: .6; }
+#ui .jb[data-k='spray'][data-s='done'] .jb-i svg.ico { filter: none; opacity: .6; }
 .jb.gold { background: #ffe9a0; box-shadow: inset 0 -2.5px 0 rgba(122,90,18,.2), 0 0 0 1.5px #c9a23a; }
 .jb.gold[data-s='ready'] { background: #fff6cf; box-shadow: 0 0 0 2px #7a5a12, inset 0 -2.5px 0 rgba(122,90,18,.12); }
 .jb.gold.working { box-shadow: 0 0 0 2px #2f9e57, inset 0 -2.5px 0 rgba(122,90,18,.12); }
@@ -668,7 +668,7 @@ button:disabled { cursor: default; }
   border: 2.5px solid var(--navy); box-shadow: 0 3px 0 rgba(31,51,64,.42), 0 6px 10px rgba(0,0,0,.18);
 }
 .wl-timer svg:not(.ico) { position: absolute; inset: 1px; width: calc(100% - 2px); height: calc(100% - 2px); transform: rotate(-90deg); }
-.wl-timer circle { fill: none; stroke-width: 5; }
+.wl-timer svg:not(.ico) circle { fill: none; stroke-width: 5; }   /* the ring only, not the circles inside the icons */
 .tr-bg { stroke: rgba(47,72,88,.14); }
 .tr-fg { stroke: #4cc26b; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; transition: stroke-dashoffset .25s linear, stroke .3s; }
 .wl-timer[data-b='mid'] .tr-fg { stroke: var(--mustard); }
@@ -679,6 +679,14 @@ button:disabled { cursor: default; }
 .wl-timer.has-i .tr-i { display: grid; }
 .wl-timer.has-i b { display: none; }
 #ui .wl-timer .tr-i svg.ico { width: 22px; height: 22px; }
+/* booth status chip: the timer ring tinted (spray progress in the paint colour, the cure in amber) + owner mood badge */
+.wl-timer.tinted .tr-fg { stroke: var(--c); }
+.wl-timer.tinted .ring { animation: none; }
+.wl-timer.tinted[data-m='low'] .tr-m, .wl-timer.tinted[data-m='zero'] .tr-m { animation: facePulse .6s ease-in-out infinite; }
+.wl-timer .tr-m { position: absolute; right: -7px; bottom: -5px; width: 21px; height: 21px; display: grid; place-items: center;
+  border-radius: 50%; background: #fffaf0; box-shadow: 0 0 0 2px var(--navy), 0 2px 0 rgba(31,51,64,.4); }
+.wl-timer .tr-m[hidden] { display: none; }
+#ui .wl-timer .tr-m svg.ico { width: 19px; height: 19px; }
 .wl-stars .bubble {
   position: relative; display: flex; gap: 1px; padding: 4px 6px 5px; border-radius: 14px; background: #fffaf0; border: 2.5px solid var(--navy);
   box-shadow: inset 0 2px 0 #fff, 0 3px 0 rgba(31,51,64,.42), 0 6px 10px rgba(0,0,0,.16);

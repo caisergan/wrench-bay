@@ -302,9 +302,11 @@ drop-off lane on its own forecourt, its own customers, waiting awning, exit.
    into the booth's paint feed rack from its mat (`PAINT.feed` / `PAINT.feedMat`): the rack stands against the
    outside of the booth's west glass wall, just south of the control column. Each canister flies into its own cradle
    (cradle i = job i), stands upright and a feed head clamps onto it (status light green). The feed mat shows a can in
-   the colour the car wants and pulses while the player carries one it needs. Once every canister is in, the car's
-   bubble drops the canister tiles for one spray-gun tile in that colour ("paint me by hand"), which fills over the
-   whole respray.
+   the colour the car wants and pulses while the player carries one it needs. The car's bubble is for what to bring:
+   once every canister is in, it leaves the car (so the new colour can be watched) and the booth's **status chip** on
+   the floor in front of its mouth (`PAINT.chip`) takes over: a ring in the paint colour around a spray gun, filling
+   over the whole respray (a stripe job turns it to the stripe colour), and the owner's mood as a face on its corner
+   (it pulses once patience is low). The control column's ring fills with the spray progress too.
 4. Spray: go in through the booth's open north (personnel) end onto the work mat in front of the nose (it pulses once
    a canister is loaded and the player carries nothing more for this car) and stand still. The rack feeds the gun
    through the wall: the canister being sprayed shudders with a blinking amber light, and when it is empty the head
@@ -313,7 +315,8 @@ drop-off lane on its own forecourt, its own customers, waiting awning, exit.
    the glass (`booth.setHaze(hex)`), and the new colour **sweeps over the body from nose to tail** as progress
    rises (`setColor(hex, k)`), one section per canister.
 5. Cure: all canisters sprayed -> the booth bakes (`setLamp('cure')`, amber lights; with the IR upgrade
-   `setIR(true)` the infra-red arrays glow), its timer ring counts `cure` s (`setTimer`). You are free to leave;
+   `setIR(true)` the infra-red arrays glow), its timer ring counts `cure` s (`setTimer`) and the status chip turns
+   into the amber clock (mood face still on it). You are free to leave;
    this is the juggling moment (start the next car, fetch paint).
 6. Done: `setLamp('done')` (curtain up, green beacon), masking off, gloss, confetti, payout pile beside the booth
    (`resprayPayout`), the car backs out, picks up its owner at `PAINT.pickupStop` and leaves in its new colour.

@@ -67,7 +67,7 @@ function build(kind) {
       return html(`<div class="wl wl-till"><div class="pill"><s class="tl-i">${ICON.coins}</s><b></b></div><div class="bar"><i></i></div></div>`);
     case 'timer':
       return html('<div class="wl wl-timer"><div class="ring"><svg viewBox="0 0 40 40" aria-hidden="true"><circle class="tr-bg" cx="20" cy="20" r="16"/>' +
-        '<circle class="tr-fg" cx="20" cy="20" r="16" pathLength="100"/></svg><s class="tr-i"></s><b></b></div></div>');
+        '<circle class="tr-fg" cx="20" cy="20" r="16" pathLength="100"/></svg><s class="tr-i"></s><b></b><s class="tr-m" hidden></s></div></div>');
     case 'stars':
       return html('<div class="wl wl-stars"><div class="bubble"><i></i><i></i><i></i></div></div>');
     case 'call':
@@ -146,10 +146,11 @@ function makeLabel(kind) {
   const ringFg = kind === 'timer' ? el.querySelector('.tr-fg') : null;
   const stIcon = kind === 'station' ? el.querySelector('.st-i') : null;
   if (kind === 'job') addJobApi(L, el);
+  else if (kind === 'timer') addTimerApi(L, el);
   else if (kind === 'tag') addTagApi(L, el);
   else if (kind === 'stars') addStarsApi(L, el);
   // every label answers every setter, so a caller never has to know which kind it holds (unknown kinds must not throw)
-  for (const m of ['setJobs', 'setPatience', 'setVip', 'setBonus', 'setStars', 'setInfo', 'setWork', 'setNear', 'setSolid']) if (!L[m]) L[m] = () => L;
+  for (const m of ['setJobs', 'setPatience', 'setVip', 'setBonus', 'setStars', 'setInfo', 'setWork', 'setNear', 'setSolid', 'setTint', 'setMood']) if (!L[m]) L[m] = () => L;
   layer.appendChild(el);
   if (SEE_KINDS.has(kind)) {
     // box size for the see-through test: measured by a ResizeObserver, so the per-frame test never forces a layout
@@ -162,6 +163,33 @@ function makeLabel(kind) {
     sizes.observe(el);
   }
   return L;
+}
+
+// ---- timer ring extras: a tint (the ring + an icon painted with var(--c)) and an owner mood badge on its corner ----
+// tinted: the ring is that colour instead of green / amber / coral by level and never pulses for being low (a work
+// progress ring starts empty, it is not running out); the mood badge pulses instead once patience is low.
+function addTimerApi(L, el) {
+  const badge = el.querySelector('.tr-m');
+  let tint = null, band = '';
+  L.setTint = (css) => {
+    css = css || null;
+    if (css === tint) return L;
+    tint = css;
+    el.classList.toggle('tinted', !!css);
+    if (css) el.style.setProperty('--c', css); else el.style.removeProperty('--c');
+    return L;
+  };
+  /** p = patience 0..1, or -1 / null to hide the badge. */
+  L.setMood = (p) => {
+    const b = p == null || p < 0 ? '' : p <= 0 ? 'zero' : p < 0.25 ? 'low' : p < 0.55 ? 'mid' : 'hi';
+    if (b === band) return L;
+    band = b;
+    badge.hidden = !b;
+    badge.innerHTML = b ? MOODS[b] : '';
+    if (b) el.dataset.m = b; else delete el.dataset.m;
+    return L;
+  };
+  L.resetKind = () => { L.setTint(null); L.setMood(-1); };
 }
 
 // ---- see-through: a bubble covering the player's character fades, so you can always see yourself move ----

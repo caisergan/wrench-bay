@@ -58,6 +58,18 @@ function sameColor(a, b) {
 }
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
+// ---------------------------------------------------------------- booth status chip
+// Once all the paint is in the rack, the car's bubble (it tells you what to bring) leaves the car so it can be watched
+// while it is painted; a chip on the floor in front of the booth's mouth shows the progress (SprayBooth.updateStatusUI).
+const CURE_TINT = '#f0a42b';
+/** Ring colour for a paint: very light paints are darkened so the ring shows on the cream chip. */
+function ringCss(hex) {
+  const r = (hex >> 16) & 255, g = (hex >> 8) & 255, b = hex & 255;
+  if (r * 0.3 + g * 0.59 + b * 0.11 < 200) return cssOf(hex);
+  const m = (c, n) => Math.round(c * 0.6 + n * 0.4);
+  return cssOf((m(r, 0x2f) << 16) | (m(g, 0x48) << 8) | m(b, 0x58));
+}
+
 // ---------------------------------------------------------------- the customer car
 /** car.paint = { body, stripe, premium, bodyCans }: derived from the job types (so debug spawns work too). */
 class PaintCar extends Car {
@@ -83,25 +95,12 @@ class PaintCar extends Car {
     for (const j of this.jobs) if (j.state === 'need' || j.incoming) return false;
     return true;
   }
-  /** Bubble: one canister tile per can while paint still has to be brought; once it is all in the feed rack, a single
-   *  spray-gun tile in the colour being sprayed ("paint me by hand") that fills over the whole respray. */
+  /** Bubble: canister tiles while paint still has to be brought. Once it is all in the feed rack the booth docks the
+   *  status into its chip (SprayBooth.updateStatusUI) and the bubble leaves the car, so the new colour can be watched. */
   updateTag() {
-    if (!this.allLoaded()) {
-      if (this.handShown) { this.handShown = false; this.handKey = null; this.jobsDirty = true; }
-      super.updateTag();
-      return;
-    }
-    if (!this.tag.visible) return;
-    this.tag.place(this.pos.x, this.pos.y + 0.15, this.pos.z);
-    let done = 0, cur = null;
-    for (const j of this.jobs) { if (j.state === 'done') done++; else if (!cur) cur = j; }
-    const key = colorOf((cur || this.jobs[this.jobs.length - 1]).type);
-    const st = cur ? 'ready' : 'done', k = key + '|' + st;
-    if (!this.handShown || this.handKey !== k || this.jobsDirty) {
-      this.handShown = true; this.handKey = k; this.jobsDirty = false;
-      this.tag.setJobs([{ type: 'sprayGun', color: cssOf(hexOf(key)), state: st, gold: !!PAINT_COLORS[key]?.premium }]);
-    }
-    this.tag.setProgress(cur ? (done + cur.progress) / this.jobs.length : 0);
+    if (this.docked) { if (this.tag.visible) { this.tag.setVisible(false); this.dockHid = true; } return; }
+    if (this.dockHid) { this.dockHid = false; if (this.mode === 'lift') { this.tag.setVisible(true); this.jobsDirty = true; } }
+    super.updateTag();
   }
 }
 
@@ -116,10 +115,10 @@ class SprayBooth extends Bay {
     this.mistT = 0; this.hissT = 0;
     this.cureT = 0; this.cureTime = PAINT.cure;
     this.model.setIR?.(townUnlocked('irlamps'));
-    // cure countdown over the booth's south end (clear of the job bubble above the car)
+    // status chip on the floor in front of the booth's mouth (clear of the car's tail): spray progress, then the cure
     this.timer = new Tag({ kind: 'timer', text: '' }, 1.3);
     this.timer.setIcon('clock');
-    this.timer.place(this.x, 0, this.z + 2.5);
+    this.timer.place(this.x, PAINT.chip.y - this.timer.dy, PAINT.boothZ[1] + PAINT.chip.dz);
     this.timer.setVisible(false);
     // paint feed rack against the booth's west glass wall (part of the booth model group), its mat outside the booth
     this.feed = M.createPaintFeed ? M.createPaintFeed() : null;
@@ -153,8 +152,31 @@ class SprayBooth extends Bay {
   update(dt) {
     this.playerLoading = false;
     super.update(dt);
+    this.updateStatusUI();
     if (!this.feed) return;
     if (this.ctx.near(this.feedPos, 3)) this.feed.update(dt); else this.feed.settle();
+  }
+
+  /** Status chip: once all the paint is in the rack (car.docked) a ring in the paint colour around a spray gun fills
+   *  over the whole respray (a stripe job turns it to the stripe colour), the owner's mood is a face on its corner; the
+   *  cure turns it into the amber clock. The control column's ring fills with the spray progress too. */
+  updateStatusUI() {
+    const car = this.car, t = this.timer;
+    if (!car) return;
+    const mood = car.patienceOn ? car.patience / car.patienceMax : -1;
+    if (this.phase === 'cure') { car.docked = true; t.call('setTint', CURE_TINT); t.call('setMood', mood); return; }
+    if (this.phase !== 'up') return;
+    car.docked = car.allLoaded();
+    if (!car.docked) { t.setVisible(false); this.model.setTimer?.(0); return; }
+    let done = 0, cur = null;
+    for (const j of car.jobs) { if (j.state === 'done') done++; else if (!cur) cur = j; }
+    const k = (done + (cur ? cur.progress : 0)) / Math.max(1, car.jobs.length);
+    this.model.setTimer?.(k);
+    t.setIcon('sprayGun');
+    t.call('setTint', ringCss(hexOf(colorOf((cur || car.jobs[car.jobs.length - 1]).type))));
+    t.setProgress(k);
+    t.call('setMood', mood);
+    t.setVisible(true);
   }
 
   setWorkMat(on) {
@@ -343,6 +365,7 @@ class SprayBooth extends Bay {
     this.cureTime = townUnlocked('irlamps') ? PAINT.cureIR : PAINT.cure;
     this.setLamp('cure');
     this.model.setTimer?.(0);
+    this.timer.setIcon('clock');
     this.timer.setProgress(0);
     this.timer.setText(String(Math.ceil(this.cureTime)));
     this.timer.setVisible(true);
@@ -368,6 +391,7 @@ class SprayBooth extends Bay {
   release(car) {
     if (this.car !== car) return;
     super.release(car);
+    car.docked = false;
     this.clearFeed();
     this.setSpraying(null, 0);
     this.setLamp('idle');
