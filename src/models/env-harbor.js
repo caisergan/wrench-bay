@@ -7,7 +7,7 @@
 // (17.0), water plane at y = WATER_Y (-0.4), land east of x = TOWN.ferryPlaza.minX.
 import * as THREE from 'three';
 import { PALETTE as P } from '../config.js';
-import { TOWN, RESCUE } from '../config.town.js';
+import { TOWN, RESCUE, rescueKeepRect } from '../config.town.js';
 import { Builder, litMat, mesh, polygon } from './voxel.js';
 import {
   PI, Y, CREAM, CORAL, NAVY, PAINTW, mix, pick, crate, fishBox, bench, solidRect, drainGrate, lampPost,
@@ -34,7 +34,9 @@ const inAny = (x, ranges, pad = 0) => ranges.some(([a, b]) => x > a - pad && x <
 
 // x ranges along the quay where something else owns the ground (rescue cars, wrenches, bus stop, crossings, pier roots)
 export const QUAY_KEEP = [];
-for (const s of RESCUE.spots) if (s.z > 15) QUAY_KEEP.push([s.x - 2.0, s.x + 2.0, 'car']);
+// rescue spots on the quay: the car, its warning triangle and owner behind it and the tow truck's stop pose ahead of it
+// ('spot'); the rail only breaks at the car itself ('car')
+for (const s of RESCUE.spots) if (s.z > 15) { const q = rescueKeepRect(s); QUAY_KEEP.push([q.minX, q.maxX, 'spot'], [s.x - 2.0, s.x + 2.0, 'car']); }
 for (const w of TOWN.wrenches) if (w.z > 15) QUAY_KEEP.push([w.x - 1.25, w.x + 1.25, 'wrench']);
 for (const b of TOWN.busStops) if (b.z > 15) QUAY_KEEP.push([b.x - 4.6, b.x + 4.6, 'bus']);
 QUAY_KEEP.push([-32.0, -28.4, 'zebra'], [1.7, 5.3, 'zebra'], [33.5, 37.1, 'zebra']);       // zebra landings on the quay sidewalk
@@ -300,6 +302,11 @@ export function buildHarbor(env) {
   const free = (x, hw) => !taken.some(([a, b]) => x + hw > a && x - hw < b);
   const take = (x, hw) => { taken.push([x - hw, x + hw]); return true; };
   const slot = (x, hw, what) => { if (!free(x, hw)) { console.warn('[envdress] quay slot blocked:', what, x); return false; } return take(x, hw); };
+  /** Like slot, for loose dressing (benches, rings, nets) that may shift: the nearest free x within 6 m of x. */
+  const slotNear = (x, hw, what) => {
+    for (let d = 0; d <= 6; d += 0.25) for (const sx of d ? [x + d, x - d] : [x]) if (sx - hw > QX0 && sx + hw < QX1 && free(sx, hw)) { take(sx, hw); return sx; }
+    return null;   // loose dressing: nothing free nearby (a rescue stretch, the bus stop ...) -> left out
+  };
   const gaps = QUAY_KEEP.filter((r) => r[2] === 'car' || r[2] === 'wrench').map((r) => [r[0], r[1]]);   // rail gaps: cars + wrenches
   const gap = (x, hw) => gaps.push([x - hw, x + hw]);
   const bobbers = [], flags = [];
@@ -360,7 +367,8 @@ export function buildHarbor(env) {
       S.box(0.04, 0.85, 0.04, STEELL, GX + s * 0.5, g0, gz0); S.box(0.04, 0.85, 0.04, STEELL, GX + s * 0.5, g1, gz1); }
   }
   // ---- ladders
-  for (const x of [-51.0, 11.4, 48.9]) { if (slot(x, 0.4, 'ladder')) { gap(x, 0.5); ladder(S, x); F.box(0.9, 0.004, 0.5, 0xf6c453, x, TOP, QZ - 0.5); } }
+  // (rescue spots keep their kerb stretch clear: the west ladder sits east of h5's, the east one past h4's)
+  for (const x of [-49.4, 11.4, 49.2]) { if (slot(x, 0.4, 'ladder')) { gap(x, 0.5); ladder(S, x); F.box(0.9, 0.004, 0.5, 0xf6c453, x, TOP, QZ - 0.5); } }
 
   // ---- boats and their lines.  bollard(x) places a mooring bollard on the quay edge and returns its world point.
   const bollards = [];
@@ -371,14 +379,16 @@ export function buildHarbor(env) {
   const add = (g, ph, amp = 0.04) => { root.add(g); bobbers.push({ g, base: g.position.y, ph, amp }); };
   // fishing boat A alongside the quay (breast + spring lines)
   { const cx = -30.4, z = QZ + 1.2;
-    const bw = bollard(cx - 2.6), sw = bollard(cx + 2.5);
+    const bw = bollard(cx - 2.1), sw = bollard(cx + 2.5);   // stern bollard clear of rescue spot h1's kerb stretch
     const lines = [];
     if (sw) lines.push({ c: [1.0, 0.62, 2.0], to: sw }); if (bw) lines.push({ c: [1.0, 0.62, -2.1], to: bw });
     add(makeBoat('fishing', cx, z, PI / 2, lines), 0.3, 0.045); }
-  // sailboat alongside the quay
-  { const cx = -14.0, z = QZ + 1.0, bs = bollard(cx - 2.6), bb = bollard(cx + 2.2), lines = [];
-    if (bb) lines.push({ c: [0.62, 0.55, 1.7], to: bb }); if (bs) lines.push({ c: [0.62, 0.55, -1.9], to: bs });
-    add(makeBoat('sail', cx, z, PI / 2, lines), 1.7, 0.05); }
+  // sailboat on a mooring ball off h2 (rescue spot h2 keeps the quay kerb there clear, so it is not tied alongside)
+  { const bx = -17.5, bz = 24.2;
+    add(makeBoat('sail', bx, bz - 2.9, -0.08, [{ c: [0, 0.5, 2.2], to: [bx, WATER_Y + 0.3, bz], slack: 0.02 }]), 1.7, 0.05);
+    const b = new Builder();
+    b.cyl(0.22, 0.26, 0.3, 0xf2813a, 0, -0.1, 0, 8); b.cyl(0.22, 0.22, 0.12, CREAM, 0, 0.2, 0, 8); b.cyl(0.03, 0.03, 0.25, P.steelDark, 0, 0.32, 0, 4);
+    const g = new THREE.Group(); g.add(mesh(b.build(), litMat, { cast: false })); g.position.set(bx, WATER_Y + 0.12, bz); add(g, 3.1, 0.05); }
   // launch + rowing boat at the pontoon (dock is north of them: local +x for yaw PI/2)
   { const pz = PON.z1 - 0.1, lines = [];
     const cx = -44.4, z = PON.z1 + 0.15 + 0.75;
@@ -406,17 +416,19 @@ export function buildHarbor(env) {
     const lx = p.x - hw - 0.25 - 0.75, lz = 22.8;
     add(makeBoat('launch', lx, lz, 0, [{ c: [0.65, 0.5, 1.3], to: [p.x - hw, 0.15, lz + 1.4], slack: 0.05 }, { c: [0.65, 0.5, -1.3], to: [p.x - hw, 0.15, lz - 1.4], slack: 0.05 }],
       { top: 0xd9e8ee, stripe: 0x2f6fb5, roof: 0x2f6fb5 }), 1.3, 0.04); }
-  // launch alongside the quay near the ferry
-  { const cx = 45.0, bs = bollard(cx - 2.2), bb = bollard(cx + 2.0), lines = [];
-    if (bb) lines.push({ c: [0.62, 0.5, 1.5], to: bb }); if (bs) lines.push({ c: [0.62, 0.5, -1.5], to: bs });
-    add(makeBoat('launch', cx, QZ + 0.95, PI / 2, lines, { top: P.accent, stripe: NAVY, roof: NAVY }), 3.3, 0.04); }
+  // launch on a mooring ball off h4 (rescue spot h4 keeps the quay kerb there clear)
+  { const bx = 36.4, bz = 23.6;
+    add(makeBoat('launch', bx + 0.2, bz - 2.4, 0.1, [{ c: [0, 0.5, 1.5], to: [bx, WATER_Y + 0.3, bz], slack: 0.02 }], { top: P.accent, stripe: NAVY, roof: NAVY }), 3.3, 0.04);
+    const b = new Builder();
+    b.cyl(0.22, 0.26, 0.3, 0xf2813a, 0, -0.1, 0, 8); b.cyl(0.22, 0.22, 0.12, CREAM, 0, 0.2, 0, 8); b.cyl(0.03, 0.03, 0.25, P.steelDark, 0, 0.32, 0, 4);
+    const g = new THREE.Group(); g.add(mesh(b.build(), litMat, { cast: false })); g.position.set(bx, WATER_Y + 0.12, bz); add(g, 5.0, 0.05); }
   // fishing boat on a mooring ball at the west end, rowing boat tied to the ladder
   { const bx = -57.2, bz = 24.6;
     add(makeBoat('fishing', bx + 0.35, bz - 3.15, 0.12, [{ c: [0, 0.5, 2.5], to: [bx, WATER_Y + 0.3, bz], slack: 0.02 }]), 0.6, 0.045);
     const b = new Builder();
     b.cyl(0.22, 0.26, 0.3, 0xf2813a, 0, -0.1, 0, 8); b.cyl(0.22, 0.22, 0.12, CREAM, 0, 0.2, 0, 8); b.cyl(0.03, 0.03, 0.25, P.steelDark, 0, 0.32, 0, 4);
     const g = new THREE.Group(); g.add(mesh(b.build(), litMat, { cast: false })); g.position.set(bx, WATER_Y + 0.12, bz); add(g, 2.4, 0.05);
-    add(makeBoat('row', -51.9, QZ + 0.85, PI / 2, [{ c: [0.52, 0.34, 1.2], to: [-51.0, TOP + 0.1, QZ - 0.3], slack: 0.05 }]), 4.8, 0.03); }
+    add(makeBoat('row', -50.3, QZ + 0.85, PI / 2, [{ c: [0.52, 0.34, 1.2], to: [-49.4, TOP + 0.1, QZ - 0.3], slack: 0.05 }]), 4.8, 0.03); }
   // channel buoys out in the water (red to the west, green to the east)
   for (const [x, z, c, ph] of [[-38, 24.0, 0xe5484d, 0.5], [22.5, 26.0, 0x56b97a, 2.2], [-8.5, 23.5, 0xe5484d, 4.0], [41, 24.0, 0x56b97a, 5.4]]) {
     const b = new Builder();
@@ -441,20 +453,21 @@ export function buildHarbor(env) {
     for (let i = 0; i < 3; i++) { S.cyl(0.05, 0.05, 0.12, i % 2 ? 0xf2813a : CREAM, sx - 0.7 + i * 0.1, TOP + 0.92, sz + 0.2, 6, PI / 2); }
   }
   // stacked fish boxes + crates + nets
-  if (slot(16.5, 0.55, 'fishboxes')) {
-    for (let i = 0; i < 3; i++) fishBox(S, 16.3, 16.72, 0.05 * i, TOP + i * 0.25, i === 1 ? 0xf2813a : 0x4fa3c7);
-    fishBox(S, 16.95, 16.72, -0.1, TOP, 0x4fa3c7); fishBox(S, 16.95, 16.72, 0.05, TOP + 0.25, 0x4fa3c7);
-    solidRect(16.6, 16.72, 1.3, 0.5);
-  }
-  if (slot(13.6, 0.6, 'crates')) { crate(S, 13.35, 16.72, 0.2, 0.5, P.wood, TOP); crate(S, 13.95, 16.7, 0.7, 0.42, P.wood, TOP); crate(S, 13.65, 16.72, 0.4, 0.4, P.wood, TOP + 0.5); solidRect(13.65, 16.7, 1.3, 0.55); }
-  if (slot(10.2, 0.5, 'net')) coil(S, 10.2, 16.7, 0.42, 0x6f8f7a, rnd);
-  if (slot(-39.0, 0.6, 'net2')) netHeap(S, -39.0, 16.7, rnd);
-  if (slot(-54.0 - 4.5, 0.6, 'net3')) coil(S, -58.5, 16.7, 0.42, 0x7ea48b, rnd);
-  if (slot(44.9, 0.9, 'crates2')) { crate(S, 44.5, 16.72, 0.3, 0.45, P.wood, TOP); fishBox(S, 45.3, 16.72, 0.2, TOP, 0x4fa3c7); solidRect(44.9, 16.72, 1.3, 0.5); }
+  { const fx = slotNear(16.5, 0.55, 'fishboxes'); if (fx !== null) { const d = fx - 16.5;
+    for (let i = 0; i < 3; i++) fishBox(S, 16.3 + d, 16.72, 0.05 * i, TOP + i * 0.25, i === 1 ? 0xf2813a : 0x4fa3c7);
+    fishBox(S, 16.95 + d, 16.72, -0.1, TOP, 0x4fa3c7); fishBox(S, 16.95 + d, 16.72, 0.05, TOP + 0.25, 0x4fa3c7);
+    solidRect(16.6 + d, 16.72, 1.3, 0.5);
+  } }
+  { const cx = slotNear(13.6, 0.72, 'crates'); if (cx !== null) { const d = cx - 13.6;
+    crate(S, 13.35 + d, 16.72, 0.2, 0.5, P.wood, TOP); crate(S, 13.95 + d, 16.7, 0.7, 0.42, P.wood, TOP); crate(S, 13.65 + d, 16.72, 0.4, 0.4, P.wood, TOP + 0.5); solidRect(13.65 + d, 16.7, 1.3, 0.55); } }
+  { const x = slotNear(10.2, 0.5, 'net'); if (x !== null) coil(S, x, 16.7, 0.42, 0x6f8f7a, rnd); }
+  { const x = slotNear(-39.0, 0.6, 'net2'); if (x !== null) netHeap(S, x, 16.7, rnd); }
+  { const x = slotNear(-58.5, 0.6, 'net3'); if (x !== null) coil(S, x, 16.7, 0.42, 0x7ea48b, rnd); }
+  { const cx = slotNear(44.9, 0.9, 'crates2'); if (cx !== null) { const d = cx - 44.9; crate(S, 44.5 + d, 16.72, 0.3, 0.45, P.wood, TOP); fishBox(S, 45.3 + d, 16.72, 0.2, TOP, 0x4fa3c7); solidRect(44.9 + d, 16.72, 1.3, 0.5); } }
   // benches facing the water
-  for (const x of [-42.0, -23.4, 18.4, 31.9]) if (slot(x, 0.9, 'bench')) bench(S, x, 16.64, 0);
+  for (const x0 of [-42.0, -23.4, 18.4, 31.9]) { const x = slotNear(x0, 0.9, 'bench'); if (x !== null) bench(S, x, 16.64, 0); }
   // life rings
-  for (const x of [-24.0 + 1.5, 6.0, 31.0 - 3.0]) if (slot(x, 0.35, 'ring')) lifeRing(S, x, 16.78, 0);
+  for (const x0 of [-24.0 + 1.5, 6.0, 31.0 - 3.0]) { const x = slotNear(x0, 0.35, 'ring'); if (x !== null) lifeRing(S, x, 16.78, 0); }
   // stand-alone mooring bollards in free slots (every ~7 m)
   for (let x = QX0 + 2; x < QX1; x += 7.3) if (free(x, 0.4) && !bollards.includes(x)) { take(x, 0.4); bollards.push(x); }
   for (const x of bollards) { S.cyl(0.13, 0.16, 0.3, 0x3a4048, x, TOP, BZ, 8); S.cyl(0.19, 0.19, 0.07, 0x3a4048, x, TOP + 0.3, BZ, 8); S.cyl(0.19, 0.19, 0.02, P.accent, x, TOP + 0.37, BZ, 8); }

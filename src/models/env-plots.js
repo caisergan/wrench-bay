@@ -8,7 +8,7 @@
 // see-through (the camera looks north). The ferry terminal stands from the start, so the ferry plot has none.
 import * as THREE from 'three';
 import { PALETTE as P } from '../config.js';
-import { TOWN, PROPERTIES, SERVICES, RESCUE } from '../config.town.js';
+import { TOWN, PROPERTIES, SERVICES, RESCUE, rescueKeepRect } from '../config.town.js';
 import { Builder, litMat, mesh, mulberry32 } from './voxel.js';
 import { PI, CREAM, CORAL, NAVY, FONT, css, mix, pick, Y, flat, flatTop, quad, disc, surfaceMesh, LEAF, tireStack, pallet } from './env-kit.js';
 import { canvasTex } from './props-town.js';
@@ -411,11 +411,12 @@ function clearZones() {
   }
   for (const id in SERVICES) { const s = SERVICES[id]; r(s.pad.x, s.pad.z, 1.2, 1.2); if (s.managerPad) r(s.managerPad.x, s.managerPad.z, 1.2, 1.2); }
   for (const p of TOWN.parking) { const along = Math.abs(Math.sin(p.yaw)) > 0.5; r(p.x, p.z, along ? 2.1 : 1.3, along ? 1.3 : 2.1); }
-  for (const s of RESCUE.spots) r(s.x, s.z, 1.8, 1.8);
+  for (const s of RESCUE.spots) { const q = rescueKeepRect(s, 1.3); z.push(q); }   // car + triangle + truck stop pose
   for (const w of TOWN.wrenches) r(w.x, w.z, 0.9, 0.9);
   return z;
 }
-const hit = (a, b) => a.minX < b.maxX && a.maxX > b.minX && a.minZ < b.maxZ && a.maxZ > b.minZ;
+const E = 1e-6;   // touching edges (float noise) do not count
+const hit = (a, b) => a.minX < b.maxX - E && a.maxX > b.minX + E && a.minZ < b.maxZ - E && a.maxZ > b.minZ + E;
 
 // ------------------------------------------------------------------ the plots
 /**
@@ -596,7 +597,8 @@ export function buildPlots(root) {
   // ---- Quick-Fit Express: an old tyre yard behind chain-link, faded fitting bays
   plot(root, 'quickfit', (c) => {
     const { b, F, rnd } = c, p = PL('quickfit');
-    chainFence(c, p.minX + 0.2, p.minZ + 0.15, p.maxX - 0.15, p.minZ + 0.15, 1.8);
+    // north fence starts 0.6 m in: the tow truck's stop pose for spot h7 (East Ave kerb) passes the plot's corner
+    chainFence(c, p.minX + 0.6, p.minZ + 0.15, p.maxX - 0.15, p.minZ + 0.15, 1.8);
     chainFence(c, p.maxX - 0.15, p.minZ + 0.15, p.maxX - 0.15, 5.6, 1.8);
     for (const [x, z, n] of [[52.4, -6.0, 6], [53.2, -6.1, 5], [54.0, -5.9, 7], [53.1, -5.25, 4], [55.6, -6.0, 5], [56.4, -5.9, 6], [60.0, -3.6, 5], [60.1, -2.7, 6], [59.9, -1.8, 4]]) tyres(b, x, z, n, rnd);
     tyreHeap(b, 57.6, -3.4, rnd, 9);

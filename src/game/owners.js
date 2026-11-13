@@ -11,7 +11,10 @@ import { Emote, rand, detach } from './util.js';
 
 export class Owner extends Walker {
   constructor(sys, car) {
-    super(createCharacter(sys.fac.hooks.ownerLook ? sys.fac.h('ownerLook', car) : randomCustomerLook()), 2.5 * rand(0.92, 1.1), Math.PI);
+    // car.ownerStart = { look, from: {x, y, z}, door: {x, z} }: the owner arrives some other way (rescue: hops out of
+    // the tow truck's passenger door instead of out of the car)
+    const st = car.ownerStart || null;
+    super(createCharacter(st?.look || (sys.fac.hooks.ownerLook ? sys.fac.h('ownerLook', car) : randomCustomerLook())), 2.5 * rand(0.92, 1.1), Math.PI);
     this.sys = sys; this.car = car; this.fac = sys.fac; this.L = sys.fac.L;
     this.emo = new Emote();
     this.spot = sys.takeSpot();
@@ -19,8 +22,8 @@ export class Owner extends Walker {
     this.state = 'hopOut';
     this.pendingReady = false;
     sys.ctx.root.add(this.group);
-    const door = new THREE.Vector3(car.pos.x - 0.35, 0, car.pos.z - 1.05);
-    const from = new THREE.Vector3(car.pos.x, 0.5, car.pos.z);
+    const door = st ? new THREE.Vector3(st.door.x, 0, st.door.z) : new THREE.Vector3(car.pos.x - 0.35, 0, car.pos.z - 1.05);
+    const from = st ? new THREE.Vector3(st.from.x, st.from.y ?? 0.5, st.from.z) : new THREE.Vector3(car.pos.x, 0.5, car.pos.z);
     this.pos.copy(from);
     this.group.scale.setScalar(0.3);
     hop(this.group, from, door, {

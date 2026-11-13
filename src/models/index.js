@@ -27,3 +27,5 @@ export {
   createFerryTerminal,
 } from './buildings-main.js';
 export { createTowTruck, createTrafficVehicle, createFerry } from './vehicles.js';
+export { createWarningTriangle, createTowZone, createPhone } from './props-rescue.js';
+export { TOW_BOOM, TOW_LIFT } from './vehicles.js';

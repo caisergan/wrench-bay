@@ -50,7 +50,8 @@ export const TOWN = {
   homeBlock: { minX: -44.9, maxX: 44.9, minZ: -18.9, maxZ: 11.0 },
   // Block east of the exit driveway: the car wash (WASH, north part) and a small park (south part, walkable).
   garden: { minX: 15.4, maxX: 23.6, minZ: 2.4, maxZ: 10.8 },
-  // Extra paving between the forecourt and the west alley: the tow truck's way in and out. Keep it empty.
+  // Extra paving between the forecourt and the west alley: the tow truck's way in and out of its shed (it reverses in
+  // from here) and the west part of the tow drop zone (RESCUE.drop). Keep it empty.
   towApron: { minX: -13.5, maxX: -9.6, minZ: 1.0, maxZ: 6.4 },
 
   // Solid scenery blocks: filler buildings stand here, nobody walks here (one obstacle box each).
@@ -66,7 +67,9 @@ export const TOWN = {
 
   // Player vehicles can only be left in a parking bay (3.6 x 2.0, painted blue "P"). yaw = rest heading.
   parking: [
-    { id: 'home',     x: -11.7, z: 2.6,   yaw: 0 },            // in front of the tow shed (truck backs in by itself)
+    // in the west alley beside the tow shed (user's call 2026-11-13; it used to stand in front of the shed, where the
+    // drop zone is now). Parking here: the truck drives round onto the apron and backs into its shed by itself.
+    { id: 'home',     x: -14.6, z: -1.2,  yaw: 0 },
     { id: 'paint',    x: -38.5, z: 4.7,   yaw: Math.PI / 2 },
     { id: 'garden',   x: 19.5,  z: 9.6,   yaw: Math.PI / 2 },  // lounge, wash, VIP club
     { id: 'junkyard', x: -27.5, z: -26.4, yaw: -Math.PI / 2 },
@@ -91,7 +94,7 @@ export const TOWN = {
     { id: 'w03', x: 38.0,  z: -15.6, d: 'harbor' }, { id: 'w04', x: -15.0, z: -8.0,  d: 'harbor' },
     { id: 'w05', x: 25.7,  z: -6.0,  d: 'harbor' }, { id: 'w06', x: 15.95, z: 10.2,  d: 'harbor' },
     { id: 'w07', x: -26.0, z: 16.1,  d: 'harbor' }, { id: 'w08', x: 8.0,   z: 16.1,  d: 'harbor' },
-    { id: 'w09', x: 40.0,  z: 16.1,  d: 'harbor' }, { id: 'w10', x: -58.2, z: 9.6,   d: 'harbor' },
+    { id: 'w09', x: 51.4,  z: 16.2,  d: 'harbor' }, { id: 'w10', x: -58.2, z: 9.6,   d: 'harbor' },
     { id: 'w11', x: 58.6,  z: -5.6,  d: 'harbor' }, { id: 'w12', x: 59.2,  z: 22.2,  d: 'harbor' },
     { id: 'w13', x: -43.0, z: -36.2, d: 'main' },   { id: 'w14', x: -8.5,  z: -35.0, d: 'main' },
     { id: 'w15', x: 7.5,   z: -34.0, d: 'main' },   { id: 'w16', x: 22.5,  z: -36.0, d: 'main' },
@@ -101,11 +104,13 @@ export const TOWN = {
 
 // ---------------------------------------------------------------- districts
 // 'lot' = the garage lot (legacy bounds). 'harbor' opens for free the moment the valet AND one mechanic are hired
-// (the shop can run without you). 'main' is bought at a gate pad.
+// (the shop can run without you). `withTown: true` districts open at the same moment (2026-11-13: the whole map is
+// open with the town, so the tow truck has the whole ring to answer calls on). Without `withTown` a district is
+// bought at its gate pad (price, fame, noGo, hoarding and booms below; town.js builds the gate while it is locked).
 export const DISTRICTS = {
   harbor: { label: 'Harbor Street' },
   main: {
-    label: 'Main Street', price: 20000, fame: 5, icon: 'map',
+    label: 'Main Street', withTown: true, price: 20000, fame: 5, icon: 'map',
     pad: { x: -15.0, z: -16.6 },                                // west alley, just before the hoarding
     // While locked the player cannot pass this box. Hoarding fence along its south edge, boom gates on the avenues.
     noGo: { minX: -61, maxX: 61, minZ: -37.6, maxZ: -18.3 },
@@ -164,7 +169,7 @@ export const PROPERTIES = {
   tow: {
     name: 'Tow Truck', kind: 'vehicle', district: 'harbor', icon: 'tow',
     blurb: 'Answer rescue calls around town',
-    plot: { minX: -13.4, maxX: -10.0, minZ: -5.6, maxZ: 1.0 }, pad: { x: -11.7, z: 5.4 },
+    plot: { minX: -13.4, maxX: -10.0, minZ: -5.6, maxZ: 1.0 }, pad: { x: -12.5, z: 5.4 },   // pad x -11.7 -> -12.5 (2026-11-13): clear of the drop zone
     levels: [
       { price: 1500, fame: 0, label: 'Tow truck bought! Rescue calls incoming' },
       { price: 15000, fame: 6, label: 'Heavy wrecker! Faster, better paid rescues' },
@@ -268,19 +273,53 @@ export const RESCUE = {
   tipFast: 0.5,                 // +50% on top when hooked within callTime
   gemFast: 1,
   hookRadius: 2.4, hookMaxSpeed: 2.0,
-  // Truck stops here (nose in the ring), the towed car is released into the garage drop-off lane.
-  drop: { x: -12.0, z: 7.0, r: 1.5 },
+  hookAngle: 1.2,               // rad: truck heading vs car heading allowed when stopping in the hook ring
+  maxCalls: 1,                  // open calls at once (a storm event may raise it)
+  maxArticulation: 1.25,        // rad: towed car heading vs truck heading, never more (no folding into the truck)
+  waveDist: 18,                 // the stranded owner waves at the truck within this distance
+  // Tow drop zone (user's call 2026-11-13, replaces the ring in the driveway): the paved patch in front of the tow
+  // shed and the garage's west end, between the apron and the drop-off lane. The truck stops with its centre inside
+  // the rectangle, heading east (yaws[0], the normal way in: up the driveway, right turn into the zone) or north
+  // (yaws[1]) within dropAngle; the towed car is lowered there and drives into the drop-off lane (its path must not
+  // cross the truck). maxX keeps clear of cars reversing off the west lift (x -6.3). x / z = the zone centre.
+  // pose = where the dispatcher stops (truck centre + heading); from there the truck backs straight into its shed.
+  drop: { minX: -11.6, maxX: -7.4, minZ: 1.7, maxZ: 6.4, x: -9.5, z: 4.05, yaw: Math.PI / 2, yaws: [Math.PI / 2, Math.PI],
+    // (z 4.0 -> 5.3: after the drop the truck pulls ~1 m on to get its cradles out; further south its nose passes below
+    // the cars reversing off the west lift, which stop at z 3.0 + half a car)
+    pose: { x: -9.4, z: 5.3, yaw: Math.PI / 2 } },
+  dropAngle: 0.8,
+  // Level 3: the hired tow driver (dispatcher.js) takes the truck out when the player is not using it.
+  dispatcher: { delay: 4, speed: 6.5, cornerSpeed: 3.2, kerbSpeed: 2.2, brakeDist: 4.5, honkAfter: 1.5 },
   truck: { speed: [8.6, 10.0, 10.0], radius: 1.0, length: 3.6, width: 1.7, home: { x: -11.7, z: -2.4, yaw: 0 } },
   // Stranded cars sit fully on the kerb. yaw = car heading. d = district that must be open.
+  // keep: what a call needs clear along the kerb (m, measured along the car's heading from the spot): the warning
+  // triangle and the owner behind the car (back), the tow truck at its hook-up stop pose ahead of it (ahead), across
+  // the full kerb width. For the environment (props / lamp posts / meters must leave this clear; today they only leave
+  // +-2 m). (rescue 2026-11-13: h3 x 22 -> 18 off the FRESH BAIT stall; h6 / h7 x +-50.6 -> +-50.25, the truck's
+  // stop pose overlapped the gas station / Quick-Fit plots.)
+  // (lead 2026-11-13: the environment now keeps exactly this clear, see rescueKeepRect; quay spots re-planned so each
+  // stretch misses the zebra landings, the bus stop, the bait stall, piers and wrenches: h1 -36 -> -40, h3 18 -> 17.5,
+  // h4 35 -> 41.5, h5 -55 -> -57.5, wrench w09 -> the ferry plaza; boats there moved to mooring balls)
+  keep: { back: 4.4, ahead: 7.2 },
   spots: [
-    { id: 'h1', x: -36, z: 16.0, yaw: Math.PI / 2, d: 'harbor' }, { id: 'h2', x: -20, z: 16.0, yaw: Math.PI / 2, d: 'harbor' },
-    { id: 'h3', x: 22, z: 16.0, yaw: Math.PI / 2, d: 'harbor' },  { id: 'h4', x: 40, z: 16.0, yaw: Math.PI / 2, d: 'harbor' },
-    { id: 'h5', x: -55, z: 16.0, yaw: Math.PI / 2, d: 'harbor' }, { id: 'h6', x: -50.6, z: 2.0, yaw: 0, d: 'harbor' },
-    { id: 'h7', x: 50.6, z: -3.0, yaw: Math.PI, d: 'harbor' },
+    { id: 'h1', x: -40, z: 16.0, yaw: Math.PI / 2, d: 'harbor' }, { id: 'h2', x: -20, z: 16.0, yaw: Math.PI / 2, d: 'harbor' },
+    { id: 'h3', x: 17.5, z: 16.0, yaw: Math.PI / 2, d: 'harbor' },  { id: 'h4', x: 41.5, z: 16.0, yaw: Math.PI / 2, d: 'harbor' },
+    { id: 'h5', x: -57.5, z: 16.0, yaw: Math.PI / 2, d: 'harbor' }, { id: 'h6', x: -50.25, z: 2.0, yaw: 0, d: 'harbor' },
+    { id: 'h7', x: 50.25, z: -3.0, yaw: Math.PI, d: 'harbor' },
     { id: 'm1', x: -34, z: -24.6, yaw: -Math.PI / 2, d: 'main' }, { id: 'm2', x: -2, z: -24.6, yaw: -Math.PI / 2, d: 'main' },
-    { id: 'm3', x: 15, z: -24.6, yaw: -Math.PI / 2, d: 'main' },  { id: 'm4', x: 34, z: -24.6, yaw: -Math.PI / 2, d: 'main' },
+    { id: 'm3', x: 20, z: -24.6, yaw: -Math.PI / 2, d: 'main' },  { id: 'm4', x: 34, z: -24.6, yaw: -Math.PI / 2, d: 'main' },
   ],
 };
+/**
+ * The stretch of kerb a rescue call needs clear (RESCUE.keep along the spot's heading: the triangle and owner behind
+ * the car, the tow truck at its stop pose ahead of it), halfW across. Spots are axis-aligned, so this is a box.
+ */
+export function rescueKeepRect(s, halfW = 0.95) {
+  const fx = Math.round(Math.sin(s.yaw)), fz = Math.round(Math.cos(s.yaw)), K = RESCUE.keep;
+  const ax = s.x - fx * K.back, bx = s.x + fx * K.ahead, az = s.z - fz * K.back, bz = s.z + fz * K.ahead;
+  return { minX: Math.min(ax, bx) - Math.abs(fz) * halfW, maxX: Math.max(ax, bx) + Math.abs(fz) * halfW,
+    minZ: Math.min(az, bz) - Math.abs(fx) * halfW, maxZ: Math.max(az, bz) + Math.abs(fx) * halfW };
+}
 
 // ---------------------------------------------------------------- car wash "Suds & Shine" (drive-through, garden block)
 // Its own building on the north part of the garden block, east of the garage exit driveway. Cars drive through it

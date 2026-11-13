@@ -679,6 +679,8 @@ export function createTown(ctx) {
         const v = ctx.vehicles?.get?.('tow');
         if (v && v.mode === 'parked') t = v.pos;
       }
+      // then the first rescue call's car, then the drop ring (rescue.js), then off
+      if (!t && propLevel('tow') > 0) t = ctx.rescue?.guideTarget?.() || null;
     }
     if (t) { guideTarget = { x: t.x, z: t.z }; guideId = '_auto'; } else if (guideId === '_auto') { guideTarget = null; guideId = null; }
   }

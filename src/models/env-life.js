@@ -5,10 +5,10 @@
 // driveway cuts, bus stops) before it is placed, so a clash drops the item instead of blocking gameplay.
 import * as THREE from 'three';
 import { PALETTE as P, LAYOUT as L } from '../config.js';
-import { TOWN, PROPERTIES, SERVICES, RESCUE, DISTRICTS, LOUNGE, WASH } from '../config.town.js';
+import { TOWN, PROPERTIES, SERVICES, RESCUE, DISTRICTS, LOUNGE, WASH, rescueKeepRect } from '../config.town.js';
 import { Builder, litMat, mesh, polygon } from './voxel.js';
 import {
-  PI, Y, CREAM, CORAL, NAVY, PAINTW, FLOWERS, LEAF, mix, pick, tree, bush, rock, hedge, bench, hydrant, mailbox, trashCan, parkingMeter,
+  PI, Y, CREAM, CORAL, NAVY, PAINTW, FLOWERS, LEAF, mix, pick, tree, bush, rock, hedge, bench, hydrant, mailbox, trashCan,
   bollard, crate, pallet, dumpster, recyclingBins, acUnit, meterBox, electricCabinet, bikeRack, planterBox, cone, drum, tireStack,
   lampPost, lanternPost, drainGrate, stain, addSolid, solidRect,
 } from './env-kit.js';
@@ -32,7 +32,7 @@ function makeKeep() {
 }
 function baseKeep() {
   const k = makeKeep();
-  for (const s of RESCUE.spots) k.car(s.x, s.z, s.yaw);
+  for (const s of RESCUE.spots) { const q = rescueKeepRect(s); k.rect(q.minX, q.maxX, q.minZ, q.maxZ); }   // car + triangle + truck
   for (const p of TOWN.parking) k.car(p.x, p.z, p.yaw);
   for (const w of TOWN.wrenches) k.box(w.x, w.z, 1.2, 1.2);
   for (const p of [...Object.values(PROPERTIES), ...Object.values(SERVICES)]) {
@@ -108,7 +108,7 @@ function streetFurniture(env, k) {
   // ---- Main Street: old-town lanterns on the north kerb, plain lamps on the south kerb, meters beside the kerb bays
   for (let x = -56.5; x < 58; x += 9.7) lantern(x, -24.12, 0);
   for (let x = -52.0; x < 58; x += 9.7) lamp(x, -19.88, 0);
-  for (const s of RESCUE.spots.filter((r) => r.id[0] === 'm')) for (const d of [-2.45, 2.45]) put(s.x + d, -24.15, 0.25, 0.25, () => parkingMeter(S, s.x + d, -24.15, 0));
+  // (no parking meters beside the kerb bays any more: the tow truck stops there on a rescue call)
   for (const x of [-41.5, 21.2]) put(x, -24.15, 0.25, 0.25, () => hydrant(S, x, -24.15));
   for (const x of [-19.0, 12.5, 42.0, -48.0 + 0]) put(x, -24.2, 0.3, 0.3, () => trashCan(S, x, -24.2));
   put(-6.5, -24.2, 0.3, 0.3, () => mailbox(S, -6.5, -24.2, 0));
@@ -239,8 +239,10 @@ function alleys(env) {
   const wa = (A.west.minX + A.west.maxX) / 2;
   put(A.west.minX + 0.62, -5.9, 0.6, 0.95, () => dumpster(S, A.west.minX + 0.62, -5.9, PI / 2));
   put(A.west.maxX - 0.4, -10.2, 0.5, 0.75, () => crateStack(S, A.west.maxX - 0.4, -10.3, PI / 2, rnd));
-  put(A.west.minX + 0.45, -2.0, 0.45, 0.95, () => recyclingBins(S, A.west.minX + 0.4, -2.0, PI / 2));
-  put(A.west.maxX - 0.6, 1.8, 0.6, 0.65, () => palletStack(S, A.west.maxX - 0.6, 1.8, PI / 2, 2, rnd));
+  // (the tow truck's home parking bay is beside the shed at z -3..0.6 and the truck turns out of it onto the apron:
+  // the recycling bins and the pallet stack moved north / west, out of its way)
+  put(A.west.minX + 0.45, -8.4, 0.45, 0.95, () => recyclingBins(S, A.west.minX + 0.4, -8.4, PI / 2));
+  put(A.west.minX + 0.6, 6.7, 0.6, 0.65, () => palletStack(S, A.west.minX + 0.6, 6.7, PI / 2, 2, rnd));
   put(A.west.minX + 0.5, 5.0, 0.5, 0.5, () => drums(S, A.west.minX + 0.5, 5.0, rnd, 2));
   put(A.west.minX + 0.5, -12.0, 0.4, 0.4, () => { electricCabinet(S, A.west.minX + 0.4, -12.0, PI / 2); });
   // ---- east alley (x 24.2..27.2): dumpster and crates around w05

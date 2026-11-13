@@ -4,3 +4,5 @@ import './facilitytest.js';
 import './wash.js';
 import './lounge.js';
 import './paint.js';
+import './rescue.js';
+import './dispatcher.js';
