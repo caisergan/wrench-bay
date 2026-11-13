@@ -11,7 +11,7 @@
 // (events: 'stopped', 'enter', 'exit', 'parked', 'arrived'), driveTo(path, opts), setPointer(bool), canLeave hook.
 import * as THREE from 'three';
 import * as M from '../models/index.js';
-import { TOWN, RESCUE, PLAYER } from '../config.js';
+import { TOWN, RESCUE, PLAYER, PROPERTIES } from '../config.js';
 import { state, save, propLevel, proValue, districtOpen } from '../core/state.js';
 import { ui } from '../ui/index.js';
 import { registerPropertySystem } from './registry.js';
@@ -19,6 +19,7 @@ import { joystickDrive } from './player.js';
 import { resolveCircle, circleHitsBoxes } from './collision.js';
 import { tween, ease } from './tween.js';
 import { damp, lerpAngle, angleDiff, clamp, detach } from './util.js';
+import { manoeuvre, trackStep } from './roads.js';
 
 const PARK_HOLD = 0.6;          // seconds stopped inside a bay before the player gets out
 const PARK_ALONG = 1.25, PARK_LAT = 0.75, PARK_ANGLE = 0.6;   // how well you must be inside a bay (m, m, rad)
@@ -200,7 +201,7 @@ export class PlayerVehicle {
         ui.hint?.(null);
         this.ctx.player.exitVehicle(this.doorSpot(new THREE.Vector3()));
         this.emit('exit', { bay: b.id });
-        if (homeBay) this.backIntoShed(flip);
+        if (homeBay) this.backIntoShed();
         else { this.mode = 'parked'; this.saveSpot(); this.emit('parked', { bay: b.id }); }
       },
     });
@@ -228,20 +229,30 @@ export class PlayerVehicle {
     this.script = [{ kind: 'path', path: path.map((p) => ({ x: p.x, z: p.z })), reverse, speed, restYaw, onArrive }];
   }
 
-  /** At home: turn round with a three-point turn if the nose points in, line up, reverse into the shed. */
-  backIntoShed(noseIn) {
-    const h = this.home, b = TOWN.parking.find((p) => p.id === h.bay);
+  /**
+   * Back into the shed by itself, with car-like moves only (forward / reverse arcs and straights, played back
+   * exactly: no turning on the spot, no sliding sideways). From the home bay in the alley heading south: forward
+   * out of the bay, left arc onto the apron heading east, on to the turn point; heading north: reverse down the
+   * alley, forward right arc onto the apron heading east. Then (also straight from the tow drop pose, heading east)
+   * a reverse arc swings the tail north-west into line with the shed and it reverses straight in. Waits for anyone
+   * standing in the way. The vehicle's pose decides the moves (shedManoeuvre).
+   */
+  backIntoShed() {
+    const legs = shedManoeuvre(this.pos.x, this.pos.z, this.yaw);
+    const done = () => { this.bay = 'shed'; this.mode = 'parked'; this.saveSpot(); this.emit('parked', { bay: 'shed' }); };
+    const blocked = (x, z) => {
+      const pl = this.ctx.player;
+      if (pl.onFoot && Math.hypot(pl.pos.x - x, pl.pos.z - z) < 1.0) return true;
+      for (const c of this.ctx.allCars) if (c.mode !== 'gone' && Math.hypot(c.pos.x - x, c.pos.z - z) < 1.7) return true;
+      return false;
+    };
     const steps = [];
-    if (noseIn) {
-      // three-point turn on the apron: back out on full lock, forward on the opposite lock, back again (3 x 60 deg);
-      // the nose never goes further into the shed than where it stopped
-      steps.push({ kind: 'arc', dir: -1, dist: 1.3, dyaw: Math.PI / 3, t: 0 }, { kind: 'arc', dir: 1, dist: 1.3, dyaw: Math.PI / 3, t: 0 }, { kind: 'arc', dir: -1, dist: 1.3, dyaw: Math.PI / 3, t: 0 });
-    }
-    steps.push({ kind: 'align', x: b.x, z: b.z, yaw: h.yaw, t: 0 });
-    steps.push({ kind: 'path', path: [{ x: h.x, z: h.z }], reverse: true, speed: 2.2, restYaw: h.yaw, onArrive: () => {
-      this.bay = 'shed'; this.mode = 'parked'; this.saveSpot(); this.emit('parked', { bay: 'shed' });
-    } });
+    legs.forEach((L, i) => {
+      if (i) { let w = 0; steps.push({ kind: 'fn', fn: (dt) => (w += dt) > 0.35 }); }   // a beat to change gear
+      steps.push(trackStep(L.path, { dir: L.dir, axle: SHED_AXLE, vmax: L.dir > 0 ? 2.4 : 1.7, blocked, onDone: i === legs.length - 1 ? done : null }));
+    });
     this.mode = 'auto';
+    this.speed = 0; this.vx = this.vz = 0;
     this.script = steps;
   }
 
@@ -266,6 +277,10 @@ export class PlayerVehicle {
       this.yaw = lerpAngle(this.yaw, s.yaw, k);
       this.wheelSpeed = 0.8;
       if (s.t >= 1) { this.pos.x = s.x; this.pos.z = s.z; this.yaw = s.yaw; done = true; }
+    } else if (s.kind === 'fn') {
+      // custom movement (rescue hook-up / drop, AI drivers): fn(dt, vehicle) moves pos / yaw / speed / wheelSpeed
+      // itself and returns true when done (the step is then dropped like any other)
+      done = !!s.fn(dt, this);
     } else if (s.kind === 'path') {
       const wp = s.path[0];
       if (!wp) done = true;
@@ -338,6 +353,78 @@ export class PlayerVehicle {
   }
 }
 
+// ------------------------------------------------------------------ backing into the tow shed (dispatcher agent)
+// Paths are for the rear axle (the point that moves along the heading); the vehicle centre is SHED_AXLE ahead of it.
+const SHED_AXLE = 0.92;
+// reverse arc into line with the shed, from the apron line z = RESCUE.drop.pose.z (5.3: the nose at the turn point
+// passes south of the cars reversing off the garage's west lift); its turn centre clears the hall corner and it ends
+// before the tail reaches the shed front. A truck past the turn point reverses straight back to it first, one a
+// little short of it takes a tighter arc (after the drop), one well short pulls forward.
+const SHED_R_REV = 2.3;
+const SHED_R_REV_MIN = 2.1;
+const SHED_R_FWD = 3.8;      // forward left arc out of the bay (heading south) onto the apron (nose clear of the barrels)
+const SHED_R_FWD_N = 2.8;    // forward right arc (heading north, after reversing down the alley) onto the apron
+const SHED_EDGE = 0.08;      // rad: tail edging east while reversing down the alley (heading north in the bay)
+const ZE_N = 5.6;            // apron line (rear axle z, heading east) after that arc: its turn centre below the pallets
+/**
+ * Legs [{ path, dir }] from a vehicle centre pose to the shed (RESCUE.truck.home, tail first). Known starts: the home
+ * bay heading south or north, the apron / tow drop zone heading east; anything else lines up straight (fallback).
+ */
+export function shedManoeuvre(x, z, yaw) {
+  const H = RESCUE.truck.home, ZE = RESCUE.drop.pose?.z ?? 4.0;
+  const ref = { x: x - Math.sin(yaw) * SHED_AXLE, z: z - Math.cos(yaw) * SHED_AXLE, h: yaw };
+  const ax = H.x + SHED_R_REV;                         // where the reverse arc starts (rear axle, heading east)
+  const hz = H.z - SHED_AXLE;                          // rear axle in the shed
+  const legs = [];
+  let p = ref;
+  const fwd = (steps) => { const m = manoeuvre(p, steps); legs.push({ path: m, dir: 1 }); p = m.end; };
+  const east = Math.abs(angleDiff(yaw, Math.PI / 2)) < 0.6, south = Math.abs(angleDiff(yaw, 0)) < 0.6;
+  const north = Math.abs(angleDiff(yaw, Math.PI)) < 0.6;
+  if (south && x < H.x - 1.5) {
+    // in the alley bay nose out (south): forward out of the bay, left arc onto the apron heading east, on to the
+    // turn point (one forward leg)
+    const steps = [['line', Math.max(0, ZE - SHED_R_FWD - ref.z)], ['arc', SHED_R_FWD, angleDiff(yaw, Math.PI / 2)]];
+    const m = manoeuvre(p, steps);
+    if (ax - m.end.x > 0.05) steps.push(['line', ax - m.end.x]);
+    fwd(steps);
+  } else if (north && x < H.x - 1.5) {
+    // nose in (north): reverse down the alley with the tail edging east (the nose swings away from the shed's
+    // posts, the tail clears the barrels and pallets on the alley's west side), straighten once the nose is past the
+    // shed front, on down to below the pallets, then a forward right arc onto the apron heading east
+    const th = SHED_EDGE, rr = 8, a1 = rr * Math.sin(th);
+    const zFront = PROPERTIES.tow.plot.maxZ + 0.2 + 2.72;          // rear axle z once the nose is past the shed front
+    const L = Math.max(0, (zFront - ref.z - a1) / Math.cos(th));
+    const z2 = ZE_N + SHED_R_FWD_N;
+    let m = manoeuvre(p, [['arc', rr, th], ['line', L], ['arc', rr, -th]], { back: true });
+    m = manoeuvre(p, [['arc', rr, th], ['line', L], ['arc', rr, -th], ['line', Math.max(0, z2 - m.end.z)]], { back: true });
+    legs.push({ path: m, dir: -1 }); p = m.end;
+    const steps = [['arc', SHED_R_FWD_N, angleDiff(p.h, Math.PI / 2)]];
+    const f = manoeuvre(p, steps);
+    if (ax - f.end.x > 0.05) steps.push(['line', ax - f.end.x]);
+    fwd(steps);
+  } else if (east) {
+    // on the apron / in the tow drop zone heading east: pull forward to the turn point if well short of it
+    if (H.x + SHED_R_REV_MIN - p.x > 0.05) fwd([['line', ax - p.x]]);
+  }
+  if (Math.abs(angleDiff(p.h, Math.PI / 2)) < 0.6) {
+    // reverse: (back to the turn point,) arc with the tail swinging north-west into line, straight into the shed;
+    // a truck stopped a little short of the turn point takes a slightly tighter arc instead of creeping forward
+    const steps = [];
+    const r = Math.max(SHED_R_REV_MIN, Math.min(SHED_R_REV, p.x - H.x));
+    if (p.x - (H.x + r) > 0.05) steps.push(['line', p.x - (H.x + r)]);
+    steps.push(['arc', r, angleDiff(p.h, 0)]);
+    let m = manoeuvre(p, steps, { back: true });
+    const lat = H.x - m.end.x;                       // left of heading south = +x: any sideways error left over
+    if (Math.abs(lat) > 0.02) steps.push(['s', lat, 4.5]), m = manoeuvre(p, steps, { back: true });
+    steps.push(['line', Math.max(0, m.end.z - hz)]);
+    legs.push({ path: manoeuvre(p, steps, { back: true }), dir: -1 });
+  } else {
+    // fallback (an unusual pose): reverse straight towards the shed line, then in
+    legs.push({ path: manoeuvre(p, [['line', Math.max(0.1, Math.hypot(p.x - H.x, p.z - hz))]], { back: true }), dir: -1 });
+  }
+  return legs;
+}
+
 export function createVehicles(ctx) {
   const list = [];
   let parkPtr = null, ptrT = 0;
@@ -371,7 +458,7 @@ export function createVehicles(ctx) {
       if (ptrT <= 0) {
         ptrT = 0.3;
         const v = ctx.player.vehicle;
-        const b = v && ctx.player.mode === 'vehicle' ? sys.nearestBay(v.pos) : null;
+        const b = v && ctx.player.mode === 'vehicle' && v.canLeave() ? sys.nearestBay(v.pos) : null;   // towing: no P pointer
         if (b) {
           parkPtr ||= ctx.pointers?.add({ kind: 'goal', icon: 'mapPin', text: 'P', worldPos: _w.set(b.x, 0, b.z) });
           parkPtr?.setPos(_w.set(b.x, 0, b.z)).setVisible(true);

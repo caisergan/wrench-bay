@@ -72,7 +72,7 @@ Fame levels (section 4.2) and cash gate things together. Prices are base prices 
 | $6K, fame 2 | Harbor Lounge | Customers sit indoors, wait longer, tip. A reason to walk through it. |
 | garage unlocks 8-13 run in parallel ($1.2K .. $5.5K) | | "Garage complete" is now a celebration, not a reset. |
 | $12K, fame 3 | Spray Bay paint shop | Second customer stream, colour matching, 11-step unlock chain ($1.5K .. $65K). |
-| $20K, fame 5 | Main Street gate | Ring traffic, depot (Pro Gear), academy (managers), diner, salvage yard. |
+| (with the town) | Main Street | Opens together with Harbor St since 2026-11-13 (no gate): ring traffic, depot (Pro Gear), academy (managers), diner, salvage yard plots, Main Street rescue spots. |
 | $18K, fame 6 | Salvage yard | Project cars: buy a wreck, restore it across your facilities, sell it. |
 | $25K, fame 7 | Grand Lounge | Espresso bar, aquarium, bigger tips. |
 | $30K, fame 7 | The Greasy Spoon | First side business; lunch run for a crew buff. |
@@ -103,7 +103,8 @@ See the ASCII map at the top of `src/config.town.js`. Facts every area must resp
 ## 4. Systems
 
 ### 4.1 Opening the town, camera, boundaries
-- `harbor` opens when `valet` and `mechanic0` are unlocked (checked on unlock and on load). One-time moment:
+- `harbor` opens when `valet` and `mechanic0` are unlocked (checked on unlock and on load), and with it every
+  `withTown` district (Main Street): the whole map is open from that moment. One-time moment:
   chain barriers at the lot edges drop, `gate` sfx, toast "The town is open!", fame badge + map button appear,
   the guide arrow points to the tow shed pad.
 - Until then nothing changes: legacy bounds, legacy camera clamp, legacy spawn points.
@@ -149,24 +150,112 @@ arrival is one) and open for-sale plots. Fame counts from the first repair of a 
 - While driving the HUD shows a hint pill ("Park in a P bay to get out") and a pointer to the nearest bay when
   none is on screen. A vehicle left in town stays there; a pointer leads back to it when it is needed.
 
-### 4.5 Tow truck and rescue calls
-1. Calls: with the truck owned, a stranded car appears at a free `RESCUE.spots` entry of an open district every
-   `interval` s after the last one was delivered (first call: spot `h3`, `firstDelay` s after buying). Hazard
-   lights blink, hood up with smoke, owner beside it waving. HUD: radio chirp, a "Rescue call" chip with a
-   countdown bar (`callTime`), an edge pointer to the car. One call at a time (storm event: up to 3).
-2. Drive there. Stop (speed < `hookMaxSpeed`) with the truck within `hookRadius` of the car's nose: the boom
-   lowers, winch sfx, the car's front lifts onto the hook, the owner hops into the cab. Hooked inside `callTime`:
-   "Fast rescue!" (tip + gem at payout).
-3. Tow it home. The car follows on its rear wheels with trailer kinematics (it swings behind the truck in turns,
-   never jack-knifes through it). A lane slot of the garage is reserved from the moment of the hook.
-4. Stop in the drop ring (`RESCUE.drop`, the garage's entry driveway): the boom lowers the car, it rolls to its
-   lane slot like any arriving car, its owner hops out of the cab and walks to the lounge. From here it is a
-   normal garage job with `jobs` problems, full patience, and its payout x `payMult` (label "Rescue x2.5" in the
-   float text). Fame on delivery.
-5. Park the truck (4.4). Nothing fails: an unanswered call just waits (and loses its fast bonus).
-- Level 2: faster truck, shorter interval, better pay. Level 3 (dispatcher): when you are not in the truck, a
-  hired driver takes it out on calls along the road network and brings the car in; you can still take the truck
-  yourself when it is parked.
+### 4.5 Tow truck and rescue calls (detailed design 2026-11-13; supersedes the first sketch)
+The first thing a player does in the open town, and the reason to leave the lot. The loop: a call comes in, you
+drive out, you back the truck up to a broken-down car, it gets hooked, you tow it home through town, you drop it
+at the garage, it becomes a well-paid job. Owner: `rescue` (`src/game/rescue.js`), level 3 dispatcher: `dispatcher`
+(`src/game/roads.js`, `src/game/dispatcher.js`). Numbers: `RESCUE` in `src/config.town.js`.
+
+**1. The call.** With the truck owned and the game started, one call at a time (`RESCUE.maxCalls`; a storm event
+may raise it later). First call: spot `h3`, `firstDelay` s after the truck is built (also on a save that owns the
+truck but never had a call). After that: `interval` s (x `intervalMultLv2` from level 2) after the previous car was
+delivered. A free spot of an open district (no vehicle, customer car or the player within 5 m of the car or its hook
+pose), preferring spots off screen and not the last one used.
+- The scene: a customer car (a type the garage serves, `rollLook` of the garage), `jobs` problems drawn from the
+  garage's unlocked part types, at least one of them a visible breakdown (engine: smoke under the hood; battery:
+  hood up; tire: flat). Hazard lights blink. A red warning triangle stands on the road side ~3 m behind it. The
+  owner stands on the kerb side by the driver's door, looks at a phone, and waves at the truck when it is within
+  ~18 m. The car is solid (a capsule; the player and customer cars collide with it).
+- Never pops in on screen: if the spot is on screen, the car rolls in along the kerb lane from ~14 m back, coasting
+  to a stop on the kerb, then hazards on, hood up, the owner gets out. Off screen it is just there.
+- HUD: `radio` sfx, a `rescue` chip "Rescue call" with a countdown (`callTime`), a `rescue` edge pointer to the car,
+  a `call` label above the car (fill bar = fast-bonus time left), `rescue:call { spot, until }` (the map shows it),
+  first-time hint toast. While the truck is parked and the player is on foot: a `vehicle` pointer "Truck" too.
+- Nothing fails: after `callTime` the call just waits (chip without timer, label "Rescue call"), only the fast bonus
+  is gone.
+
+**2. Hook-up.** A hook ring (zone ring) on the ground where the truck's tail must be: in front of the car's nose,
+in line with it. Stop the truck (speed < `hookMaxSpeed`) with its hitch within `hookRadius` of the ring centre and
+heading within ~70 deg of the car's heading (nose away from the car): the hook-up plays, the player cannot steer
+(truck `mode = 'auto'`): the truck reverses the last bit straight onto the exact hook pose (ease, ~0.6 s),
+beacon on; the wheel-lift lowers to the ground (`setBoom` 0 -> 1, winch sfx); then raises to `TOW_BOOM` while the
+car's front comes up (`setTowed` 0 -> 1) (~1 s); meanwhile the owner walks to the truck's passenger door and hops in
+(hidden; they ride along). Facing the car head-on inside the ring: info label "Turn round: back up to its nose".
+Then: `rescue:hooked { spot, fast }`, "Fast rescue!" float + `perfect`-style sfx when inside `callTime`, chip ->
+"Tow it to the garage" (tow icon, no timer), pointer + guide -> the drop zone, `truck.canLeave = () => false` (the
+hint pill says "Drop the car at the garage first" when the player tries to park). A lane slot of the garage is
+reserved now (`garage.cars.reserveSlot()`); if the lane is full it retries every second.
+
+**3. Towing (the hard part).** The car's front axle hangs on the truck's `hitch`; its rear wheels roll on the road.
+Trailer kinematics every frame, whoever drives (player or dispatcher): `F` = hitch (world, xz). Rear axle `R` is
+pulled along: `R = F - unit(F - R_prev) * Lh` (`Lh` = horizontal axle distance of the car at `setTowed(1)`). Clamp
+the articulation (car heading vs truck heading) to `maxArticulation` so it never folds into the truck, also when
+reversing or pivoting on the spot. Push the rear axle's circle out of static obstacles and the bounds
+(`resolveCircle` with `ctx.obstacles`, `ctx.bounds`) and re-derive the heading, so scraping a wall drags the car
+along it instead of through it. Car group: yaw = heading, position = `F - forward * dims.ax` (TOW_LIFT pose from
+`setTowed(1)`). No jitter at rest (no change when F did not move). Rear wheels spin with the car's own travel,
+front wheels hang still (model). The towed car: a capsule in `ctx.capsules` (owner = the truck, so the truck ignores
+it), a mover in `ctx.movers` (AI cars brake for it). Hazards stay on while towed (as in real life).
+
+**4. Drop.** (moved by the user 2026-11-13: a drop ZONE in front of the tow shed, no longer a ring in the driveway)
+The drop zone (`RESCUE.drop`: a rectangle on the paved patch between the shed / garage west end and the drop-off
+lane, painted on the ground as a tow zone, highlighted while towing). Drive up the driveway from Harbor St and turn
+right into it, and stop with the truck's centre inside the rectangle heading east (or north, within `dropAngle`):
+the wheel-lift lowers in place (`TOW_BOOM` -> 1, `setTowed` 1 -> 0), then stows (-> 0), beacon off.
+The stand-in car becomes a garage car in the same frame (`garage.cars.spawn({ look, problems, payMult, bonusText,
+at, path, reserved: true })`, same look = no visible swap; `car.rescue = { fast, spot }`) and drives to its lane slot
+behind the truck (never across it). The owner hops out of the truck's passenger door and walks into the garage flow
+(lounge) as that car's owner (no second owner pops out of the car).
+Then: `stats.rescues + 1`, fame `FAME.xp.rescue`, `rescue:delivered { spot, fast }`, `done` sfx, the chip goes,
+the guide moves on, the next call is scheduled. Stopped in the zone facing the wrong way: an info label. From here it is a normal garage job with full patience and payout x `payMult[level - 1]` (x (1 +
+`tipFast`) when fast), float label "Rescue x2.5" / "Fast rescue x3.75"; a fast rescue also gives `gemFast` gem(s)
+when the repair pays out. Then the player parks (4.4): the home bay is in the west alley beside the shed (moved there 2026-11-13); parked
+there, the truck drives round onto the apron and backs into its shed by itself (car-like arcs, no turning on the spot).
+
+**5. Saving.** `state.town.rescue = { next, call }`: seconds to the next call, and the open call
+(`{ spot, look, problems, fastLeft }`). A reload in the middle of a call brings the same car back to its spot; a
+reload while towing puts the car back at its spot as an open call (fast bonus kept only if time was left). The lane
+reservation is not saved (it is taken again at the next hook). Survives `shop:changed` (world rebuild) the same way.
+
+**6. Levels.** 2 (heavy wrecker): the red truck model (`createTowTruck(2)`), `speed[1]`, interval x
+`intervalMultLv2`, `payMult[1]`. 3 (dispatcher): a hired tow driver (`towDriverLook()`) who answers calls when the
+player is not using the truck, see 6.
+
+**7. Guidance.** Guide arrow: tow pad -> truck (until first driven) -> the first call's car -> the drop zone ->
+off (then only map targets). First-time hint toasts (`state.town.hints`): first call ("A car broke down! Take the
+tow truck"), first hook ("Tow it to the garage drop-off"), first delivery ("Rescued! It pays x2.5"). Daily mission
+`t-rescue` counts `stats.rescues`.
+
+**8. Dispatcher (level 3).** The tow driver stands by the tow shed (idle, clipboard / radio) while the truck is
+home. A call waiting, nobody claimed it, the truck parked in its shed and the player not in it: after
+`dispatcher.delay` s (so a player standing next to the truck can still take it) the driver walks to the cab and gets
+in, beacon on, and drives the call along the road network: out of the shed onto the apron, the west alley or the
+driveway, the one-way ring roads in their travel direction (Harbor St east, East Ave north, Main St west, West Ave
+south), two-way alleys. Corners are smooth arcs, it slows for them, brakes for anything ahead (player, player
+vehicle, customer cars, towed cars, pedestrians) and honks when held up; it never drives through anything. At the
+call it passes the car in the kerb lane and pulls onto the kerb into the hook pose, the same hook-up plays, it
+pulls back into the lane and goes round to Harbor St eastbound, turns north into the driveway and right into the drop zone, the same drop plays,
+then it backs into the shed straight from the drop pose, the driver gets out and walks back
+to his spot. The player can still drive the truck whenever it is parked; while the player has it, the dispatcher
+waits. If the truck is parked somewhere else, the dispatcher waits for it to come home (hint once: "Park the truck
+at the tow shed so your dispatcher can use it").
+
+**Contract between `rescue` and `dispatcher` (`ctx.rescue`, created by `registerSystem('rescue')`)**
+- `calls` (array of open calls) with `{ id, spot (RESCUE.spots entry), state ('arriving' | 'waiting' | 'hooking' |
+  'towing' | 'dropping'), carPos (V3), yaw, nose (V3), model (car model API), claimedBy (null | 'player' |
+  'dispatcher'), fast (bool, while time is left) }`.
+- `waitingCall()` -> the oldest unclaimed call in state 'waiting', or null. `claim(call, who)`, `unclaim(call)`.
+- `hookPose(call)` -> `{ x, z, yaw }` truck centre + heading for the hook; `hookRing(call)` -> `{ x, z, r }`.
+- `hook(truck, call, { onDone })`: plays the hook-up from wherever the truck stopped near the pose (the reverse
+  onto the exact pose included). The truck is in `mode 'auto'` during it; at the end `onDone(truck)` runs and the
+  caller decides the mode (player: `'driven'`, dispatcher: keeps it).
+- `towOf(truck)` -> the call being towed by that truck, or null. The trailer update runs inside rescue for every
+  attached tow, every frame, whoever drives.
+- `dropPose()` -> `{ x, z, yaw }` truck centre + heading for the drop (`RESCUE.drop.pose`, heading east; from there
+  the truck can back straight into its shed).
+- `drop(truck, { onDone })`: plays the drop (truck in `mode 'auto'`), hands the car + owner to the garage,
+  `onDone(truck)` when the boom is stowed. Returns false when the garage lane cannot take the car yet (try again).
+- The player path in rescue.js uses exactly these functions (stop-in-ring triggers -> `hook` / `drop`).
 
 ### 4.6 Car wash "Suds & Shine" (drive-through on the garden block)
 - Its own building on the north part of the garden block (`PROPERTIES.wash.plot`, x 15.0..23.6, z 1.8..5.6), east of
@@ -260,7 +349,7 @@ No fail: a slow or scratched job simply pays less.
   panels fall away one after another, booms lift, ring traffic starts.
 - **Salvage yard**: three stands, each with a wreck (`CLASSICS`, price tag, pay pad). Buying one makes it yours.
 - **Project car** (one at a time, no timers, saved in the state):
-  0. Wreck at the yard. Hook it with the tow truck, tow it home, drop it in the drop ring: instead of joining
+  0. Wreck at the yard. Hook it with the tow truck, tow it home, drop it in the drop zone: instead of joining
      the customer lane it takes the first free garage lift (or waits on the apron for one).
   1. Mechanical: `PROJECT.mechJobs` on a garage lift, like a customer car but without patience. Mechanics help.
      Done: it runs. From now on it is a **player vehicle** (4.4).
@@ -305,7 +394,7 @@ walks aboard, the ferry sails, fade, `nextShop()`: new town name, everything x3,
   (red, "Garage!"), the current guide target. At most 3 at once, priority in that order.
 - **Town map** (HUD button): districts, roads, properties (owned / for sale with price / locked with fame),
   tills, the player, the truck, the active call. Tapping a place sets the guide target there.
-- **Guide arrow** after the town opens: tow shed -> truck -> first call -> drop ring -> "explore" (then only
+- **Guide arrow** after the town opens: tow shed -> truck -> first call -> drop zone -> "explore" (then only
   when the player sets a map target).
 - First-time hint toasts per system (saved in `state.town.hints`).
 - Daily missions get a town pool once the town is open (3 rescues, 5 resprays, 2 perfect VIPs, collect $X from
@@ -630,7 +719,7 @@ unlocks?: chain, stayText?, setup?(fac), teardown?(fac) }`.
 
 **`fac.cars`**: `spawn(opts, force)` with `opts = { vip, type, problems: [types], look, payMult, bonusText,
 at: { x, z, yaw }, path: [{x, z}], reserved }` (null = lane full). `at` + `path: []` starts a car anywhere and
-sends it straight to its lane slot (a towed car released at the drop ring). `reserveSlot()` / `releaseSlot()` hold a
+sends it straight to its lane slot (a towed car released in the drop zone). `reserveSlot()` / `releaseSlot()` hold a
 lane slot + waiting spot for a car that comes later (rescue: reserve at hook time, `spawn({ ..., reserved: true })`
 at the drop). `lane`, `list`, `isWaiting(car)`, `leaveLane(car)`, `remove(car)`, `paused` (stops the spawner).
 
@@ -669,7 +758,8 @@ on it, after a 0.2 s pause). Call `pad.update(dt)` each frame (returns true the 
 - `ctx.town.building(id)` (model API of a property or service building, or null), `prop(id)` (record, 6a.1),
   `plot(id)`, `padPos(id)`, `open`, `districtOpen(id)`, `setGuide(target | null)`, `guideTarget`, `buy(id)` (debug:
   next level without paying, same path as a purchase), `root`.
-- Main Street gate: hoarding panels, two boom gates, `noGo` obstacle, pay pad in the west alley (`tag` label + pay
+- Main Street gate (unused since 2026-11-13: `DISTRICTS.main.withTown` opens Main Street with the town, and old saves
+  get it on load; the code stays for districts without `withTown`): hoarding panels, two boom gates, `noGo` obstacle, pay pad in the west alley (`tag` label + pay
   dock, fame lock). Paid -> `openDistrict('main')` -> panels fall away one after another, booms lift, Main Street plots show
   their signs, depot + academy appear with their teal pads (`townpad:enter / exit { kind: 'pro' | 'academy' }`
   after a 0.4 s pause on them; the UI opens / closes the Pro Gear / Academy sheets on those).

@@ -68,6 +68,8 @@ export function load() {
         tills: { ...t.tills }, pro: { ...t.pro }, vehicles: { ...t.vehicles },
       };
       for (const k of ['districts', 'unlocked', 'wrenches', 'classics', 'managers']) if (!Array.isArray(state.town[k])) state.town[k] = [];
+      // the whole map opens with the town now: saves from before that get the districts that used to be gated
+      if (state.town.open) for (const id of withTownDistricts()) if (!state.town.districts.includes(id)) state.town.districts.push(id);
     }
   } catch { /* ignore corrupt save */ }
   computeOffline();
@@ -258,16 +260,22 @@ const T = () => state.town;
 
 // ---- town + districts ----
 export const townOpen = () => !!T().open;
-/** Opens the town (district 'harbor'). Returns false if it already was. Gameplay plays the moment on `town:opened`. */
+/**
+ * Opens the town: the whole map at once (every DISTRICTS entry with `withTown`, i.e. Harbor Street and Main Street).
+ * Returns false if it already was. Gameplay plays the moment on `town:opened`.
+ */
 export function openTown() {
   if (T().open) return false;
   T().open = true;
-  if (!T().districts.includes('harbor')) T().districts.push('harbor');
+  const ids = ['harbor', ...withTownDistricts().filter((id) => !T().districts.includes(id))];
+  for (const id of ids) if (!T().districts.includes(id)) T().districts.push(id);
   save();
   events.emit('town:opened');
-  events.emit('district:opened', { id: 'harbor' });
+  for (const id of ids) events.emit('district:opened', { id });
   return true;
 }
+/** Districts that open together with the town (no gate to buy). */
+function withTownDistricts() { return Object.keys(DISTRICTS).filter((id) => id !== 'harbor' && DISTRICTS[id].withTown); }
 /** 'lot' is always open, 'harbor' with the town, others once bought. */
 export function districtOpen(id) {
   if (id === 'lot') return true;
@@ -356,7 +364,7 @@ export function fameUnlocksAt(level) {
   for (const id in PROPERTIES) PROPERTIES[id].levels.forEach((L, i) => {
     if (L.fame === level) out.push({ kind: 'property', id, level: i + 1, label: PROPERTIES[id].name });
   });
-  for (const id in DISTRICTS) if (DISTRICTS[id].fame === level) out.push({ kind: 'district', id, label: DISTRICTS[id].label });
+  for (const id in DISTRICTS) if (DISTRICTS[id].fame === level && !DISTRICTS[id].withTown) out.push({ kind: 'district', id, label: DISTRICTS[id].label });
   return out;
 }
 /**

@@ -27,6 +27,9 @@ From now on, agents write their progress and reports here (`docs/town-agents/pro
 | bmain | Sonnet | buildings-main.js, preview-main.* | **Done.** All 8 Main Street and corner buildings, with levels. |
 | people | Sonnet | characters.js, fx.js, props.js, critters.js | **Done** (first run). |
 | ui | Sonnet | src/ui/* | **Done** (first run). |
+| rescue | Opus | `src/game/rescue.js`, `src/models/props-rescue.js` | **Done** (2026-11-13, branch `towing`). TOWN.md 4.5 points 1-7 + the `ctx.rescue` API. Briefs `common3.txt` + `rescue2.txt`. Progress `progress/rescue.md`, report `reports/rescue.md`. |
+| dispatcher | Opus | `src/game/roads.js`, `src/game/dispatcher.js` | **Done** (2026-11-13; the agent hit the usage limit mid-soak, the lead finished the soak and the deadlock fix). Road graph + level 3 tow driver (TOWN.md 4.5 point 8). Briefs `common3.txt` + `dispatcher.txt`. Progress `progress/dispatcher.md`, report `reports/dispatcher.md`. |
+| (lead) map | the lead, directly | `state.js` openTown + load, `config.town.js` | **Done** (2026-11-13). Main Street opens with the town (`DISTRICTS.main.withTown`), old saves get it on load; rescue spots h4 and m3 moved. |
 | polish | Opus (high), then the lead | surfaces, vacant plots, car wash move (`briefs/polish.txt`) | **Done.** Wash moved off the garage exit into its own drive-through (`wash.js`), real-scale ground textures without tiling, worn streets and edges, vacant-lot dressing for 12 plots (`env-plots.js`, `setPlotCleared`). Report: `reports/polish.md`. |
 
 ## Next
