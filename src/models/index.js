@@ -19,7 +19,7 @@ export {
   createDropRing, createGoldenWrench, createTipTray, createCoinStack, createSafe, createCrewTable, createBusStop,
 } from './props-town.js';
 export {
-  createTowShed, createWashArches, createWashKiosk, createLoungeAnnex, createPaintHall, createSprayBooth, createPaintTank,
+  createTowShed, createWashArches, createWashKiosk, createLoungeAnnex, createPaintHall, createSprayBooth, createPaintTank, createPaintFeed,
   createVipHall, createVipBar, createGoldLift, createPremiumCabinet, createTurntable, createRedCarpet, createPaparazziWall,
   createHostStand,
 } from './buildings-home.js';

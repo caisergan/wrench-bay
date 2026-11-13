@@ -4,16 +4,22 @@
 //     tile in that colour per canister (PAINT.cans by car type). Stripe jobs (after the stripe kit) add one canister
 //     of a second colour, sprayed after the body;
 //   - drive the car into a free booth through its south end; it is masked (paper over glass, lights, wheels);
-//   - fetch canisters of exactly that colour from the paint tanks, deliver them in the work zone in front of the
-//     nose (the booth's open north end). Wrong colours are useless: dump them in the waste drum (PAINT.scrapBin);
-//   - spray: from the first canister the clear curtain rolls down behind the car, the painter holds a spray gun,
+//   - fetch canisters of exactly that colour from the paint tanks and load them into the booth's paint feed rack,
+//     standing on its mat outside the booth's west glass wall (PAINT.feed / feedMat). Each canister stands in its
+//     cradle (cradle i = job i) and a feed head clamps onto it. Wrong colours are useless: dump them in the waste drum
+//     (PAINT.scrapBin);
+//   - go in: through the booth's open north end onto the work mat in front of the nose; standing still there the
+//     painter sprays the loaded canisters (the rack feeds the gun through the wall, the canister's lamp blinks; an
+//     empty canister is taken out). From the first canister the clear curtain rolls down behind the car, the painter
+//     holds a spray gun,
 //     a mist in that colour comes out of the gun and a light haze fills the booth, and the new colour sweeps over
 //     the body from nose to tail, one section per canister;
 //   - cure: every canister sprayed -> the booth bakes for PAINT.cure s (IR lamps: cureIR) with its timer ring
 //     counting. Nobody is needed for that: start the next car meanwhile;
 //   - done: curtain up, green beacon, masking off, a gloss, payout (resprayPayout) beside the booth, the car backs
 //     out, picks up its owner at PAINT.pickupStop and leaves in its new colour.
-// Staff: painters (mechanic logic, spray pose) and the prep tech (valet logic: drives waiting cars into booths).
+// Staff: painters (mechanic logic: load at the rack, then spray from inside) and the prep tech (valet logic: drives
+// waiting cars into booths).
 // Shared with the garage: the speedy streak, repair-speed / capacity / supply / price upgrades.
 // Debug: __game.spawnPaintCar({ color, stripe, type }), __game.paint.state().
 import * as THREE from 'three';
@@ -32,12 +38,13 @@ import { Car } from './cars.js';
 import { Bay } from './lifts.js';
 import { Station } from './stations.js';
 import { Mechanic } from './staff.js';
-import { tween } from './tween.js';
-import { Tag } from './util.js';
+import { tween, ease, popOut } from './tween.js';
+import { Tag, detach, onMat } from './util.js';
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
 const _q = new THREE.Quaternion();
+const R90 = Math.PI / 2;
 
 // ---------------------------------------------------------------- colours
 const hexOf = (key) => PAINT_COLORS[key]?.hex ?? 0xcccccc;
@@ -70,6 +77,32 @@ class PaintCar extends Car {
     for (const j of this.jobs) { if (j.state === 'done') continue; return j.state === 'ready' ? j : null; }
     return null;
   }
+  /** Every canister is in the booth's feed rack (or already sprayed): nothing left to bring. */
+  allLoaded() {
+    if (this.mode !== 'lift') return false;
+    for (const j of this.jobs) if (j.state === 'need' || j.incoming) return false;
+    return true;
+  }
+  /** Bubble: one canister tile per can while paint still has to be brought; once it is all in the feed rack, a single
+   *  spray-gun tile in the colour being sprayed ("paint me by hand") that fills over the whole respray. */
+  updateTag() {
+    if (!this.allLoaded()) {
+      if (this.handShown) { this.handShown = false; this.handKey = null; this.jobsDirty = true; }
+      super.updateTag();
+      return;
+    }
+    if (!this.tag.visible) return;
+    this.tag.place(this.pos.x, this.pos.y + 0.15, this.pos.z);
+    let done = 0, cur = null;
+    for (const j of this.jobs) { if (j.state === 'done') done++; else if (!cur) cur = j; }
+    const key = colorOf((cur || this.jobs[this.jobs.length - 1]).type);
+    const st = cur ? 'ready' : 'done', k = key + '|' + st;
+    if (!this.handShown || this.handKey !== k || this.jobsDirty) {
+      this.handShown = true; this.handKey = k; this.jobsDirty = false;
+      this.tag.setJobs([{ type: 'sprayGun', color: cssOf(hexOf(key)), state: st, gold: !!PAINT_COLORS[key]?.premium }]);
+    }
+    this.tag.setProgress(cur ? (done + cur.progress) / this.jobs.length : 0);
+  }
 }
 
 // ---------------------------------------------------------------- spray booth (bay)
@@ -88,6 +121,118 @@ class SprayBooth extends Bay {
     this.timer.setIcon('clock');
     this.timer.place(this.x, 0, this.z + 2.5);
     this.timer.setVisible(false);
+    // paint feed rack against the booth's west glass wall (part of the booth model group), its mat outside the booth
+    this.feed = M.createPaintFeed ? M.createPaintFeed() : null;
+    this.feedSolids = [];
+    if (this.feed) {
+      const fx = this.x + PAINT.feed.x, fz = this.z + PAINT.feed.z;
+      this.feed.group.position.set(PAINT.feed.x, 0, PAINT.feed.z);
+      this.model.group.add(this.feed.group);
+      for (const b of this.feed.group.userData.obstacles) this.feedSolids.push(this.ctx.solids.add({ minX: b.minX + fx, maxX: b.maxX + fx, minZ: b.minZ + fz, maxZ: b.maxZ + fz }));
+    }
+    this.feedPos = new THREE.Vector3(this.x + PAINT.feedMat.x, 0, this.z + PAINT.feedMat.z);
+    this.feedMat = null; this.feedTint = null;
+    this.makeFeedMat(null);
+    this.cans = [];                // canister standing in feed cradle i (= job i) or null
+    this.playerLoading = false;
+  }
+
+  /** The feed mat shows a spray can in the colour the car on the booth wants (rebuilt when that colour changes). */
+  makeFeedMat(tint) {
+    if (this.feedMat && this.feedTint === tint) return;
+    const vis = !!this.feedMat?.group.visible;
+    this.feedMat?.dispose();
+    this.feedTint = tint;
+    const fm = PAINT.feedMat;
+    this.feedMat = M.createFloorMat(fm.w, fm.d, { icon: 'spray', tint, kind: 'station' });
+    this.feedMat.group.position.copy(this.feedPos);
+    this.feedMat.group.visible = vis;
+    this.ctx.root.add(this.feedMat.group);
+  }
+
+  update(dt) {
+    this.playerLoading = false;
+    super.update(dt);
+    if (!this.feed) return;
+    if (this.ctx.near(this.feedPos, 3)) this.feed.update(dt); else this.feed.settle();
+  }
+
+  setWorkMat(on) {
+    super.setWorkMat(on);
+    if (this.feedMat) this.feedMat.group.visible = on;
+  }
+
+  /** Player on foot on the feed rack's mat? */
+  playerOnFeed() { const pl = this.ctx.player; return pl.onFoot && onMat(pl.pos, this.feedPos, PAINT.feedMat); }
+
+  /** Canisters go into the feed rack (cradle = the job's index), not into the car. They fly over, turning upright. */
+  deliverPart(part, job, from) {
+    const car = this.car, i = car.jobs.indexOf(job), anchor = this.feed?.slotAnchor(i);
+    if (!anchor || this.cans[i]) { super.deliverPart(part, job, from); return; }
+    job.incoming = true; job.claim = null;
+    this.cans[i] = part;
+    const start = (from || part.position).clone(), r0 = part.rotation.z, s0 = part.scale.x;
+    tween({
+      duration: 0.36, ease: ease.inOutQuad,
+      onUpdate: (e, k) => {
+        anchor.getWorldPosition(_v);
+        part.position.lerpVectors(start, _v, e);
+        part.position.y += 0.75 * 4 * k * (1 - k);
+        part.rotation.set(0, 0, r0 + (R90 - r0) * e);
+        part.scale.setScalar(s0 + (1 - s0) * e);
+      },
+      onComplete: () => {
+        job.incoming = false;
+        if (this.car !== car || this.cans[i] !== part) { detach(part); return; }
+        anchor.add(part);
+        part.position.set(0, 0, 0); part.rotation.set(0, 0, 0); part.scale.setScalar(1);
+        if (job.state === 'need') job.state = 'ready';
+        car.markJobsDirty();
+        this.feed.setSlot(i, 'loaded');
+        if (this.ctx.near(this.feedPos, 2)) ui.sfx('drop');
+      },
+    });
+  }
+
+  /** A sprayed canister is empty: the feed head lets go and it is lifted out of the rack. */
+  emptyCan(i) {
+    const part = this.cans[i];
+    this.cans[i] = null;
+    this.feed?.setSlot(i, 'empty');
+    if (!part) return;
+    part.getWorldPosition(_v);
+    this.ctx.root.add(part);
+    part.position.copy(_v); part.rotation.set(0, 0, R90);
+    const y0 = _v.y;
+    tween({ duration: 0.3, delay: 0.12, onUpdate: (e) => { part.position.y = y0 + 0.35 * e; } });
+    tween({ duration: 0.01, delay: 0.2, onComplete: () => popOut(part, 0.22, () => detach(part)) });
+  }
+
+  /** Feed rack lamps: green = loaded, blinking amber = feeding the gun right now. */
+  syncFeed(sprayIndex) {
+    if (!this.feed) return;
+    for (let i = 0; i < this.feed.slotCount; i++) this.feed.setSlot(i, !this.cans[i] ? 'empty' : i === sprayIndex ? 'feeding' : 'loaded');
+  }
+
+  clearFeed() {
+    for (let i = 0; i < this.cans.length; i++) { const p = this.cans[i]; if (p) detach(p); this.feed?.setSlot(i, 'empty'); }
+    this.cans.length = 0;
+  }
+
+  /** Mats: the feed mat is green while the player loads, yellow (pulsing) while they carry a canister this car still
+   *  needs; the work mat inside is green while they spray, yellow once a canister is loaded and nothing is left to load
+   *  from their hands. */
+  updateWorkMat() {
+    const pl = this.ctx.player, car = this.car;
+    let has = false;
+    if (car && pl.onFoot) for (const it of pl.stack.items) if (car.findNeed(it.userData.partType, null, true)) { has = true; break; }
+    const pulse = 0.1 + 0.1 * Math.sin(this.t * 6.5);
+    const load = has && !this.playerLoading;
+    this.feedMat.set(this.playerLoading ? 'on' : load ? 'want' : 'idle');
+    this.feedMat.glow(load ? pulse : 0);
+    const go = !!car && !!car.firstReady() && !has && !this.playerHere && pl.onFoot;
+    this.workMat.set(this.playerHere ? 'on' : go ? 'want' : 'idle');
+    this.workMat.glow(go ? pulse : 0);
   }
 
   setLamp(s) { if (s !== this.lamp) { this.lamp = s; this.model.setLamp?.(s); } }
@@ -102,6 +247,7 @@ class SprayBooth extends Bay {
   onSnapped(car) {
     this.phase = 'up';
     car.model.setMasked?.(true);
+    this.makeFeedMat(cssOf(hexOf(car.paint.body)));
     this.setWorkMat(true);
     this.setLamp('idle');
   }
@@ -109,8 +255,10 @@ class SprayBooth extends Bay {
   updateActive(dt) {
     const car = this.car, pl = this.ctx.player;
     if (this.phase === 'up') {
+      // load: canisters go into the feed rack from its mat outside the booth; spray: from the work mat inside
+      if (this.playerOnFeed()) { this.playerLoading = true; this.deliverFromPlayer(); }
       const inZone = this.playerInZone();
-      if (inZone) { this.playerHere = true; pl.workLift = this; this.deliverFromPlayer(); }
+      if (inZone) { this.playerHere = true; pl.workLift = this; }
       const job = car.firstReady();
       const works = !!job && this.playerCanWork(inZone);   // spraying only while standing still on the mat
       car.tag.setSolid(works);
@@ -124,6 +272,7 @@ class SprayBooth extends Bay {
           this.paintCar(car, job);
           if (job.progress >= 1) {
             const stripe = car.paint.stripe && job.type === can(car.paint.stripe);
+            this.emptyCan(car.jobs.indexOf(job));
             car.jobDone(job);
             if (stripe) car.model.setStripe?.(hexOf(car.paint.stripe));
             if (this.ctx.near(car.pos)) ui.sfx('fix');
@@ -131,6 +280,7 @@ class SprayBooth extends Bay {
         }
       }
       this.setSpraying(hex, dt);
+      this.syncFeed(hex != null && job && job.state !== 'done' ? car.jobs.indexOf(job) : -1);
       if (car.finished) this.startCure();
     } else if (this.phase === 'cure') {
       this.cureT += dt;
@@ -218,12 +368,20 @@ class SprayBooth extends Bay {
   release(car) {
     if (this.car !== car) return;
     super.release(car);
+    this.clearFeed();
     this.setSpraying(null, 0);
     this.setLamp('idle');
     this.timer.setVisible(false);
   }
 
-  dispose() { this.timer.remove(); }
+  dispose() {
+    super.dispose();
+    this.timer.remove();
+    this.clearFeed();
+    this.feedMat?.dispose();
+    for (const b of this.feedSolids) this.ctx.solids.remove(b);
+    this.feedSolids.length = 0;
+  }
 }
 
 // ---------------------------------------------------------------- paint tank (station)
@@ -239,6 +397,18 @@ class PaintTank extends Station {
 
 // ---------------------------------------------------------------- painter (mechanic logic, spray pose)
 class Painter extends Mechanic {
+  /** Canisters are loaded into the booth's feed rack: stand on its mat, facing the rack (a second painter beside). */
+  deliverSpot(lift) {
+    if (!lift.feedPos) return super.deliverSpot(lift);
+    let k = 0;
+    for (const m of this.fac.staff.mechanics) { if (m === this) break; if (m.lift === lift) k++; }
+    return { x: lift.feedPos.x - 0.1, z: lift.feedPos.z + (k % 2 ? 0.3 : -0.2), yaw: Math.PI / 2 };
+  }
+  /** Nothing in hand to load (the player filled the rack): go straight in to spray. */
+  goLift() {
+    if (this.stack.count === 0) { this.goWork(); return; }
+    super.goLift();
+  }
   /** The waste drum stands against the west wall: walk up to its east side and face it. */
   toScrap() {
     const b = this.fac.scrap;
@@ -408,7 +578,7 @@ function installDebug() {
       return {
         fac: f,
         state: () => ({
-          booths: f.bays.active.map((b) => ({ i: b.index, phase: b.phase, lamp: b.lamp, car: b.car?.id ?? null, jobs: b.car?.jobs.map((j) => `${colorOf(j.type)}:${j.state}`) })),
+          booths: f.bays.active.map((b) => ({ i: b.index, phase: b.phase, lamp: b.lamp, feed: b.cans.map((p) => (p ? colorOf(p.userData.partType) : null)), car: b.car?.id ?? null, jobs: b.car?.jobs.map((j) => `${colorOf(j.type)}:${j.state}`) })),
           lane: f.cars.lane.map((c) => ({ id: c.id, mode: c.mode, wants: c.paint, x: +c.pos.x.toFixed(1) })),
           cars: f.cars.list.map((c) => ({ id: c.id, mode: c.mode })),
           stock: f.stations.list.map((s) => `${s.key}:${s.stack.ready}`),

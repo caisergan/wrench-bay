@@ -204,7 +204,11 @@ function paintInterior() {
   PAINT.bays.forEach((b, i) => {
     if (lvl < 2 && i > 0) return;
     const bo = BH.createSprayBooth(i); add(bo, b.x, b.z);
+    const fd = BH.createPaintFeed(); fd.group.position.set(PAINT.feed.x, 0, PAINT.feed.z); bo.group.add(fd.group);
     if (lvl < 2) { bo.setLamp('idle'); return; }
+    // booth 1 sprays its 2nd of three teal canisters; booth 2 has sprayed them all (rack empty)
+    if (i === 0 && M.createPart) for (const k of [1, 2]) { fd.slotAnchor(k).add(M.createPart('spray:teal')); fd.setSlot(k, k === 1 ? 'feeding' : 'loaded'); }
+    fd.settle(); updaters.push((dt) => fd.update(dt));
     const st = ['spray', 'cure'][i]; bo.setLamp(st);
     if (i === 0) bo.setHaze?.(PAINT_COLORS.teal.hex); else bo.setIR?.(true);
     let k = 0; updaters.push((dt) => { k = (k + dt * 0.15) % 1; if (i) bo.setTimer(k); });

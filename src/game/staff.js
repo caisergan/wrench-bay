@@ -136,11 +136,24 @@ export class Mechanic extends Walker {
     } else this.goLift();
   }
 
+  /** Walk to where the parts are handed over (garage: the spot at the car's nose, where the work is done too). */
   goLift() {
-    const s = this.spotAt(this.lift);
+    const s = this.deliverSpot(this.lift);
     this.goTo(s.x, s.z);
-    this.idleYaw = 0;   // face +z, towards the car's nose
+    this.idleYaw = s.yaw ?? 0;   // default: face +z, towards the car's nose
     this.state = 'toLift';
+  }
+  /** Where parts are handed over at a bay ({ x, z, yaw? }); paint: the booth's feed rack. Default: the work spot. */
+  deliverSpot(lift) { return this.spotAt(lift); }
+  /** Where the work is done, facing the car's nose. */
+  workSpot(lift) { return this.spotAt(lift); }
+  /** Parts handed over: work right here, or walk to the work spot first. */
+  goWork() {
+    const s = this.workSpot(this.lift);
+    if (Math.hypot(this.pos.x - s.x, this.pos.z - s.z) < 0.3) { this.idleYaw = 0; this.state = 'work'; return; }
+    this.goTo(s.x, s.z);
+    this.idleYaw = 0;
+    this.state = 'toWork';
   }
 
   toScrap() {
@@ -210,9 +223,13 @@ export class Mechanic extends Walker {
           sent = true;
           break;
         }
-        if (!sent && this.stack.pending === 0) { this.state = 'work'; }
+        if (!sent && this.stack.pending === 0) this.goWork();
         break;
       }
+      case 'toWork':
+        if (!workable(this.lift)) { this.state = 'idle'; this.timer = 0; break; }
+        if (arrived) { this.state = 'work'; this.timer = 0; }
+        break;
       case 'work': {
         const lift = this.lift;
         if (!workable(lift)) { this.releaseClaims(); this.state = 'idle'; this.timer = 0.3; break; }

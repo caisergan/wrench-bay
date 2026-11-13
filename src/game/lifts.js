@@ -237,15 +237,18 @@ export class Bay {
       const s = 1 + 0.06 * Math.sin(this.t * 6);
       this.freeRing.scale.set(s, s, s);
     }
-    if (this.workMat.group.visible) {
-      // green while the player stands on it; yellow (pulsing) while they carry a part this car still needs
-      let has = false;
-      if (!this.playerHere && this.car && pl.onFoot) {
-        for (const it of pl.stack.items) if (this.car.findNeed(it.userData.partType, null, true)) { has = true; break; }
-      }
-      this.workMat.set(this.playerHere ? 'on' : has ? 'want' : 'idle');
-      this.workMat.glow(has ? 0.1 + 0.1 * Math.sin(this.t * 6.5) : 0);
+    if (this.workMat.group.visible) this.updateWorkMat();
+  }
+
+  /** Work mat look: green while the player stands on it; yellow (pulsing) while they carry a part this car needs. */
+  updateWorkMat() {
+    const pl = this.ctx.player;
+    let has = false;
+    if (!this.playerHere && this.car && pl.onFoot) {
+      for (const it of pl.stack.items) if (this.car.findNeed(it.userData.partType, null, true)) { has = true; break; }
     }
+    this.workMat.set(this.playerHere ? 'on' : has ? 'want' : 'idle');
+    this.workMat.glow(has ? 0.1 + 0.1 * Math.sin(this.t * 6.5) : 0);
   }
 
   finish() {
