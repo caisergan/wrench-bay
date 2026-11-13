@@ -2,4 +2,5 @@
 // Keep the order: a feature whose system must run after another's goes below it.
 import './facilitytest.js';
 import './wash.js';
+import './lounge.js';
 import './paint.js';

@@ -12,7 +12,7 @@
 //   ready      finished, waiting for its departure slot (exitGap)
 //   reversing  straight back from the bay to the exit lane
 //   toPickup   forward along the exit lane to pickupStop
-//   waitOwner  at pickupStop until the owner hops in (4 s max)
+//   waitOwner  at pickupStop until the owner hops in (4 s max; longer while a far owner walks over: owner.farWalk)
 //   exiting    carExit -> despawn
 //   (add-ons) fac.hooks.leave(fac, car) may take a leaving car instead of 'exiting' (wash.js: wash* modes);
 //             car.holding = true marks a car stopped on purpose (cars behind wait for it, they never ghost through)
@@ -29,6 +29,7 @@ const ACCEL = 6.5, BRAKE = 10;
 const HALF_SEG = (CAR.length - CAR.width) / 2;   // capsule half segment along the car
 const CAP_R = CAR.width / 2;
 const PICKUP_WAIT = 4;
+const FAR_PICKUP_WAIT = 30;   // owner.farWalk (walking over from the lounge annex): wait while they come
 let uid = 0;
 
 export class Car {
@@ -111,7 +112,7 @@ export class Car {
     this.blockT = 0;
   }
 
-  /** Who stands in my way along (ux, uz)? Returns the blocker (car, 'player') or null. */
+  /** Who stands in my way along (ux, uz)? Returns the blocker (car, 'player', 'ped') or null. */
   findBlocker(ux, uz) {
     if (this.ghostT > 0) return null;
     const px = this.pos.x, pz = this.pos.z;
@@ -132,7 +133,7 @@ export class Car {
       const along = dx * ux + dz * uz;
       if (along > 0.2 && along < 2.1 && Math.abs(dx * uz - dz * ux) < 1.05) return 'player';
     }
-    // other moving things (player vehicles, towed cars, traffic): { pos, radius } in ctx.movers
+    // other moving things (player vehicles, towed cars, traffic, people on a crossing): { pos, radius, ped? } in ctx.movers
     const mv = this.ctx.movers;
     for (let i = 0; i < mv.length; i++) {
       const o = mv[i];
@@ -140,7 +141,12 @@ export class Car {
       const dx = o.pos.x - px, dz = o.pos.z - pz;
       const along = dx * ux + dz * uz;
       const r = o.radius ?? 1;
-      if (along > 0.2 && along < look + r * 0.5 && Math.abs(dx * uz - dz * ux) < 0.85 + r) return 'player';
+      if (o.ped && this.path.length === 1) {
+        // a car pulling up short of the crossing (the pickup stop) needn't wait for the people on it
+        const w = this.path[0], rest = (w.x - px) * ux + (w.z - pz) * uz;
+        if (along > rest + CAR.length / 2 + r) continue;
+      }
+      if (along > 0.2 && along < look + r * 0.5 && Math.abs(dx * uz - dz * ux) < 0.85 + r) return o.ped ? 'ped' : 'player';
     }
     return null;
   }
@@ -184,10 +190,12 @@ export class Car {
       if (b === 'player') {
         if (!this.honked && this.blockT > 0.35) { this.honked = true; ui.sfx('honk'); }
         if (this.blockT > 1.2) this.ghostT = 1.0;
+      } else if (b === 'ped') {
+        // someone on a zebra crossing: wait, no honk, never ghost through (they keep walking, so no deadlock)
       } else if (mutual || (this.blockT > 6 && !b.holding)) this.ghostT = 1.6;   // never ghost through a car held on purpose (wash queue)
       if (this.ghostT <= 0) vt = 0;
     } else { this.blockT = 0; this.honked = false; }
-    this.blockedBy = b && b !== 'player' ? b : null;
+    this.blockedBy = b && b !== 'player' && b !== 'ped' ? b : null;
 
     const dv = vt - this.speed;
     this.speed += clamp(dv, -BRAKE * dt, ACCEL * dt);
@@ -261,8 +269,9 @@ export class Car {
         this.waitT += dt;
         const o = this.owner;
         const boarding = o && o.state === 'boarding';
-        const close = o && o.state === 'toCar' && Math.hypot(o.pos.x - this.pos.x, o.pos.z - this.pos.z) < 4;
-        if (this.ownerIn || !o || (!boarding && (this.waitT > PICKUP_WAIT && !(close && this.waitT < 9)))) {
+        const close = o && o.state === 'toCar' && (o.farWalk || Math.hypot(o.pos.x - this.pos.x, o.pos.z - this.pos.z) < 4);
+        const maxWait = o && o.farWalk ? FAR_PICKUP_WAIT : 9;
+        if (this.ownerIn || !o || (!boarding && (this.waitT > PICKUP_WAIT && !(close && this.waitT < maxWait)))) {
           if (o && !this.ownerIn) o.abandon();
           // an add-on may take the leaving car its own way (the car wash): it sets its own mode and drives it
           if (this.fac.hooks.leave && this.fac.h('leave', this)) break;
