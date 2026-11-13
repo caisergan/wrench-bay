@@ -1,7 +1,7 @@
 // UI entry: HUD, labels, panels, title screen, audio. See CONTRACTS.md "UI API".
 import { events } from '../core/events.js';
 import { state } from '../core/state.js';
-import { label, floatText } from './labels.js';
+import { label, floatText, seeThrough } from './labels.js';
 import { pointer, hint, banner, chip } from './guidance.js';
 import { toast } from './toast.js';
 import { payDock } from './paydock.js';
@@ -17,6 +17,8 @@ export const ui = {
   label,
   toast,
   floatText,
+  /** Bubbles over cars / stations fade while they cover this Object3D (the player's character); null = off. */
+  seeThrough,
   pointer,
   hint,
   banner,

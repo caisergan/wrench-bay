@@ -217,6 +217,10 @@ which carry `data-ui`). Exports `ui`:
   - `'max'`: "MAX" over the player when the carry stack is full.
   - `'info'`: small plain text ("No free lift!").
   - `'emote'`: little round bubble over a character; `text` is one of `'happy' | 'angry' | 'wait' | 'star'`.
+- `ui.seeThrough(object3d | null)`: the player's character (player.js sets it, clears it on dispose). While a
+  `job`, `stars`, `call`, `emote`, `station` or `timer` label covers that object's screen box it fades to see-through
+  (`.wl.see`), so a bubble never hides the player. Off while the object is hidden (driving). The player's own tags
+  (`max`, `info`) and the pad / till labels the player stands on never fade.
 - `ui.toast(text)`, `ui.floatText(worldPos, text, kind)` (`kind`: `'cash' | 'gem' | 'neg' | 'good'`; 'good' is for
   "Speedy!", "Fixed!"), `ui.fmt(n)` (950, 1.2K, 3.4M).
 - `ui.sfx(name)`: WebAudio-synthesised, no files, mute toggle respected: `pickup`, `drop`, `cash`, `coin`,
