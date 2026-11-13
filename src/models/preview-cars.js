@@ -1,9 +1,10 @@
-// Cars preview (cars agent only). Row views: ?focus=types|legacy|damage|states|color|restore|wash|towrun
+// Cars preview (cars agent only). Row views: ?focus=types|legacy|damage|states|color|restore|wash|towrun|tyres
 //   &set=all|legacy|town|vip|classic  which types   &types=a,b,c  explicit list   &cols=N  grid columns
 //   &yaw=0.6  car heading   &spin=1  turn slowly   &drive=1  cars shuttle: forward, stop, reverse, stop
 //   &p=tire+tire,oil,all  damage sets (focus=damage)   &st=dirt|foam|wet|mask|stripe|gloss|hazard|tow (focus=states)
 //   &cx &cz &h &d  manual camera   &nolabels
-// ?view=game&grid=lane|lift|mix|restore|states : the real portrait game camera (offset 0,29,17.3, fov 44) at real
+//   focus=tyres: per type healthy | flat | 2 flats | spare + flat | worn | 2 worn (&drive=1 rolls them)
+// ?view=game&grid=lane|lift|mix|restore|states|tyres : the real portrait game camera (offset 0,29,17.3, fov 44) at real
 //   size; &tx &tz move it. &env loads the environment agent's buildEnvironment (mix only; default: plain floor).
 import * as THREE from 'three';
 import { LAYOUT as L, CAR_TYPES, TOWN_CAR_TYPES, VIP_CAR_TYPES, CLASSICS, PAINT_COLORS } from '../config.js';
@@ -44,6 +45,8 @@ SETS.all = [...SETS.legacy, ...SETS.town, ...SETS.vip, ...SETS.classic];
 const SET = q.get('set') || 'all';
 const pickTypes = (def) => (q.get('types') ? q.get('types').split(',') : q.get('set') ? SETS[SET] : def);
 const ALL_PROBLEMS = ['tire', 'oil', 'battery', 'engine', 'paint'];
+const TYRE_STATES = [['ok', [], null], ['flat', ['tire'], 'flat'], ['2 flats', ['tire', 'tire'], 'flat'],
+  ['spare', ['tire', 'tire'], 'spare'], ['worn', ['tire'], 'worn'], ['2 worn', ['tire', 'tire'], 'worn']];
 /** Deterministic look per type: garage + town classes cycle the customer palette, club cars / classics their own. */
 function lookFor(type, i = 0) {
   if (SETS.legacy.includes(type) || SETS.town.includes(type)) return { type, color: C.CAR_COLORS[(i * 3 + type.length) % C.CAR_COLORS.length], vip: false };
@@ -189,6 +192,12 @@ if (view === 'row') {
     if (!q.get('types') && (SET === 'all' || SET === 'legacy')) items.splice(5, 0, { type: 'sports', look: C.randomCarLook({ vip: true }), label: 'gold VIP' });
     grid(items, { cols: defCols(items.length), yaw, drive, spin });
     info(`types (${SET}): ${items.length}`);
+  } else if (focus === 'tyres') {
+    const items = [];
+    pickTypes(['compact', 'sports', 'muscle', 'suv', 'classic', 'hotrod']).forEach((t, i) => TYRE_STATES.forEach(([n, ps, st]) =>
+      items.push({ type: t, look: lookFor(t, i), label: `${t} ${n}`, problems: ps, init: (c) => st && c.setTyreStory(st) })));
+    grid(items, { cols: TYRE_STATES.length, yaw: +(q.get('yaw') ?? Math.PI / 2 + 0.5), drive, spin });
+    info('tyres: healthy | flat | 2 flats | spare + flat | worn | 2 worn');
   } else if (focus === 'legacy') {
     const ps = parseSets(q.get('p') || 'none')[0];
     const looks = [...SETS.legacy.map((t, i) => ({ type: t, color: C.CAR_COLORS[i], vip: false })), { type: 'sports', color: 0xf0b429, vip: true }];
@@ -322,6 +331,13 @@ if (view === 'row') {
     if (!q.get('types') && SET === 'all') items.splice(5, 0, { type: 'sports', look: { type: 'sports', color: 0xf0b429, vip: true }, label: 'VIP', labelY: 1.7 });
     if (g === 'lane') place(items, 4, 3.9, 2.7, Math.PI / 2, tz - 10.5);
     else place(items, 6, 2.5, 3.9, Math.PI, tz - 11);
+  } else if (g === 'tyres') {
+    // the lane as the player sees it, every car with tyre jobs: flat, spare + flat, worn in turn
+    const items = pickTypes(SETS.all).map((t, i) => {
+      const [n, ps, st] = TYRE_STATES[1 + (i % 5)];
+      return { type: t, look: lookFor(t, i), label: `${t} ${n}`, labelY: 1.7, problems: ps, init: (c) => c.setTyreStory(st) };
+    });
+    place(items, 4, 3.9, 2.7, Math.PI / 2, tz - 10.5);
   } else if (g === 'restore') {
     const items = [];
     for (const t of pickTypes(SETS.classic)) for (const st of [0, 1, 2, 3]) items.push({ type: t, look: lookFor(t), label: `${t} ${st}`, labelY: 1.7, init: (c) => c.setRestore(st) });
