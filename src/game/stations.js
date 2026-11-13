@@ -70,7 +70,7 @@ export class Station {
     const n = this.stack.ready;
     if (n !== this.shown) {
       this.shown = n;
-      this.tag.setText(n >= max ? 'MAX' : String(n));
+      this.tag.setText(n >= max ? 'FULL' : String(n));   // not MAX: next to the unlock pads that read as "maxed out"
     }
   }
 

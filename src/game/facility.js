@@ -2,8 +2,10 @@
 // stations, owners on foot, staff, unlock chain, exit) driven by a layout + behaviour hooks. A facility is
 //   createFacility(ctx, def)    def = { id, layout, hooks?, classes?, unlocks?, ... }  (see TOWN.md section 6a)
 // Every hook has a default = the garage's behaviour, so the garage itself is `createFacility(ctx, GARAGE_DEF)`.
+import * as THREE from 'three';
 import {
-  createCar, randomCarLook, createLift, createPartStation, mechanicLook, valetLook,
+  createCar, randomCarLook, createLift, createPartStation, mechanicLook, valetLook, createCharacter, createCoffeeCart,
+  createBillboard, createValetStand,
 } from '../models/index.js';
 import {
   LAYOUT, ECONOMY, PROBLEMS, UNLOCKS, VISIBLE_PADS, TOWN, CAR_TYPES,
@@ -160,7 +162,38 @@ export const DEFAULT_HOOKS = {
       case 'valet': fac.staff.addValet(from); break;
     }
   },
+  /**
+   * A fresh model of what an unlock entry adds, standing where it will stand, for its pad's faded preview (pads.js):
+   * { obj: Object3D, x, z, yaw? }, or null for things with no single spot. Must not touch the facility's state.
+   */
+  previewModel(fac, u) {
+    const L = fac.L;
+    switch (u.type) {
+      case 'station': case 'tank': {
+        const s = L.stations[u.key];
+        return s ? { obj: previewObj(fac.h('stationModel', u.key)), x: s.x, z: s.z } : null;
+      }
+      case 'lift': case 'bay': {
+        const b = L.bays[u.index];
+        return b ? { obj: previewObj(fac.h('bayModel', u.index)), x: b.x, z: b.z } : null;
+      }
+      case 'mechanic': return staffPreview(fac, fac.h('mechanicLook', u.index), L.staffIdle[u.index % L.staffIdle.length]);
+      case 'valet': return L.valetStand ? staffPreview(fac, fac.h('valetLook'), { x: L.valetStand.x - 0.75, z: L.valetStand.z + 0.15 }) : null;
+    }
+    return null;
+  },
 };
+
+/** A model wrapper ({ group, setHeight, ... }) or Object3D in its resting look, as an Object3D. */
+export function previewObj(m) {
+  if (!m) return null;
+  m.setHeight?.(0); m.setLight?.('idle'); m.setDoors?.(false, false);
+  return m.group || m;
+}
+/** A staff member standing at their idle spot `at`, for a hire pad's preview. */
+export function staffPreview(fac, look, at) {
+  return at ? { obj: createCharacter(look).group, x: at.x, z: at.z } : null;
+}
 
 function pickWeighted(types) {
   let total = 0;
@@ -193,6 +226,23 @@ export const GARAGE_DEF = {
         case 'billboard': ex.addBillboard(!!from); break;
         default: DEFAULT_HOOKS.applyUnlock(fac, u, from);
       }
+    },
+    /** The extras stand where extras.js puts them; the valet comes with their key stand. */
+    previewModel(fac, u) {
+      const L = fac.L;
+      switch (u.type) {
+        case 'coffee': return { obj: createCoffeeCart(), x: L.coffeeCart.x, z: L.coffeeCart.z, yaw: -Math.PI / 2 };
+        case 'billboard': return { obj: createBillboard(), x: L.billboard.x, z: L.billboard.z };
+        case 'valet': {
+          const s = L.valetStand, g = new THREE.Group();
+          const stand = createValetStand();
+          const who = createCharacter(fac.h('valetLook')).group;
+          who.position.set(-0.75, 0, 0.15);
+          g.add(stand, who);
+          return { obj: g, x: s.x, z: s.z };
+        }
+      }
+      return DEFAULT_HOOKS.previewModel(fac, u);
     },
   },
 };

@@ -25,7 +25,7 @@ import {
 } from '../core/state.js';
 import { ui } from '../ui/index.js';
 import { tween, ease, popIn } from './tween.js';
-import { PayPad } from './pads.js';
+import { PayPad, groundTag as padTag } from './pads.js';   // padTag: the building pads' ground tag
 import { detach } from './util.js';
 import { propertySystems, facilityDefs } from './registry.js';
 
@@ -172,26 +172,6 @@ function signPos(id) {
   const p = PROPERTIES[id];
   if (id === 'tow') return { x: (p.plot.minX + p.plot.maxX) / 2, z: p.plot.maxZ - 0.9 };
   return { x: p.pad.x + 1.35, z: p.pad.z - 0.95 };
-}
-
-/**
- * Building pad tag: a 'tag' label lying on the pad itself (icon + price; close by also the name and the level). It is
- * never drawn above the pad: the camera looks down from the south, so "above the pad" on screen is the building.
- * Exposes the PayPad label interface (setRemaining, setProgress, setVisible, setNear, remove) plus setInfo(info).
- */
-function padTag(info, x, z) {
-  const L = ui.label({ text: '', kind: 'tag', worldPos: new THREE.Vector3(x, 0.02, z) });
-  let cur = { ...info };
-  const lab = {
-    setInfo(i) { cur = { ...cur, ...i }; L.setInfo(cur); return lab; },
-    setRemaining(rem) { return lab.setInfo({ price: rem }); },
-    setProgress(k) { L.setProgress?.(k); return lab; },
-    setVisible(v) { L.setVisible?.(v); return lab; },
-    setNear(b) { L.setNear?.(b); return lab; },
-    remove() { L.remove(); },
-  };
-  lab.setInfo(info);
-  return lab;
 }
 
 /** "Heavy wrecker! Faster, better paid rescues" -> { title: 'Heavy wrecker', what: 'faster, better paid rescues' }. */
