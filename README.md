@@ -10,7 +10,13 @@ npm run dev        # http://localhost:5190 (also on your LAN, so you can open it
 npm run build      # static build in dist/
 ```
 
-Controls: drag anywhere for the floating joystick (touch or mouse), or WASD / arrow keys. Stand in a ring to
+Mobile or Browser view: the title screen asks how to play (in a browser; the iOS app is always the phone view).
+**Mobile** is the portrait phone frame centred in the window. **Browser** fills the whole window with the same camera,
+so you see much more of the garage and the town to each side, and plays well with the keyboard. Pick with a click or
+the left / right keys, then PLAY (Enter); the choice is remembered, pre-selected next time, and can be switched any
+time in the pause menu (Esc). `?view=mobile` / `?view=browser` forces one and skips the question (`src/core/view.js`).
+
+Controls: drag anywhere for the floating joystick (touch or mouse), or WASD / arrow keys. Esc pauses (or closes the open panel). Stand in a ring to
 interact: next to a waiting car to hop in and drive it, in front of a station to grab parts, in front of a lifted
 car to deliver parts and repair, on a yellow pad to pay for an unlock, on the teal pad for upgrades.
 

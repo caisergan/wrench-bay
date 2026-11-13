@@ -11,6 +11,8 @@ import { toast } from './toast.js';
 import { flags, pauseGame, refreshInput } from './uistate.js';
 import { makeModal } from './modal.js';
 import { buildTownPanels } from './panels-town.js';
+import { buildViewPick } from './title.js';
+import { canChooseView } from '../core/view.js';
 import { T } from './townstate.js';
 
 export function buildPanels(root, hud) {
@@ -234,8 +236,10 @@ export function buildPanels(root, hud) {
   const pause = makeModal({ title: 'Paused', icon: ICON.pause, cls: 'pause' });
   pause.keep = true;
   let confirming = false;
+  let viewPick = null;
   function renderPause() {
     const frag = document.createDocumentFragment();
+    viewPick?.dispose(); viewPick = null;
     if (!confirming) {
       const resume = html(`<button class="btn big teal pressable" data-ui>${ICON.play}<span>Resume</span></button>`);
       resume.addEventListener('click', () => pause.close());
@@ -243,7 +247,10 @@ export function buildPanels(root, hud) {
       snd.addEventListener('click', () => { setMuted(!isMuted()); unlockAudio(); sfx('click'); renderPause(); });
       const reset = html(`<button class="btn big coral pressable" data-ui>${ICON.x}<span>Reset progress</span></button>`);
       reset.addEventListener('click', () => { confirming = true; renderPause(); });
-      frag.append(resume, snd, reset);
+      frag.append(resume, snd);
+      // Mobile / Browser view (browser only; the iOS app is always the phone view)
+      if (canChooseView) { viewPick = buildViewPick({ compact: true }); frag.append(viewPick.el); }
+      frag.append(reset);
     } else {
       const q = html('<p class="confirm-q">Erase all progress and start over?</p>');
       const yes = html('<button class="btn big coral pressable" data-ui><span>Yes, reset</span></button>');

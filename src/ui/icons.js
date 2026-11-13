@@ -7,6 +7,9 @@ export const ICON = {
   gem: S(`<path d="M6 3h12l4 6-10 12L2 9z" fill="#5fd6c6" stroke="${N}" stroke-width="1.8" stroke-linejoin="round"/><path d="M2 9h20M9 3l-2 6 5 12 5-12-2-6" fill="none" stroke="${N}" stroke-width="1.4" stroke-linejoin="round"/><path d="M7 9l2-6h6l2 6z" fill="#b9f5ec" opacity=".8"/>`),
   pause: S(`<rect x="5.5" y="4.5" width="4.6" height="15" rx="2" fill="${N}"/><rect x="13.9" y="4.5" width="4.6" height="15" rx="2" fill="${N}"/>`),
   play: S(`<path d="M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.8l-12-7.5A1 1 0 0 0 7 4.5z" fill="currentColor"/>`),
+  // view picker (title screen, pause menu): phone frame / full browser window
+  viewPhone: S(`<rect x="6.5" y="2.5" width="11" height="19" rx="2.6" fill="#fff6e6" stroke="${N}" stroke-width="1.8"/><rect x="8.5" y="5.3" width="7" height="11.6" rx="1" fill="#5fd6c6"/><path d="M10.6 19.2h2.8" stroke="${N}" stroke-width="1.6" stroke-linecap="round"/>`),
+  viewBrowser: S(`<rect x="2" y="3.5" width="20" height="13.5" rx="2.2" fill="#fff6e6" stroke="${N}" stroke-width="1.8"/><rect x="4.2" y="5.6" width="15.6" height="9.3" rx="1" fill="#5fd6c6"/><path d="M12 17v3.3M7.8 20.8h8.4" stroke="${N}" stroke-width="1.8" stroke-linecap="round"/>`),
   gear: S(`<circle cx="12" cy="12" r="7.4" fill="none" stroke="${N}" stroke-width="3.6" stroke-dasharray="3.4 2.9"/><circle cx="12" cy="12" r="6.2" fill="${N}"/><circle cx="12" cy="12" r="2.5" fill="#fff6e6"/>`),
   bolt: S(`<path d="M13.5 2 5 13.5h5.5L9.5 22 19 9.8h-5.7z" fill="#f6c453" stroke="${N}" stroke-width="1.8" stroke-linejoin="round"/>`),
   x2: S(`<rect x="2" y="3" width="20" height="18" rx="5" fill="#f26b5b" stroke="${N}" stroke-width="1.8"/><text x="12" y="16.6" text-anchor="middle" font-family="Fredoka, system-ui, sans-serif" font-weight="700" font-size="12.5" fill="#fff6e6">x2</text>`),

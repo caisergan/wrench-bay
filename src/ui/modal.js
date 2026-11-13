@@ -15,7 +15,7 @@ export function makeModal({ title, icon, cls = '', sticky = false }) {
       </div>
     </div>`);
   const m = {
-    el, body: el.querySelector('.panel-body'),
+    el, body: el.querySelector('.panel-body'), sticky,
     onOpen: null, onClose: null,
     get isOpen() { return el.classList.contains('open'); },
     open() {
@@ -31,3 +31,11 @@ export function makeModal({ title, icon, cls = '', sticky = false }) {
   return m;
 }
 
+
+/** Close the open panel the player could close themselves (Esc key). Returns true if one was open. */
+export function closeOpenModal() {
+  const m = modals.find((o) => o.isOpen && !o.sticky);
+  if (!m) return false;
+  m.close();
+  return true;
+}

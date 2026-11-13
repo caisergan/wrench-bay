@@ -48,6 +48,7 @@ window.addEventListener('blur', () => { keys.clear(); end(); });
 
 export const input = {
   get vector() {
+    if (!enabled) return { x: 0, z: 0, mag: 0 };   // title / pause / modal up: keys do not walk the player either
     let x = jx, z = jy;
     const kx = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0);
     const kz = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0);

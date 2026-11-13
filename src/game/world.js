@@ -1,7 +1,7 @@
 // One garage's dynamic world: everything lives under a root group that is disposed on rebuild (shop:changed).
 // ctx is the shared gameplay context every system receives (TOWN.md section 6a documents its fields).
 import * as THREE from 'three';
-import { scene, camTarget, setCameraLead, setCameraZoom } from '../core/engine.js';
+import { scene, camTarget, viewReach, setCameraLead, setCameraZoom } from '../core/engine.js';
 import * as M from '../models/index.js';
 import { UNLOCKS, LAYOUT as L, TOWN } from '../config.js';
 import { state, isUnlocked, save, townOpen } from '../core/state.js';
@@ -41,8 +41,10 @@ export function createWorld(game) {
   // ---- helpers every system may use
   /** Walk / drive bounds: the lot until the town opens, then TOWN.bounds (town.js switches it). */
   ctx.bounds = L.bounds;
-  /** Is pos (x, z) on or close to the screen? r = extra margin (units). Use to skip animation / labels / sfx. */
-  ctx.near = (pos, r = 0) => Math.abs(pos.x - camTarget.x) < 12 + r && pos.z > camTarget.z - 22 - r && pos.z < camTarget.z + 11 + r;
+  /** Is pos (x, z) on or close to the screen? r = extra margin (units). Use to skip animation / labels / sfx.
+   *  The reach comes from the engine: 12 / 22 / 11 in the phone frame, much wider in the browser view. */
+  ctx.near = (pos, r = 0) => Math.abs(pos.x - camTarget.x) < viewReach.x + r
+    && pos.z > camTarget.z - viewReach.back - r && pos.z < camTarget.z + viewReach.front + r;
   ctx.solids = {
     /** Add a static obstacle box; returns it (keep it to remove it later). */
     add(box) { ctx.obstacles.push(box); return box; },
