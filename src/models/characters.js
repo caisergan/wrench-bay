@@ -27,12 +27,13 @@ const DEFAULT_LOOK = {
   // Harbor Town extras. outfit also takes 'suit' | 'apron' | 'hiviz' | 'dress' | 'hoodie' | 'jacket'.
   tie: null, pocket: null, glasses: null, sunglasses: null, beard: null, beardStyle: 'full', mask: null, scarf: null,
   backpack: null, badge: null, necklace: null, splat: null, trim: null, glove: null, shorts: false, bootColor: null,
+  goggles: null,    // true: clear safety goggles (paint suit)
   build: null,      // { h, w } body height / width scale (children, tall, stocky ...); the carry anchor is not scaled
 };
-const SLEEVED = ['suit', 'hoodie', 'jacket'];
+const SLEEVED = ['suit', 'hoodie', 'jacket', 'paintsuit'];
 const BODY_KEYS = ['shirt', 'stripe', 'skin', 'hair', 'hairStyle', 'hat', 'hatColor', 'hatBadge', 'outfit', 'outfitColor',
   'patch', 'bowtie', 'tie', 'pocket', 'glasses', 'sunglasses', 'beard', 'beardStyle', 'mask', 'scarf', 'backpack',
-  'badge', 'necklace', 'splat', 'trim'];
+  'badge', 'necklace', 'splat', 'trim', 'goggles'];
 
 function addHair(b, style, c, hasHat) {
   if (style === 'bald') return;
@@ -118,6 +119,16 @@ function addHat(b, l) {
     b.box(0.51, 0.04, 0.51, l.hatBadge, 0, 1.4, 0);                   // team colour band
     b.box(0.44, 0.03, 0.22, shade(c, 0.85), 0, 1.4, 0.32);
     b.box(0.5, 0.22, 0.05, c, 0, 1.2, -0.27);                         // neck flap
+  } else if (l.hat === 'hood') {                                      // paint-suit hood, snug round the face
+    const cD = shade(c, 0.86);
+    b.box(0.52, 0.09, 0.5, c, 0, 1.42, -0.01);                         // crown
+    b.box(0.06, 0.46, 0.5, c, -0.25, 0.98, -0.01);                     // sides, down to the shoulders
+    b.box(0.06, 0.46, 0.5, c, 0.25, 0.98, -0.01);
+    b.box(0.52, 0.5, 0.06, c, 0, 0.94, -0.25);                         // back, over the neck
+    b.box(0.44, 0.05, 0.04, cD, 0, 1.36, 0.235);                       // elastic rim round the face: brow
+    b.box(0.05, 0.36, 0.04, cD, -0.197, 1.0, 0.235);                   // cheeks (inside the head's side faces)
+    b.box(0.05, 0.36, 0.04, cD, 0.197, 1.0, 0.235);
+    b.box(0.34, 0.04, 0.03, cD, 0, 0.97, 0.232);                       // chin (behind the respirator's front)
   } else if (l.hat === 'goldcap') {                                   // the golden-wrench reward
     const G = 0xf2c230, GD = 0xc99a14, GL = 0xfff0a0;
     b.box(0.5, 0.15, 0.5, G, 0, 1.4, 0);
@@ -191,6 +202,12 @@ function outfitExtra(b, l) {
     b.box(0.03, 0.12, 0.02, CREAM, -0.06, 0.8, 0.152);                           // drawstrings
     b.box(0.03, 0.12, 0.02, CREAM, 0.06, 0.8, 0.152);
     if (l.patch != null) b.box(0.1, 0.07, 0.03, l.patch, 0, 0.7, 0.152);
+  } else if (l.outfit === 'paintsuit') {                                         // hooded paint coverall, zipped to the chin
+    b.box(0.49, 0.535, 0.31, o, 0, 0.47, 0);                                    // a size up: covers the clothes under it
+    b.box(0.5, 0.045, 0.32, oD, 0, 0.6, 0);                                     // elastic waist
+    b.box(0.03, 0.34, 0.012, 0xc4ccd2, 0, 0.55, 0.161);                         // zip (the pull sits above it)
+    b.box(0.05, 0.05, 0.02, 0x9aa5ad, 0, 0.9, 0.165);                           // zip pull under the chin
+    if (l.patch != null) b.box(0.1, 0.06, 0.02, l.patch, -0.12, 0.78, 0.163);   // name patch
   } else if (l.outfit === 'jacket') {
     b.box(0.49, 0.48, 0.3, o, 0, 0.5, 0);
     b.box(0.5, 0.07, 0.31, oD, 0, 0.44, 0);                                     // rib hem
@@ -232,6 +249,11 @@ function addFace(b, l) {
     }
     b.box(0.47, 0.03, 0.47, 0x30363c, 0, 1.18, 0);                               // head strap
     b.box(0.47, 0.03, 0.47, 0x30363c, 0, 1.0, 0.0);
+  }
+  if (l.goggles) {                                                              // clear goggles: frame, lens, eyes behind it
+    b.box(0.42, 0.12, 0.05, 0x3d454c, 0, 1.18, 0.235);
+    b.box(0.36, 0.08, 0.012, 0xa8dcef, 0, 1.2, 0.262);
+    for (const sx of [-1, 1]) b.box(0.06, 0.07, 0.01, EYE, sx * 0.1, 1.205, 0.273);
   }
 }
 
@@ -310,6 +332,13 @@ function bodyGeo(l) {
   });
 }
 
+const hatCache = new Map();
+/** The hat alone, in upper-body space (the player's cap comes off as its own mesh while they suit up). */
+function hatGeo(l) {
+  const key = ['hat', 'hatColor', 'hatBadge'].map((k) => l[k]).join('|');
+  return memo(hatCache, key, () => { const b = new Builder(); b.push(0, -0.5, 0); addHat(b, l); b.pop(); return b.build(); });
+}
+
 function armGeo(l) {
   const sleeved = SLEEVED.includes(l.outfit);
   const sleeve = sleeved ? l.outfitColor : l.shirt;
@@ -332,16 +361,19 @@ function armGeo(l) {
 }
 
 function legGeo(l) {
-  const ov = l.outfit === 'overalls';
-  const pants = ov ? l.outfitColor : l.pants;
+  const ov = l.outfit === 'overalls', suit = l.outfit === 'paintsuit';
+  const pants = ov || suit ? l.outfitColor : l.pants;
   const shoe = l.bootColor ?? (ov ? BOOT : l.shoe);
-  const key = [pants, shoe, ov ? 'cuff' : '', l.shorts ? l.skin : ''].join('|');
+  const key = [pants, shoe, ov ? 'cuff' : suit ? 'suit' : '', l.shorts ? l.skin : ''].join('|');
   return memo(legCache, key, () => {
     const b = new Builder();
     if (l.shorts) {
       b.box(0.19, 0.2, 0.19, pants, 0, -0.2, 0);
       b.box(0.15, 0.22, 0.15, l.skin, 0, -0.42, 0);
       b.box(0.17, 0.05, 0.17, 0xf2e8d5, 0, -0.45, 0);                           // sock
+    } else if (suit) {
+      b.box(0.205, 0.42, 0.205, pants, 0, -0.42, 0);                      // baggy suit leg
+      b.box(0.215, 0.045, 0.215, shade(pants, 0.86), 0, -0.42, 0);        // elastic ankle over the shoe cover
     } else {
       b.box(0.19, 0.42, 0.19, pants, 0, -0.42, 0);
       if (ov) b.box(0.2, 0.05, 0.2, shade(pants, 0.78), 0, -0.42, 0);   // rolled cuff
@@ -417,7 +449,17 @@ function getFoodGeo() {
 const mk = (geo) => { const m = new THREE.Mesh(geo, litMat); m.castShadow = true; return m; };
 const smooth = (k) => k * k * (3 - 2 * k);
 
-export function createCharacter(look = {}) {
+// ---- outfit change (the player's paint suit): a second body / arm / leg set on the same joints, swapped with a wipe.
+// A level plane climbs the body: below it the new clothes show, above it the old ones (two clipping materials, one
+// plane each, so they share one shader). Coverage per progress k: legs up to the waist, then the body and sleeves,
+// then the hood over the head. Off = the same, backwards.
+const SUIT_H = 1.62;                       // hood crown 1.51 + margin
+const SUIT_ON = 0.9, SUIT_OFF = 0.65;      // seconds
+const suitCover = (k) => (k < 0.4 ? 0.37 * smooth(k / 0.4) : k < 0.7 ? 0.37 + 0.27 * smooth((k - 0.4) / 0.3) : 0.64 + 0.36 * smooth((k - 0.7) / 0.3));
+const _wp = new THREE.Vector3();
+
+/** opts.outfits: this character changes clothes (setSuit); its meshes get their clipping material up front. */
+export function createCharacter(look = {}, opts = {}) {
   const l = { ...DEFAULT_LOOK, ...look };
   if (typeof l.shirt !== 'number') l.shirt = DEFAULT_LOOK.shirt;
   if (l.outfit && typeof l.outfitColor !== 'number') l.outfitColor = P.wall;
@@ -431,11 +473,14 @@ export function createCharacter(look = {}) {
   const upper = new THREE.Group();
   upper.position.y = 0.5;
   body.add(upper);
-  upper.add(mk(bodyGeo(l)));
+  const bodyBase = bodyGeo(l);
+  const bodyMesh = mk(bodyBase);
+  upper.add(bodyMesh);
 
   const armG = armGeo(l);
-  const armL = new THREE.Group(); armL.position.set(-0.3, 0.45, 0); armL.add(mk(armG));
-  const armR = new THREE.Group(); armR.position.set(0.3, 0.45, 0); armR.add(mk(armG));
+  const armLM = mk(armG), armRM = mk(armG);
+  const armL = new THREE.Group(); armL.position.set(-0.3, 0.45, 0); armL.add(armLM);
+  const armR = new THREE.Group(); armR.position.set(0.3, 0.45, 0); armR.add(armRM);
   upper.add(armL, armR);
 
   const wrench = mk(getWrenchGeo());
@@ -468,9 +513,73 @@ export function createCharacter(look = {}) {
   armR.add(food);
 
   const legG = legGeo(l);
-  const legL = new THREE.Group(); legL.position.set(-0.12, 0.5, 0); legL.add(mk(legG));
-  const legR = new THREE.Group(); legR.position.set(0.12, 0.5, 0); legR.add(mk(legG));
+  const legLM = mk(legG), legRM = mk(legG);
+  const legL = new THREE.Group(); legL.position.set(-0.12, 0.5, 0); legL.add(legLM);
+  const legR = new THREE.Group(); legR.position.set(0.12, 0.5, 0); legR.add(legRM);
   body.add(legL, legR);
+  const baseMeshes = [bodyMesh, armLM, armRM, legLM, legRM];
+
+  let clip = null, alt = null, altKey = '', suitK = 0, suitTarget = 0, suitShown = -1;
+  // the hat never shows with the suit: it lifts off and vanishes when suiting up starts (the body switches to a bare
+  // head and the hat is its own mesh for that moment) and comes back once the suit is fully off
+  let capAnim = 0, capOffGeo = null, capPivot = null;
+  const CAP_Y = 0.93;                                   // upper-body space: the top of the head
+  function capParts() {
+    if (capPivot || l.hat === 'none') return;
+    capOffGeo = bodyGeo({ ...l, hat: 'none' });
+    capPivot = new THREE.Group();
+    capPivot.position.y = CAP_Y;
+    const m = mk(hatGeo(l));
+    m.position.y = -CAP_Y;
+    capPivot.add(m);
+    capPivot.visible = false;
+    upper.add(capPivot);
+  }
+  function applyCap() {
+    if (!capPivot) return;
+    bodyMesh.geometry = capAnim > 0 ? capOffGeo : bodyBase;
+    capPivot.visible = capAnim > 0 && capAnim < 1;
+    const e = smooth(capAnim);
+    capPivot.position.y = CAP_Y + 0.18 * Math.sin(e * Math.PI * 0.5);
+    capPivot.scale.setScalar(Math.max(0.001, 1 - e * e));
+    capPivot.rotation.y = e * 1.4;
+  }
+  /** above: keeps the part of a mesh over the wipe line (old clothes), below: under it (new clothes). */
+  function clipMats() {
+    if (clip) return clip;
+    const above = new THREE.Plane(new THREE.Vector3(0, 1, 0), 1e4), below = new THREE.Plane(new THREE.Vector3(0, -1, 0), 1e4);
+    const mat = (plane) => { const m = litMat.clone(); m.clippingPlanes = [plane]; return m; };
+    clip = { above, below, base: mat(above), alt: mat(below) };
+    for (const m of baseMeshes) m.material = clip.base;
+    return clip;
+  }
+  if (opts.outfits) clipMats();
+  /** The second set of clothes, built for `sl` (rebuilt only when the look changes). */
+  function ensureAlt(sl) {
+    const al = { ...DEFAULT_LOOK, ...sl };
+    const key = [...BODY_KEYS, 'longSleeves', 'glove', 'bootColor', 'pants', 'shoe'].map((k) => al[k]).join('|');
+    if (alt && key === altKey) return;
+    if (alt) for (const m of alt) m.removeFromParent();
+    altKey = key;
+    const c = clipMats(), ag = armGeo(al), lg = legGeo(al);
+    alt = [bodyGeo(al), ag, ag, lg, lg].map((g) => { const m = new THREE.Mesh(g, c.alt); m.castShadow = true; m.visible = false; return m; });
+    upper.add(alt[0]); armL.add(alt[1]); armR.add(alt[2]); legL.add(alt[3]); legR.add(alt[4]);
+    suitShown = -1;
+  }
+  /** Show the clothes for suitK: old set, new set, or both cut at the wipe line. */
+  function applySuit() {
+    if (!alt) return;
+    const k = suitK;
+    if (k === suitShown && (k === 0 || k === 1)) return;
+    suitShown = k;
+    for (const m of baseMeshes) m.visible = k < 1;
+    for (const m of alt) m.visible = k > 0;
+    if (k > 0 && k < 1) {
+      group.getWorldPosition(_wp);
+      const h = _wp.y + rig.position.y + suitCover(k) * SUIT_H * (l.build?.h ?? 1);
+      clip.above.constant = -h; clip.below.constant = h;
+    } else { clip.above.constant = 1e4; clip.below.constant = 1e4; }
+  }
 
   const carryAnchor = new THREE.Object3D();
   carryAnchor.position.set(0, 0.95, 0.4);
@@ -586,6 +695,26 @@ export function createCharacter(look = {}) {
       lean -= 0.12 * w;
       if (k >= 1) cheerT = -1;
     }
+    // dressing (paint suit): bent over pulling the legs up, arms into the sleeves with a shrug, both hands up to pull
+    // the hood over the head, arms back down. Taking it off plays the same moves backwards.
+    if (suitK !== suitTarget) suitK = suitTarget > suitK ? Math.min(1, suitK + dt / SUIT_ON) : Math.max(0, suitK - dt / SUIT_OFF);
+    const capGoal = suitTarget > 0 || suitK > 0 ? 1 : 0;
+    if (capPivot && capAnim !== capGoal) {
+      capAnim = capGoal > capAnim ? Math.min(1, capAnim + dt / 0.28) : Math.max(0, capAnim - dt / 0.28);
+      applyCap();
+    }
+    if (suitK > 0 && suitK < 1) {
+      const p = suitK, w = smooth(Math.min(1, p / 0.08));
+      let ax, az, ln;
+      if (p < 0.4) { const q = p / 0.4; ax = -0.3 - 0.45 * q; az = 0.22; ln = 0.34 - 0.12 * q; }
+      else if (p < 0.7) { const q = (p - 0.4) / 0.3; ax = -0.75 - 0.25 * smooth(q); az = 0.22 - 0.1 * q; ln = 0.22 - 0.17 * q; }
+      else { const q = (p - 0.7) / 0.3; ax = -1.0 * (1 - q) - 1.9 * Math.sin(q * Math.PI); az = 0.12 + 0.22 * Math.sin(q * Math.PI) - 0.06 * q; ln = 0.05 * (1 - q) - 0.08 * Math.sin(q * Math.PI); }
+      aLx += (ax - aLx) * w; aRx += (ax - aRx) * w;
+      aLz += (az - aLz) * w; aRz += (-az - aRz) * w;
+      lean += (ln - lean) * w;
+    }
+    applySuit();
+
     armL.rotation.x = aLx; armR.rotation.x = aRx;
     armL.rotation.z = aLz; armR.rotation.z = aRz;
 
@@ -608,12 +737,20 @@ export function createCharacter(look = {}) {
   function setEating(on) { if (on && !eatTarget) { eatT = 0; lastBite = -1; bites = 0; food.scale.setScalar(1); } eatTarget = on ? 1 : 0; }
   /** Colour of the paint in the gun's cup (hex number). */
   function setSprayColor(hex) { cup.material = cupMat(hex); }
+  /** Put the paint suit (look `suitLook`) on / take it off; animate false = at once (e.g. while hidden in a car). */
+  function setSuit(on, suitLook, animate = true) {
+    if (on && suitLook) { ensureAlt(suitLook); capParts(); }
+    if (!alt) return;
+    suitTarget = on ? 1 : 0;
+    if (!animate) { suitK = suitTarget; capAnim = suitTarget; applySuit(); applyCap(); }
+  }
 
   update(0, 0);
   return {
     group, carryAnchor, update, setCarrying, setSitting, setWorking, cheer, setSpraying, setPolishing, setWaving, setEating,
-    setSprayColor, sprayTip, polishTip, look: l,
+    setSprayColor, setSuit, sprayTip, polishTip, look: l,
     get spraying() { return sprayTarget > 0; }, get polishing() { return polishTarget > 0; },
+    /** Fully in the suit (dressing done). */ get suited() { return suitK >= 1; },
   };
 }
 
@@ -694,6 +831,16 @@ export function painterLook(i = 0) {
   return {
     role: 'painter', shirt: WHITE, longSleeves: true, outfit: 'overalls', outfitColor: 0xf4f1ea, patch: PURPLE,
     mask: 'respirator', hat: 'paintcap', hatColor: 0xf4f1ea, hatBadge: PURPLE, bootColor: 0xd7dde0, ...p,
+  };
+}
+/** The player's paint suit (put on at a spray booth's work mat): white hooded coverall zipped to the chin,
+ *  respirator, goggles, shoe covers; coral gloves and name patch keep them the player from the high camera. */
+export function paintSuitLook(base = {}) {
+  const W = 0xf2f4f5;
+  return {
+    role: 'player', skin: base.skin ?? 0xedb98a, hair: base.hair ?? 0x4a3222, hairStyle: 'bald',
+    shirt: W, outfit: 'paintsuit', outfitColor: W, patch: CORAL, glove: CORAL, longSleeves: true,
+    hat: 'hood', hatColor: W, mask: 'respirator', goggles: true, bootColor: 0xd7dde0,
   };
 }
 /** Prep tech: white shirt, purple waistcoat, purple-banded cap: same team colours as the painters. */

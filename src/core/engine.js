@@ -11,6 +11,7 @@ scene.fog = new THREE.Fog(0x9fd8cb, 45, 90);
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
+renderer.localClippingEnabled = true;   // per-material clipping planes (the player's suit-up wipe)
 renderer.shadowMap.type = THREE.PCFShadowMap;   // three r18x dropped PCFSoftShadowMap (it fell back to this anyway)
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;

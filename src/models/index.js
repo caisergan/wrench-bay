@@ -6,7 +6,7 @@ export {
 export { createFloorMat } from './mats.js';
 export { createCar, randomCarLook } from './cars.js';
 export {
-  createCharacter, randomCustomerLook, playerLook, mechanicLook, valetLook, painterLook, prepTechLook, hostLook,
+  createCharacter, randomCustomerLook, playerLook, mechanicLook, valetLook, painterLook, prepTechLook, hostLook, paintSuitLook,
   masterTechLook, detailerLook, vipCustomerLook, pedestrianLook, baristaLook, managerLook, buyerLook, towDriverLook,
 } from './characters.js';
 export { buildEnvironment, townSolids, setPlotCleared, plotSolids } from './environment.js';

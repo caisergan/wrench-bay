@@ -45,7 +45,7 @@ export function joystickDrive(dt, st, maxS, body, collide) {
 }
 
 export function createPlayer(ctx) {
-  const ch = createCharacter(playerLook());
+  const ch = createCharacter(playerLook(), { outfits: true });   // changes into the paint suit (paint.js)
   const group = ch.group;
   group.position.set(L.playerStart.x, 0, L.playerStart.z);
   ctx.root.add(group);
