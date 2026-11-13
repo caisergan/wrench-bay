@@ -348,7 +348,7 @@ export function createCars(ctx, fac) {
   const lane = [];
   let spawnT = ECONOMY.spawnInterval - 1.2;
   let lastDepart = -99, clock = 0;
-  const noLift = new Tag({ text: 'No free lift!', kind: 'info' }, 1.7);
+  const noLift = new Tag({ text: fac.def?.noFreeText || 'No free lift!', kind: 'info' }, 1.7);
   noLift.setVisible(false);
   const _v = new THREE.Vector3();
 

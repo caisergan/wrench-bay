@@ -371,7 +371,7 @@ export const PAINT = {
     red: { x: -39.2, z: -10.2 }, blue: { x: -36.7, z: -10.2 }, white: { x: -34.2, z: -10.2 }, lime: { x: -31.7, z: -10.2 },
     teal: { x: -29.2, z: -10.2 }, black: { x: -26.7, z: -10.2 }, gold: { x: -24.2, z: -10.2 }, purple: { x: -21.7, z: -10.2 },
   },
-  stationSize: { w: 1.9, d: 1.2 }, stationPickupOffsetZ: 1.5, stationZoneRadius: 1.0,
+  stationSize: { w: 1.9, d: 1.2 }, stationPickupOffsetZ: 1.3, stationZoneRadius: 0.65,   // small ring close to the tank: walking past never picks paint up
   // Slots sit west of the prep desk and the shelter (as the garage's do), so the prep tech's route to a booth
   // clears them: slot -> (x + 0.4, laneZ - 2.4) -> booth.
   queueLaneZ: 7.6, queueSlots: [{ x: -28.0 }, { x: -31.6 }, { x: -35.2 }],
@@ -385,11 +385,12 @@ export const PAINT = {
   ],
   ownerWalkZ: 6.25,
   valetStand: { x: -25.0, z: 5.4 },                             // prep tech idles here
-  staffIdle: [{ x: -40.2, z: -7.6 }, { x: -40.2, z: -6.4 }],    // painters
+  staffIdle: [{ x: -39.8, z: -3.0 }, { x: -39.8, z: -2.0 }],    // painters wait by their lockers (the drum has the corner)
   // Player may drive a customer's car anywhere inside this rectangle (not out into town).
   driveArea: { minX: -43.5, maxX: -17.5, minZ: -10.9, maxZ: 11.0 },
-  // Waste-paint drum beside the colour lab: walking up to it with canisters dumps them (wrong colours).
-  scrapBin: { x: -21.0, z: -3.95 }, scrapBinRadius: 0.9,
+  // Waste-paint drum against the west wall at the end of the walkway, next to the first tank: walking up to it with
+  // canisters dumps them (wrong colours). Trigger = radius + player radius + 0.15, kept clear of the red tank's ring.
+  scrapBin: { x: -40.7, z: -7.3 }, scrapBinRadius: 0.55,
 
   // Fixed fittings of the hall (createPaintHall reads these; gameplay keeps its own positions above clear of them).
   decor: {
@@ -415,12 +416,16 @@ export const PAINT = {
 
   // economy
   spawnInterval: 11, spawnIntervalPerBay: 3,                    // seconds between paint customers
+  spawnPerColor: 0.03,                                          // each colour stocked beyond 3: 3% shorter interval
+  sameColorDist: 70,                                            // RGB distance under which a colour counts as the car's own
   patience: 75,
   cans: { default: 2, pickup: 3, van: 3, suv: 3, camper: 3, limo: 3 },   // canisters per car type
   pricePerCan: 55, work: 2.4, restock: 3.4, stationMax: 4,
   cure: 6.0, cureIR: 3.0,                                       // seconds under the lamps after spraying
+  curtainUp: 1.0,                                               // seconds after curing before the car may back out
   premiumMult: 1.6,                                             // gold / purple jobs
   stripeChance: 0.3, stripeMult: 1.5,                           // two-tone: +1 canister of a second colour
+  offlineCarTime: 24,                                           // offline: seconds one painter + booth needs per car
 };
 // Unlock chain inside the paint shop (pay pads, the next VISIBLE_PADS shown; same grammar as UNLOCKS).
 // type: 'tank' (key = colour) | 'bay' (index) | 'painter' (index) | 'preptech' | 'irlamps' | 'stripes'

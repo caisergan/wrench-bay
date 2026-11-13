@@ -156,7 +156,7 @@ export function buildHud(root, api) {
   if (state.streak > 0) onStreak({ streak: state.streak, mult: 1 + state.streak * 0.05 });
 
   // ---- driving hint: the default text of the hint pill while a customer's car is driven (ui.hint() overrides it) ----
-  events.on('drive:start', () => setDefaultHint('Drive to a free lift!'));
+  events.on('drive:start', (e) => setDefaultHint(e?.facility === 'paint' ? 'Drive into a free spray booth!' : 'Drive to a free lift!'));
   events.on('drive:end', () => setDefaultHint(null));
 
   // ---- boosts ----
