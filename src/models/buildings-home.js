@@ -736,7 +736,8 @@ function sofa(b, x, za, zb, body, cushion) {
   b.box(0.82, 0.27, len, body, x - 0.02, 0.08, zc);
   b.box(0.22, 0.62, len, body, x + 0.3, 0.35, zc);                                      // back rest
   b.box(0.24, 0.08, len + 0.02, mixHex(body, 0xffffff, 0.12), x + 0.3, 0.97, zc);
-  for (const s of [-1, 1]) b.box(0.86, 0.3, 0.16, mixHex(body, 0x000000, 0.12), x - 0.02, 0.35, zc + s * (len / 2 - 0.08));   // arms
+  // arms: back face 1 cm in front of the back rest's, ends 1 cm past it (flush faces z-fight)
+  for (const s of [-1, 1]) b.box(0.86, 0.3, 0.17, mixHex(body, 0x000000, 0.12), x - 0.03, 0.35, zc + s * (len / 2 - 0.075));
   for (const z of [za, zb]) {
     b.box(0.6, 0.09, 0.98, cushion, x - 0.08, 0.35, z);                                // seat cushion (top 0.44)
     b.box(0.14, 0.42, 0.9, cushion, x + 0.14, 0.44, z, 0, 0, -0.12);                    // back cushion
@@ -799,7 +800,7 @@ function loungeGrand(b, gl, W) {
     for (let i = 0; i < 9; i++) b.cyl(0.04, 0.04, 0.12, [TC.CREAM_L, TC.TEAL, TC.CORAL, TC.MUSTARD][i % 4], W.maxX - 0.12, y + 0.04, br.z - len / 2 + 0.3 + i * 0.3, 8);
   }
   b.box(0.3, 0.32, 0.26, TC.DARK, W.maxX - 0.17, 0.94, br.z + 0.6); b.cyl(0.08, 0.1, 0.2, 0x9fd0e6, W.maxX - 0.17, 1.26, br.z + 0.6, 8);   // grinder
-  b.box(0.05, 0.7, 1.4, TC.DARK, W.maxX - 0.03, 2.0, br.z); b.box(0.06, 0.06, 1.46, TC.WOOD, W.maxX - 0.03, 2.66, br.z);   // menu board
+  b.box(0.05, 0.7, 1.4, TC.DARK, W.maxX - 0.03, 2.0, br.z); b.box(0.06, 0.05, 1.46, TC.WOOD, W.maxX - 0.03, 2.66, br.z);   // menu board (rail top 1 cm under the wall cap)
   for (let i = 0; i < 4; i++) b.box(0.02, 0.05, 0.8 - i * 0.12, TC.CREAM_L, W.maxX - 0.06, 2.5 - i * 0.13, br.z - 0.1);
   // aquarium cabinet + frame (water, fish and glass are separate transparent / moving meshes)
   const aq = LOUNGE.aquarium, aw = 2.0, ad = 0.56;
@@ -860,8 +861,9 @@ function loungeShell(tier) {
     const eastBusy = tier >= 2 ? [[LOUNGE.bar.z, 2.2]] : [];
     for (const f of [0.14, 0.38, 0.62, 0.84]) {
       const z = W.minZ + D * f;
-      if (clearOf(z, westBusy)) { b.push(W.minX, 0, z, R90); wallWindow(b, gl, 0, 1.3, 1.2, 0.85); b.pop(); }
-      if (clearOf(z, eastBusy)) { b.push(W.maxX, 0, z, -R90); wallWindow(b, gl, 0, 1.45, 1.2, 0.75); b.pop(); }
+      // both builders take the wall frame (the glass is on gl; pushing only b left every pane at the world origin)
+      if (clearOf(z, westBusy)) { b.push(W.minX, 0, z, R90); gl.push(W.minX, 0, z, R90); wallWindow(b, gl, 0, 1.3, 1.2, 0.85); b.pop(); gl.pop(); }
+      if (clearOf(z, eastBusy)) { b.push(W.maxX, 0, z, -R90); gl.push(W.maxX, 0, z, -R90); wallWindow(b, gl, 0, 1.45, 1.2, 0.75); b.pop(); gl.pop(); }
     }
     for (const [x, y] of [[13.0, 2.05], [cx + 0.8, 1.55], [cx + 2.6, 1.55]]) {
       if (x === 13.0) { b.cyl(0.24, 0.24, 0.05, TC.CORAL, x, y, W.minZ + 0.02, 14, R90); b.cyl(0.2, 0.2, 0.06, TC.CREAM_L, x, y, W.minZ + 0.02, 14, R90); b.box(0.02, 0.15, 0.02, TC.DARK, x, y - 0.02, W.minZ + 0.09); b.box(0.11, 0.02, 0.02, TC.DARK, x + 0.04, y, W.minZ + 0.09); continue; }
@@ -929,7 +931,7 @@ function loungeShell(tier) {
     b.box(0.2, 0.03, 0.3, TC.CREAM_L, rx0 + 0.55, 1.01, (rz0 + rz1) / 2 + 0.1);
     b.cyl(0.07, 0.08, 0.05, TC.GOLD, rx1 - 0.15, 1.01, rz0 + 0.3, 10); b.cyl(0.015, 0.015, 0.04, TC.GOLD, rx1 - 0.15, 1.06, rz0 + 0.3, 6);   // service bell
     b.cyl(0.06, 0.05, 0.18, 0x9fd0e6, rx1 - 0.2, 1.01, rz1 - 0.25, 8);
-    for (const [dx, dz, c] of [[0, 0, TC.CORAL], [0.05, 0.06, TC.MUSTARD], [-0.05, 0.05, TC.CREAM_L]]) b.box(0.1, 0.1, 0.1, c, rx1 - 0.2 + dx, 1.19, rz1 - 0.25 + dz);
+    for (const [dx, dz, c, h] of [[0, 0, TC.CORAL, 0.1], [0.05, 0.06, TC.MUSTARD, 0.13], [-0.05, 0.05, TC.CREAM_L, 0.08]]) b.box(0.1, h, 0.1, c, rx1 - 0.2 + dx, 1.19, rz1 - 0.25 + dz);   // different heights: no shared tops
     // vending machine against the back wall (front +z), the coins land in front of it (vendingPile stays clear)
     const v = LOUNGE.vending, vz = W.minZ + 0.42;
     b.box(1.0, 1.95, 0.8, 0xd94848, v.x, 0, vz);
