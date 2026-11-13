@@ -22,7 +22,7 @@ import { createChainPads } from './pads.js';
 
 /**
  * Normalised layout: the garage's LAYOUT uses lift / mechanic names, PAINT and VIP use bay / staff names.
- * Systems read only the normalised keys (bays, bayPostOffsetX, workOffsetZ, workRadius, staffSpotOffset,
+ * Systems read only the normalised keys (bays, bayPostOffsetX, workOffsetZ, workMat, staffSpotOffset,
  * cashOffset, capture, staffIdle, driveArea ...); every original key stays available too.
  */
 export function normalizeLayout(L) {
@@ -31,7 +31,7 @@ export function normalizeLayout(L) {
     bays: L.bays ?? L.lifts,
     bayPostOffsetX: L.bayPostOffsetX ?? L.liftPostOffsetX ?? 1.15,
     workOffsetZ: L.workOffsetZ ?? L.liftWorkOffsetZ,
-    workRadius: L.workRadius ?? L.liftWorkRadius,
+    workMat: L.workMat ?? L.liftWorkMat,
     staffSpotOffset: L.staffSpotOffset ?? L.mechanicSpotOffset,
     cashOffset: L.cashOffset ?? L.liftCashOffset,
     capture: L.capture ?? L.liftCapture,

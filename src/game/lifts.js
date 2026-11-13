@@ -4,11 +4,11 @@
 // updateActive(dt), isWorkable(), finish() (see TOWN.md 6a).
 import * as THREE from 'three';
 import { scene, camera } from '../core/engine.js';
-import { createZoneRing, LIFT_RISE, sparks, confetti } from '../models/index.js';
-import { ECONOMY } from '../config.js';
+import { createZoneRing, createFloorMat, LIFT_RISE, sparks, confetti } from '../models/index.js';
+import { ECONOMY, PLAYER } from '../config.js';
 import { ui } from '../ui/index.js';
 import { tween, ease, popIn, hop } from './tween.js';
-import { angleDiff, clamp, detach, fmt, makeArrow } from './util.js';
+import { angleDiff, clamp, detach, fmt, makeArrow, onMat } from './util.js';
 import { CashPile } from './cash.js';
 
 const _v = new THREE.Vector3();
@@ -27,11 +27,12 @@ export class Bay {
     this.model.setHeight?.(0);
     this.model.setLight?.('idle');
     for (const b of fac.h('bayObstacles', cfg)) ctx.obstacles.push(b);
+    // the work mat in front of the car's nose: shown while a car is on the bay (setWorkMat)
     this.workPos = new THREE.Vector3(cfg.x, 0, cfg.z + L.workOffsetZ);
-    this.workRing = createZoneRing(L.workRadius);
-    this.workRing.position.x = this.workPos.x; this.workRing.position.z = this.workPos.z;
-    this.workRing.visible = false;
-    ctx.root.add(this.workRing);
+    this.workMat = createFloorMat(L.workMat.w, L.workMat.d, { icon: 'wrench', kind: 'lift' });
+    this.workMat.group.position.copy(this.workPos);
+    this.workMat.group.visible = false;
+    ctx.root.add(this.workMat.group);
     // free-lift highlight while the player drives
     this.freeRing = createZoneRing(1.35);
     this.freeRing.position.x = cfg.x; this.freeRing.position.z = cfg.z;
@@ -98,7 +99,7 @@ export class Bay {
     this.phase = 'raise';
     this.model.setLight?.('busy');
     ui.sfx('lift');
-    this.workRing.visible = true;
+    this.setWorkMat(true);
     tween({
       duration: ECONOMY.liftTime, ease: ease.inOutQuad,
       onUpdate: (e) => { this.h = e; },
@@ -106,8 +107,10 @@ export class Bay {
     });
   }
 
-  /** Where the player pops out after driving a car onto this bay (inside the work zone). */
-  exitSpot(out) { return out.set(this.x + 0.95, 0, this.z + this.L.workOffsetZ + 0.45); }
+  /** Where the player pops out after driving a car onto this bay (on the work mat, right of the mechanic's spot). */
+  exitSpot(out) { return out.set(this.x + 0.3, 0, this.workPos.z + 0.05); }
+
+  setWorkMat(on) { this.workMat.group.visible = on; }
 
   /** Car starts reversing: the lift is free again. */
   release(car) {
@@ -116,7 +119,8 @@ export class Bay {
     this.phase = 'empty'; this.h = 0;
     this.model.setHeight?.(0);
     this.model.setLight?.('idle');
-    this.workRing.visible = false;
+    this.setWorkMat(false);
+    car.tag.setSolid(false);
   }
 
   /** Work rate (work-seconds per second) of the mechanics standing at this lift. */
@@ -142,11 +146,13 @@ export class Bay {
     });
   }
 
-  /** Player on foot inside this bay's work zone? */
+  /** Player on foot on this bay's work mat? (Delivering parts works while walking across it.) */
   playerInZone() {
     const pl = this.ctx.player;
-    return pl.onFoot && Math.hypot(pl.pos.x - this.workPos.x, pl.pos.z - this.workPos.z) < this.L.workRadius;
+    return pl.onFoot && onMat(pl.pos, this.workPos, this.L.workMat);
   }
+  /** On the mat and standing still (PLAYER.stillTime): only then does the player work (repair / spray). */
+  playerCanWork(inZone = this.playerInZone()) { return inZone && this.ctx.player.stillT >= PLAYER.stillTime; }
 
   /** Player delivers carried parts the car still needs (one per deliverInterval). */
   deliverFromPlayer() {
@@ -192,15 +198,18 @@ export class Bay {
         this.deliverFromPlayer();
       }
       const ready = this.phase === 'up' ? car.firstReady() : null;
+      const works = !!ready && this.playerCanWork(inZone);
       if (ready) {
-        if (inZone) { rate += this.fac.h('playerRate'); pl.working = true; }
+        if (works) { rate += this.fac.h('playerRate'); pl.working = true; }
         rate += this.mechanicRate();
       }
+      // while the player repairs, the job bubble stays opaque over them so the progress stays readable
+      car.tag.setSolid(works);
       if (ready && rate > 0) {
         ready.progress += (rate * dt) / this.fac.h('workTime', ready);
         this.sparkT -= dt;
         if (this.sparkT <= 0) { this.sparkT = 0.16 + Math.random() * 0.12; if (this.ctx.near(car.pos)) sparks(scene, car.nose(_v, 0.7)); }
-        if (inZone) {
+        if (works) {
           this.wrenchT -= dt;
           if (this.wrenchT <= 0) { this.wrenchT = 1 / 6; ui.sfx('wrench'); }
         }
@@ -228,16 +237,22 @@ export class Bay {
       const s = 1 + 0.06 * Math.sin(this.t * 6);
       this.freeRing.scale.set(s, s, s);
     }
-    if (this.workRing.visible) {
-      const s = this.playerHere ? 1.06 : 1;
-      this.workRing.scale.set(s, s, s);
+    if (this.workMat.group.visible) {
+      // green while the player stands on it; yellow (pulsing) while they carry a part this car still needs
+      let has = false;
+      if (!this.playerHere && this.car && pl.onFoot) {
+        for (const it of pl.stack.items) if (this.car.findNeed(it.userData.partType, null, true)) { has = true; break; }
+      }
+      this.workMat.set(this.playerHere ? 'on' : has ? 'want' : 'idle');
+      this.workMat.glow(has ? 0.1 + 0.1 * Math.sin(this.t * 6.5) : 0);
     }
   }
 
   finish() {
     const car = this.car;
     this.phase = 'lower';
-    this.workRing.visible = false;
+    this.setWorkMat(false);
+    car.tag.setSolid(false);
     car.stopPatience();
     const pay = this.fac.h('payout', car);
     const speedy = !!pay.speedy;
@@ -287,7 +302,7 @@ export class Bay {
     });
   }
 
-  dispose() {}
+  dispose() { this.workMat.dispose(); }
 }
 
 export function createBays(ctx, fac) {

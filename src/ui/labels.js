@@ -129,6 +129,7 @@ function makeLabel(kind) {
       if (!active.delete(L)) return;
       L.hide();
       if (L.see) { L.see = false; el.classList.remove('see'); }
+      L.solid = false;
       L.lx = L.ly = NaN; L.has = false; L.text = null; L.prog = -1; L.icon = null;
       if (bar) bar.style.transform = 'scaleX(0)';
       if (kind === 'job') L.resetJob();
@@ -148,11 +149,14 @@ function makeLabel(kind) {
   else if (kind === 'tag') addTagApi(L, el);
   else if (kind === 'stars') addStarsApi(L, el);
   // every label answers every setter, so a caller never has to know which kind it holds (unknown kinds must not throw)
-  for (const m of ['setJobs', 'setPatience', 'setVip', 'setBonus', 'setStars', 'setInfo', 'setWork', 'setNear']) if (!L[m]) L[m] = () => L;
+  for (const m of ['setJobs', 'setPatience', 'setVip', 'setBonus', 'setStars', 'setInfo', 'setWork', 'setNear', 'setSolid']) if (!L[m]) L[m] = () => L;
   layer.appendChild(el);
   if (SEE_KINDS.has(kind)) {
     // box size for the see-through test: measured by a ResizeObserver, so the per-frame test never forces a layout
     L.w = 0; L.h = 0; L.see = false;
+    // solid: stays opaque even over the player (a job bubble while that car is being repaired: watch the progress)
+    L.solid = false;
+    L.setSolid = (v) => { L.solid = !!v; return L; };
     L.ay = L.anchor.includes('-100%') ? 1 : 0.5;   // how much of the box sits above the anchor point
     byEl.set(el, L);
     sizes.observe(el);
@@ -385,7 +389,7 @@ function update() {
     }
     if (!L.shown) { L.shown = true; L.el.classList.add('on'); }
     if (L.see !== undefined) {
-      const see = coversPlayer(L, x, y);
+      const see = !L.solid && coversPlayer(L, x, y);
       if (see !== L.see) { L.see = see; L.el.classList.toggle('see', see); }
     }
   }

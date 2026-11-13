@@ -38,13 +38,20 @@ When everything is unlocked you move to a bigger garage where everything is wort
    car (`liftTime`, `LIFT_RISE`) and its light turns busy. If no lift is free the ring shows an `info` label
    "No free lift!".
 4. **Parts.** Each unlocked station restocks one part every `PROBLEMS[t].restock * upgradeValue('supply')` s up to
-   `stationMax`, stacked on its `partAnchor`. Standing in a station's pickup zone moves parts one by one
-   (`pickupInterval`) into the player's carry stack (mixed types, capacity `PLAYER.carryBase +
-   upgradeValue('capacity')`, a `max` label when full). Parts fly in arcs, never teleport. The scrap bin
-   (`scrapBin`) dumps everything carried (for wrong picks).
-5. **Repair.** Standing in a lift's work zone (in front of the car's nose) first delivers every carried part the car
-   still needs (one per `deliverInterval`, flies from the stack into the car, job state `need` -> `ready`), then
-   **works**: the first `ready` job's progress fills at `upgradeValue('repair')` work-seconds per second
+   `stationMax`, stacked on its `partAnchor`. The player picks up by standing on the station's floor mat
+   (`stationMat`, centred at `stationPickupOffsetZ` in front of it) into their carry stack (mixed types, capacity
+   `PLAYER.carryBase + upgradeValue('capacity')`, a `max` label when full). The mat hands over, one per
+   `pickupInterval`, only the parts the cars on the lifts still wait for and nobody is bringing (mechanic claims and
+   carried parts don't count), keeping a free hand for every other part type still needed (a needed part always
+   gives one). More only while standing still: after `pickupExtraWait` a ring fills, one part per
+   `pickupExtraInterval`. The mat glows while a lift needs its part and the player has a free hand. Parts fly in
+   arcs, never teleport. The scrap bin (`scrapBin`) dumps everything carried (for wrong picks).
+   Design: docs/pickup-redesign.
+5. **Repair.** Stepping on a lift's work mat (`liftWorkMat`, in front of the car's nose) delivers every carried part
+   the car still needs, even while walking (one per `deliverInterval`, flies from the stack into the car, job state
+   `need` -> `ready`). Standing still on it (below `PLAYER.stillSpeed` for `PLAYER.stillTime`) the player
+   **works**, and the car's job bubble stays opaque over them (`setSolid`): the first `ready` job's progress fills
+   at `upgradeValue('repair')` work-seconds per second
    (`PROBLEMS[t].work` seconds of work per job); the character plays its wrenching animation, sparks fly, ratchet
    sfx ticks. A hired mechanic at the same lift adds `mechanicRate` on top. A finished job turns `done`: the damage
    disappears from the model (`car.setProblems(remaining)`), ding, small float text.
@@ -191,7 +198,9 @@ Build static geometry with `voxel.js` `Builder` (one merged vertex-coloured mesh
 - Looks: `playerLook()` (lead mechanic: coral overalls, mustard cap; must stand out), `mechanicLook(index)` (navy
   or teal overalls, 3 variants), `valetLook()` (waistcoat + cap), `randomCustomerLook()`.
 - `createCashStack()`, `createUnlockPad() -> { group, setProgress(0..1), update(dt) }` (1.6 x 1.6),
-  `createUpgradePad() -> { group, update(dt) }` (1.4 x 1.4, teal, arrow-up icon), `createZoneRing(radius) -> Mesh`.
+  `createUpgradePad() -> { group, update(dt) }` (1.4 x 1.4, teal, arrow-up icon), `createZoneRing(radius) -> Mesh`,
+  `createFloorMat(w, d, { icon, tint, kind }) -> { group, set(state, ring, tick), glow(k), dispose() }` (a 4 cm
+  rubber mat with a printed icon chip; state idle | want | on | empty; face drawn by `mat-face.js`).
 - `createScrapBin()`, `createCoffeeCart()`, `createBillboard()` (roadside billboard on posts, canvas-texture face,
   ~3.2 wide x 3 tall), `createValetStand()` (podium with a key board), `createToolbox()` (rolling tool chest): Groups.
 - `updateLeaks(dt)`: advances the shared oil drops / spots (3 instanced meshes for every car). Called once per

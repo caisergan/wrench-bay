@@ -75,8 +75,10 @@ export const LAYOUT = {
     paint:   { x: 6.4,  z: -10.2 },
   },
   stationSize: { w: 2.2, d: 1.2 },
-  stationPickupOffsetZ: 1.5,   // pickup zone centre = station.z + this
-  stationZoneRadius: 1.1,
+  // Pickup mat in front of each station: centre = station.z + stationPickupOffsetZ (it starts 0.12 in front of the
+  // counter), size stationMat. docs/pickup-redesign.
+  stationPickupOffsetZ: 1.2,
+  stationMat: { w: 1.3, d: 0.95 },
 
   // Lifts. Index 0 exists from the start. A car on a lift is centred here, nose towards -z (yaw = PI).
   lifts: [
@@ -86,9 +88,9 @@ export const LAYOUT = {
     { x: 6.3,  z: -3.4 },
   ],
   liftPostOffsetX: 1.15,       // the two posts stand at lift.x -/+ this, same z as the lift
-  // Player work zone in front of the car's nose: (lift.x, lift.z + liftWorkOffsetZ), radius liftWorkRadius.
-  liftWorkOffsetZ: -2.5,
-  liftWorkRadius: 1.15,
+  // Player work mat in front of the car's nose (0.35 from the bumper): centre (lift.x, lift.z + liftWorkOffsetZ).
+  liftWorkOffsetZ: -2.25,
+  liftWorkMat: { w: 1.5, d: 1.0 },
   // Where a hired mechanic stands to work on that lift (relative to the lift centre), facing +z.
   mechanicSpotOffset: { x: -0.7, z: -2.2 },
   // Cash for a finished repair lands here (relative to the lift centre).
@@ -163,7 +165,9 @@ export const ECONOMY = {
   problemsCap: 4,
   problemsPerUnlocks: 5,
   stationMax: 4,           // parts a station can hold
-  pickupInterval: 0.14,    // seconds between single-part transfers (station -> hands)
+  pickupInterval: 0.14,    // seconds between single-part transfers (station -> hands) while the lifts need them
+  pickupExtraWait: 0.8,    // nothing (more) needed: stand still on the mat this long, then the "one more" ring fills ...
+  pickupExtraInterval: 1.0, // ... one extra part every this many seconds
   deliverInterval: 0.16,   // seconds between single-part transfers (hands -> car)
   spawnInterval: 6.5,      // seconds between car arrivals with one lift (when the drop-off lane has room)
   spawnIntervalPerLift: 1.0, // ... minus this for every extra lift (floor 2.5 s)
@@ -198,6 +202,9 @@ export const PLAYER = {
   radius: 0.35,
   carryBase: 3,
   enterCarDelay: 0.3,      // seconds standing in a car's pickup zone before hopping in
+  stillSpeed: 0.5,         // m/s: slower than this counts as standing still (repairs, extra parts) ...
+  stillTime: 0.15,         // ... and repairs start only after this long still (turning round is not a stop)
+  matReach: 0.08,          // the player's centre may be this far outside a floor mat and still be on it
 };
 
 export const UPGRADES = {

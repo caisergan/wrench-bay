@@ -395,12 +395,12 @@ export const PAINT = {
   forecourt: { minX: -43.5, maxX: -17.5, minZ: 1.2, maxZ: 11.0 },
   // Spray booths (index 0 from the start). Car centred here, nose towards -z (yaw = PI).
   // A booth is 3.6 x 6.1: the car drives in at the south end (a clear roll-down curtain closes it while spraying
-  // and curing); the north end is the open personnel end where the painter stands, so the work zone in front of
+  // and curing); the north end is the open personnel end where the painter stands, so the work mat in front of
   // the nose (bay.z + workOffsetZ) is inside the glass. Design: docs/town-agents/briefs/painthall.txt.
   bays: [{ x: -34.6, z: -3.4 }, { x: -27.4, z: -3.4 }],
   boothHalfW: 1.8, boothZ: [-6.9, -0.8],                        // glass side walls (obstacles); north end clear of the staff lane
   bayPostOffsetX: 1.8,
-  workOffsetZ: -2.5, workRadius: 1.15,
+  workOffsetZ: -2.25, workMat: { w: 1.5, d: 1.0 },
   staffSpotOffset: { x: -0.7, z: -2.2 },
   cashOffset: { x: 2.6, z: -2.3 },
   capture: { halfX: 1.4, maxZ: -0.6 },
@@ -410,7 +410,7 @@ export const PAINT = {
     red: { x: -39.2, z: -10.2 }, blue: { x: -36.7, z: -10.2 }, white: { x: -34.2, z: -10.2 }, lime: { x: -31.7, z: -10.2 },
     teal: { x: -29.2, z: -10.2 }, black: { x: -26.7, z: -10.2 }, gold: { x: -24.2, z: -10.2 }, purple: { x: -21.7, z: -10.2 },
   },
-  stationSize: { w: 1.9, d: 1.2 }, stationPickupOffsetZ: 1.3, stationZoneRadius: 0.65,   // small ring close to the tank: walking past never picks paint up
+  stationSize: { w: 1.9, d: 1.2 }, stationPickupOffsetZ: 1.2, stationMat: { w: 1.3, d: 0.95 },
   // Slots sit west of the prep desk and the shelter (as the garage's do), so the prep tech's route to a booth
   // clears them: slot -> (x + 0.4, laneZ - 2.4) -> booth.
   queueLaneZ: 7.6, queueSlots: [{ x: -28.0 }, { x: -31.6 }, { x: -35.2 }],
@@ -488,13 +488,13 @@ export const VIP = {
   forecourt: { minX: 27.6, maxX: 44.6, minZ: 1.2, maxZ: 11.0 },
   bays: [{ x: 32.2, z: -3.4 }, { x: 36.6, z: -3.4 }],           // gold lifts (index 0 from the start)
   bayPostOffsetX: 1.15,
-  workOffsetZ: -2.5, workRadius: 1.15,
+  workOffsetZ: -2.25, workMat: { w: 1.5, d: 1.0 },
   staffSpotOffset: { x: -0.7, z: -2.2 },
   cashOffset: { x: 1.65, z: -2.3 },
   capture: { halfX: 1.4, maxZ: -0.6 },
   staffLaneZ: -7.4,
   stations: { premium: { x: 34.4, z: -10.2 } },                 // premium parts cabinet: one "premium kit" fits any VIP job
-  stationSize: { w: 2.2, d: 1.2 }, stationPickupOffsetZ: 1.5, stationZoneRadius: 1.1,
+  stationSize: { w: 2.2, d: 1.2 }, stationPickupOffsetZ: 1.2, stationMat: { w: 1.3, d: 0.95 },
   queueLaneZ: 7.6, queueSlots: [{ x: 39.6 }, { x: 36.0 }],      // red-carpet drop-off
   queuePickupOffsetZ: -1.55, queuePickupRadius: 0.9,
   carEntry: [{ x: 29.4, z: 14.4 }, { x: 29.4, z: 7.6 }],

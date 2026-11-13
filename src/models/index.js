@@ -3,6 +3,7 @@ export {
   PART_H, CASH_H, LIFT_RISE, createPart, createPartStation, createLift, createCashStack, createUnlockPad,
   createUpgradePad, createZoneRing, createScrapBin, createCoffeeCart, createBillboard, createValetStand, createToolbox,
 } from './props.js';
+export { createFloorMat } from './mats.js';
 export { createCar, randomCarLook } from './cars.js';
 export {
   createCharacter, randomCustomerLook, playerLook, mechanicLook, valetLook, painterLook, prepTechLook, hostLook,

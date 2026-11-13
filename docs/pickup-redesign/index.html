@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wrench Bay · Parts & lift mats</title>
+<link rel="stylesheet" href="./page.css">
+</head>
+<body>
+<main>
+  <header class="hero">
+    <span class="kicker">Design · parts shelves & lifts</span>
+    <h1>Small mats instead of big boxes, and you only get the parts the lifts need</h1>
+    <p class="lede">
+      The floor boxes in front of the shelves and the lifts were about three players wide and covered most of the hall.
+      A shelf also emptied into your hands as fast as it could: if a car needed <em>1 tyre and 1 oil</em>, you left the
+      tyre box holding 3 tyres, with no hand left for the oil. Now a small mat at each counter and in front of each
+      car's nose replaces the boxes. Each mat <em>gives the parts the cars on the lifts are waiting for</em>, then
+      stops. Want more? Stand still and a ring fills, one extra part at a time. At the lift you <em>repair only while
+      standing still</em>, and the job bubble <em>stays solid while you repair</em>.
+    </p>
+  </header>
+
+  <!-- 1. before -->
+  <section>
+    <h2><span class="n">1</span>What went wrong</h2>
+    <div class="pair">
+      <figure>
+        <div class="shot"><img src="img/hall-before.jpg" alt="">
+          <div class="co" style="left:14%;top:23.5%;width:71%;height:13.5%"><span>Five 2.2 m boxes, 1 m apart</span></div>
+          <div class="co dash below" style="left:53.5%;top:40.5%;width:14.5%;height:14%"><span>Lift box 2.3 m</span></div>
+        </div>
+        <figcaption class="before"><b>Your garage, browser view.</b> The station boxes fill the floor in front of the shelves. The lift boxes stick out behind the job cards.</figcaption>
+      </figure>
+      <figure>
+        <div class="shot"><img src="img/phone-today.jpg" alt="">
+          <div class="co" style="left:43%;top:12%;width:15%;height:23%"><span>3 tyres in 0.4 s</span></div>
+          <div class="co dash below" style="left:20.5%;top:25.5%;width:16.5%;height:14%"><span>No hand left for oil</span></div>
+        </div>
+        <figcaption class="before"><b>Phone view, 3 hands.</b> The red car wants a tyre and an oil can. One step into the tyre box and the hands are full of tyres.</figcaption>
+      </figure>
+    </div>
+    <ul class="facts">
+      <li><b>Boxes are huge.</b> Shelf boxes are 2.2 m wide and lift boxes 2.3 m. The player is 0.7 m wide, so each box is three players across.</li>
+      <li><b>No floor between them.</b> Shelf boxes end 0.5 m before the lift boxes start, so the only walkway in the hall runs through them.</li>
+      <li><b>The shelf empties into you.</b> One part every 0.14 s while you are inside. 3 hands fill in 0.42 s, faster than you can step off.</li>
+      <li><b>Walking past takes parts.</b> Crossing a box on the way to another shelf also fills your hands with parts you didn't want.</li>
+    </ul>
+  </section>
+
+  <!-- 2. mats -->
+  <section>
+    <h2><span class="n">2</span>The design: a mat where you stand</h2>
+    <p class="sub">A rubber mat at each counter (1.3 × 0.95 m) and a work mat at each car's nose (1.5 × 1.0 m). Like the
+      anti-fatigue mats in front of a real workbench. Same moment, same camera.</p>
+    <div class="pair">
+      <figure>
+        <div class="shot"><img src="img/hall-before.jpg" alt=""></div>
+        <figcaption class="before">Boxes everywhere.</figcaption>
+      </figure>
+      <figure>
+        <div class="shot"><img src="img/hall-after.jpg" alt="">
+          <div class="co ok" style="left:15.5%;top:25%;width:68.5%;height:9.5%"><span>Mats at the counters</span></div>
+        </div>
+        <figcaption class="after">The free walkway between the shelves and the lifts grows from 0.5 m to 2.4 m. Yellow mats are parts a lift is waiting for.</figcaption>
+      </figure>
+    </div>
+    <div class="pair phone">
+      <figure>
+        <div class="shot"><img src="img/phone-today.jpg" alt=""></div>
+        <figcaption class="before">3 tyres, no oil.</figcaption>
+      </figure>
+      <figure>
+        <div class="shot"><img src="img/phone-after.jpg" alt="">
+          <div class="co ok" style="left:45%;top:21%;width:10.5%;height:14.5%"><span>1 tyre, then it stops</span></div>
+          <div class="co ok below" style="left:23.5%;top:27.5%;width:10%;height:7.5%"><span>Oil: needed</span></div>
+          <div class="co ok below" style="left:66.5%;top:27.5%;width:10%;height:7.5%"><span>Battery: needed</span></div>
+        </div>
+        <figcaption class="after">The same two cars. The tyre mat gives 1 tyre and stops, which leaves hands free for the oil and the battery that are glowing.</figcaption>
+      </figure>
+    </div>
+
+    <h3 class="gap">Shelf mat: every state</h3>
+    <div class="mats" id="stationMats"></div>
+    <h3 class="gap">Lift work mat (only while a car is on the lift)</h3>
+    <div class="mats lift" id="liftMats"></div>
+    <div class="why">
+      <b>Why does only one mat glow?</b> A shelf mat turns yellow only when all three of these are true:
+      <ol>
+        <li>a car on a lift is still waiting for that part,</li>
+        <li>nobody is already bringing it (a mechanic hasn't gone for it, and it isn't already in your hands),</li>
+        <li>you have a free hand.</li>
+      </ol>
+      So when the left car already has its tyre and oil, and the right car only lacks a battery, only the battery mat glows.
+    </div>
+  </section>
+
+  <!-- 3. pickup rules -->
+  <section>
+    <h2><span class="n">3</span>How picking up works</h2>
+    <div class="two">
+      <ol class="rules">
+        <li><b>The mat gives what's needed, fast.</b> At the usual speed (0.14 s a part) until you hold as many as the cars on the lifts are waiting for. That count leaves out parts a mechanic is fetching and parts already in your hands.</li>
+        <li><b>It keeps a hand free for the other parts.</b> If another part is also needed, the mat stops one short so you have a hand for it. A needed part always gives at least one.</li>
+        <li><b>Want more? Stand still.</b> After 0.8 s a yellow ring starts to fill on the mat. Every 1 s you get one more part. Step off to stop. This is how you stock up before cars arrive.</li>
+        <li><b>Walking past takes nothing extra.</b> Crossing a mat only gives you parts that are needed. Extra parts only come while you stand still.</li>
+      </ol>
+      <ol class="rules" start="5">
+        <li><b>The lift mat takes the parts on the way.</b> Step onto it and every part the car needs flies in, even while you walk across. It is smaller and closer to the car (0.35 m from the bumper).</li>
+        <li><b>Repairs only while you stand still.</b> The wrench starts 0.15 s after you stop on the mat. Move and the repair pauses. Turning round on the spot is not a stop.</li>
+        <li><b>The job bubble stays solid while you repair.</b> Bubbles still fade when they cover your character, so you can see yourself walk. While you repair that car, its bubble stays opaque so you can read the progress. Start moving and it fades again.</li>
+        <li><b>Mechanics are not affected.</b> They still fetch for their own lift. The parts they claimed don't count as needed for you.</li>
+      </ol>
+    </div>
+
+    <h3 class="gap">Repairing: the bubble stays readable</h3>
+    <div class="pair phone">
+      <figure>
+        <div class="shot"><img src="img/card-today.jpg" alt="">
+          <div class="co" style="left:44%;top:40%;width:15.5%;height:17%"><span>Faded while you repair</span></div>
+        </div>
+        <figcaption class="before">The bubble over the red car fades because it covers the character, so the tyre's progress is hard to read.</figcaption>
+      </figure>
+      <figure>
+        <div class="shot"><img src="img/card-after.jpg" alt="">
+          <div class="co ok" style="left:46%;top:40%;width:12.5%;height:16%"><span>Solid while you repair</span></div>
+        </div>
+        <figcaption class="after">Standing still on the work mat: the battery is being fitted and its bubble stays solid. Walk off and it fades again.</figcaption>
+      </figure>
+    </div>
+
+    <h3 class="gap">The case you hit: the lift wants 1 tyre + 1 oil, you have 3 hands</h3>
+    <div class="boards">
+      <div class="board today" id="bToday"><h4><i>BEFORE</i>Boxes, the shelf empties into you</h4></div>
+      <div class="board prop" id="bProp"><h4><i>AFTER</i>Mats, only what's needed</h4></div>
+    </div>
+
+    <table class="cases" id="cases">
+      <thead><tr><th>The lifts need</th><th>Before (3 hands)</th><th>After (3 hands)</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- 4. try it -->
+  <section>
+    <h2><span class="n">4</span>Try it</h2>
+    <p class="sub">The real game, on its own save slot (your progress is not touched). An early garage: 2 lifts, the
+      tyre / oil / battery shelves, a valet who parks the cars, no mechanics, 3 hands. No random cars arrive. Add the
+      cars you want to test.</p>
+    <div class="try">
+      <div class="frame"><iframe id="game" title="Wrench Bay"></iframe></div>
+      <div class="ctl">
+        <div>
+          <h4>Add a car</h4>
+          <div class="row" id="cars"></div>
+        </div>
+        <div>
+          <h4>Tools</h4>
+          <div class="row">
+            <button class="btn" id="empty">Empty my hands</button>
+            <button class="btn" id="random">Random cars: off</button>
+            <button class="btn" id="reset">Start over</button>
+          </div>
+        </div>
+        <div class="live" id="live">Loading the game…</div>
+        <p class="hint">Click the game first, then walk with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or the arrow keys
+          (or drag on it). The valet drives each new car onto a free lift.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. decisions + scope -->
+  <section class="two">
+    <div>
+      <h2><span class="n">5</span>Decisions</h2>
+      <ol class="qs">
+        <li><b>Keep a hand free: yes.</b> Lifts want 3 tyres and 1 oil: you get 2 tyres + the oil, so one car finishes on
+          the first trip.</li>
+        <li><b>Extra parts: 1 s each, after 0.8 s still.</b> The first extra comes 1.8 s after you have what's needed: slow
+          enough that you never take one by accident, quick enough to stock up 3 hands in about 4 s.</li>
+        <li><b>Lift mat in front of the nose.</b> From far away it sits under the job bubble, which fades as you walk up.
+          The bubble already marks the lift, and the nose is where a mechanic would stand.</li>
+        <li><b>Repair only while standing still</b>, and <b>the bubble stays solid while you repair</b>.</li>
+      </ol>
+      <div class="later"><b>Same look later, optional:</b> the get-in box beside cars in the drop-off lane (1.8 m) could
+        use the same mat, so every "stand here" spot looks the same.</div>
+    </div>
+    <div>
+      <h2><span class="n">6</span>What it touches</h2>
+      <ul class="files">
+        <li><code>src/models/mats.js</code>: <code>createFloorMat(w, d, { icon, tint, kind })</code>: a 4 cm rubber slab with a canvas-texture face, states, glow</li>
+        <li><code>src/models/mat-face.js</code>: draws the face (rim, icon chip, ring, tick); this page's gallery uses it too</li>
+        <li><code>src/game/stations.js</code>: the mat replaces the zone ring; <code>neededParts()</code> and the pickup rules</li>
+        <li><code>src/game/lifts.js</code>: the work mat, <code>playerCanWork()</code> (still on the mat), the solid job bubble</li>
+        <li><code>src/game/paint.js</code>: the same in the Spray Bay (spray only while still; the tank mats show a can in the tank's colour)</li>
+        <li><code>src/game/player.js</code>: <code>player.speed</code>, <code>player.stillT</code></li>
+        <li><code>src/ui/labels.js</code>, <code>src/game/util.js</code>: <code>setSolid()</code> on bubbles, <code>onMat()</code></li>
+        <li><code>src/config.js</code> / <code>config.town.js</code>: <code>stationMat</code>, <code>liftWorkMat</code> / <code>workMat</code>, offsets, <code>pickupExtraWait</code>, <code>pickupExtraInterval</code>, <code>PLAYER.stillSpeed</code> / <code>stillTime</code> / <code>matReach</code></li>
+        <li><code>src/models/environment.js</code>: the painted grey pad under each station is gone (the mat replaces it)</li>
+      </ul>
+    </div>
+  </section>
+</main>
+<script type="module" src="./page.js"></script>
+</body>
+</html>

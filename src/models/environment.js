@@ -256,10 +256,7 @@ export function buildEnvironment(scene) {
   const stripZ0 = L.stations.tire.z + 0.7, stripZ1 = L.stations.tire.z + 2.4;
   flat(paint, -bounds.maxX + 0.0, bounds.maxX, stripZ0, stripZ1, 0.0, 0.025, 0xb4c3c8);
   flat(paint, -bounds.maxX, bounds.maxX, stripZ1 - 0.12, stripZ1, 0.025, 0.012, P.bayLine);
-  for (const k of Object.values(L.stations)) {
-    // little pickup mat in front of each station slot
-    flat(paint, k.x - 0.95, k.x + 0.95, k.z + L.stationPickupOffsetZ - 0.55, k.z + L.stationPickupOffsetZ + 0.55, 0.025, 0.01, 0xa3b4ba);
-  }
+  // (the pickup spot in front of each station is a real rubber mat now: game/stations.js)
   // bay markings for every lift
   L.lifts.forEach((l) => {
     const hw = 1.72, hl = 2.05, t = 0.1, cl = 0.7;
