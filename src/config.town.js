@@ -406,6 +406,11 @@ export const PAINT = {
   cashOffset: { x: 2.6, z: -2.3 },
   capture: { halfX: 1.4, maxZ: -0.6 },
   staffLaneZ: -7.4,
+  // Paint feed rack against the outside of each booth's west glass wall, just south of its control column (offsets
+  // from the bay = car centre). Canisters are loaded into it from its mat (outside the booth); then the painter goes in
+  // through the north end and sprays from the work mat: the rack feeds the gun through the wall.
+  feed: { x: -2.1, z: -1.95 }, feedMat: { x: -2.87, z: -1.95, w: 0.95, d: 1.3 },
+  chip: { y: 0.3, dz: 0.75 },                                   // booth status chip: height, metres in front of the booth's mouth
   // Paint tanks along the back wall, keyed by colour id. red / blue / white exist from the start.
   stations: {
     red: { x: -39.2, z: -10.2 }, blue: { x: -36.7, z: -10.2 }, white: { x: -34.2, z: -10.2 }, lime: { x: -31.7, z: -10.2 },

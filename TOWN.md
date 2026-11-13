@@ -298,18 +298,30 @@ drop-off lane on its own forecourt, its own customers, waiting awning, exit.
 2. Drive the car into a free booth through its south (vehicle) end (capture box, like a lift). It is **masked**
    automatically: paper and tape over glass, lights and wheels (`setMasked`), booth lamps on.
 3. Fetch canisters of the right colour from the tanks (carry stack, capacity upgrade applies; a wrong colour is
-   useless: the waste-paint drum at `PAINT.scrapBin`, against the west wall next to the first tank). Deliver them in the work zone in
-   front of the nose: the booth's north (personnel) end, inside the glass, behind automatic sliding doors that open
-   for anyone at or walking up to the doorway.
-4. Spray: stand still on the work mat; the player first pulls on the white paint suit (`ch.setSuit`: cap off, a wipe
-   from the feet up with a dressing pose, hood, respirator, goggles; `paint.js syncPlayerSuit`), sprays only once it
-   is on, and keeps it on inside the hall until they walk out; each delivered canister is `work` seconds; the booth's doors shut (`setLamp('spray')`;
+   useless: the waste-paint drum at `PAINT.scrapBin`, against the west wall next to the first tank). **Load** them
+   into the booth's paint feed rack from its mat (`PAINT.feed` / `PAINT.feedMat`): the rack stands against the
+   outside of the booth's west glass wall, just south of the control column. Each canister flies into its own cradle
+   (cradle i = job i), stands upright and a feed head clamps onto it (status light green). The feed mat shows a can in
+   the colour the car wants and pulses while the player carries one it needs. The car's bubble is for what to bring:
+   once every canister is in, it leaves the car (so the new colour can be watched) and the booth's **status chip** on
+   the floor in front of its mouth (`PAINT.chip`) takes over: a ring in the paint colour around a spray gun, filling
+   over the whole respray (a stripe job turns it to the stripe colour), and the owner's mood as a face on its corner
+   (it pulses once patience is low). The control column's ring fills with the spray progress too.
+4. Spray: go in through the booth's north (personnel) end, behind automatic sliding doors that open for anyone at
+   or walking up to the doorway, onto the work mat in front of the nose (it pulses once a canister is loaded and the
+   player carries nothing more for this car) and stand still. The player first pulls on the white paint suit
+   (`ch.setSuit`: cap off, a wipe from the feet up with a dressing pose, hood, respirator, goggles; `paint.js
+   syncPlayerSuit`), sprays only once it is on, and keeps it on inside the hall until they walk out. The rack feeds the
+   gun through the wall: the canister being sprayed shudders with a blinking amber light, and when it is empty the head
+   lets go and it is lifted out. Each canister is `work` seconds; the booth's doors shut (`setLamp('spray')`;
    `SprayBooth.updateDoors` -> `setDoors(south, north)`): the bi-fold doors behind the car fold shut once nobody
-   stands in their swing, the north sliding doors close whenever nobody walks through, the player holds a spray gun, a mist in that colour and a soft haze inside
+   stands in their swing, the north sliding doors close whenever nobody walks through, the player holds a spray gun,
+   a mist in that colour and a soft haze inside
    the glass (`booth.setHaze(hex)`), and the new colour **sweeps over the body from nose to tail** as progress
    rises (`setColor(hex, k)`), one section per canister.
 5. Cure: all canisters sprayed -> the booth bakes (`setLamp('cure')`, amber lights; with the IR upgrade
-   `setIR(true)` the infra-red arrays glow), its timer ring counts `cure` s (`setTimer`). You are free to leave;
+   `setIR(true)` the infra-red arrays glow), its timer ring counts `cure` s (`setTimer`) and the status chip turns
+   into the amber clock (mood face still on it). You are free to leave;
    this is the juggling moment (start the next car, fetch paint).
 6. Done: `setLamp('done')` (doors open; the car backs out `PAINT.doors.release` s later, green beacon), masking off, gloss, confetti, payout pile beside the booth
    (`resprayPayout`), the car backs out, picks up its owner at `PAINT.pickupStop` and leaves in its new colour.
@@ -317,7 +329,8 @@ drop-off lane on its own forecourt, its own customers, waiting awning, exit.
   apply here too.
 - Chain (`PAINT_UNLOCKS`): more colours (customers only ask for colours you stock; more colours = more
   customers and, with premium colours, x`premiumMult`), second booth, **painter** staff (mechanic logic: reads
-  the car, fetches the right canisters, sprays), **prep tech** (valet logic: drives waiting cars into free
+  the car, fetches the right canisters, loads them into the feed rack from its mat, walks round into the booth and
+  sprays; with nothing in hand it goes straight in), **prep tech** (valet logic: drives waiting cars into free
   booths), infra-red lamps (cure time halves), stripe kit (some customers want a second colour as racing
   stripes: one extra canister, `setStripe`, x`stripeMult`).
 
@@ -493,6 +506,12 @@ glazed bi-fold doors at the +z vehicle end, folding out; glazed telescopic slidi
 parking beside the booth; all eight leaves posed into two merged meshes; `group.userData.doorSolids` = local solids
 per door state, swapped by gameplay; glass side walls, downdraft grate, light boxes, control
 column with timer ring and beacon; `group.userData.obstacles` = local wall + column boxes);
+`createPaintFeed() -> { group, slotAnchor(i), slotCount, setSlot(i, 'empty' | 'loaded' | 'feeding'), settle(),
+update(dt) }` (paint feed rack, origin = rack centre on the floor, +x = the wall it stands against; drip tray, four
+cradles along z (i = 0 at -z), a feed head per cradle that clamps down on a loaded canister and shudders while
+feeding, status lights on the front rim, header pipe through a bulkhead in the glass to the gun's hose inside; a
+canister parented to `slotAnchor(i)` with an identity transform stands upright in cradle i;
+`group.userData.obstacles` = local rack box. Gameplay adds it to the booth's group at `PAINT.feed`);
 `createPaintTank(colorId) -> station API` (`{ group, partAnchor, setProgress, update }`, footprint
 `PAINT.stationSize`, colour unmistakable from the camera; a canister fills on its filler while `0 < k < 1`);
 `createVipHall() -> { group, update(dt) }` (shell, marble / dark floor, gold trim, lounge corner with sofas at
@@ -724,7 +743,8 @@ unlocks?: chain, stayText?, setup?(fac), teardown?(fac) }`.
   drives itself in its own modes), `setPath(points, { reverse, restYaw, maxSpeed })`, `nose(out, up)`,
   `findNeed(type)`, `firstReady()`, `jobDone(job)`, `markJobsDirty()`, `finished`.
 - `Station`, `Owner` (routes: `loungePath(door, spot)`, `curbPath(i)`, `leavePath()`; owners sit when the spot has
-  `sit`), `Mechanic` (override `setWorkAnim(on)` for spray / polish poses), `Valet` (override `pathToBay(car, bay, sx)`).
+  `sit`), `Mechanic` (override `setWorkAnim(on)` for spray / polish poses; `deliverSpot(bay)` / `workSpot(bay)` when parts are
+  handed over somewhere else than where the work is done: paint loads the feed rack, then `goWork()` walks in), `Valet` (override `pathToBay(car, bay, sx)`).
 
 **`fac.cars`**: `spawn(opts, force)` with `opts = { vip, type, problems: [types], look, payMult, bonusText,
 at: { x, z, yaw }, path: [{x, z}], reserved }` (null = lane full). `at` + `path: []` starts a car anywhere and

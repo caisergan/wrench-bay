@@ -1707,6 +1707,120 @@ export function createSprayBooth(index = 0) {
   return { group, setLamp, setTimer, setHaze, setIR, setDoors, doorState, update };
 }
 
+// ================================================================ paint feed rack (booth side), ORIGIN = rack centre on the floor
+// Stands against the outside of a booth's glass side wall (+x = the wall, -x = the loading side, where the player
+// stands on its mat). The canisters a car needs are loaded into its cradles from outside; a feed head clamps onto
+// each one, and the header pipe carries the paint through a bulkhead in the glass to the painter's gun inside.
+// Cradle i sits at z = (i - (n - 1) / 2) * pitch (i = 0 at -z, the booth's north end: sprayed first).
+const FEED = { n: 4, pitch: 0.32, x: -0.05, base: 0.1, top: 0.64, lift: 0.12, header: 1.02, hx: 0.11, len: 1.42, d: 0.46, wall: 0.285 };
+const feedZ = (i) => (i - (FEED.n - 1) / 2) * FEED.pitch;
+const feedGeo = () => geo('pfeed|static', (b) => {
+  const { x: cx, d, len, header: hy, hx, base } = FEED, hl = len / 2, bx = d / 2 - 0.045;
+  // ---- drip tray: steel pan, dark grating, a rim; a few drips of colour under the cradles
+  b.box(d, 0.05, len, TC.STEEL_DD, 0, 0, 0);
+  b.box(d - 0.05, 0.012, len - 0.05, 0x2a2f36, 0, 0.05, 0);
+  for (const s of [-1, 1]) { b.box(0.022, 0.035, len - 0.004, TC.STEEL_D, s * (d / 2 - 0.013), 0.05, 0); b.box(d - 0.05, 0.035, 0.022, TC.STEEL_D, 0, 0.05, s * (hl - 0.013)); }
+  const drips = ['red', 'blue', 'teal', 'lime'];
+  for (let i = 0; i < FEED.n; i++) b.cyl(0.05 + (i % 2) * 0.02, 0.05 + (i % 2) * 0.02, 0.004, mixHex(0x2a2f36, PAINT_COLORS[drips[i]].hex, 0.35), cx - 0.11, 0.0625, feedZ(i) + 0.06, 8);
+  // ---- cradles: a base plate per canister, a collar (two arms from the back bar and a front strap)
+  for (let i = 0; i < FEED.n; i++) {
+    const z = feedZ(i);
+    b.cyl(0.128, 0.128, base - 0.065, TC.STEEL_D, cx, 0.065, z, 14);
+    b.cyl(0.1, 0.1, 0.006, TC.STEEL_DD, cx, base - 0.0005, z, 12);
+    for (const s of [-1, 1]) b.box(bx - (cx - 0.15), 0.03, 0.02, TC.STEEL, (bx + cx - 0.15) / 2, 0.33, z + s * 0.142);
+    b.box(0.02, 0.035, 0.304, TC.STEEL, cx - 0.15, 0.33, z);
+  }
+  // ---- back frame: two posts, the collar bar, the header brackets
+  for (const s of [-1, 1]) {
+    b.box(0.05, hy + 0.1 - 0.05, 0.05, TC.CREAM_L, bx, 0.05, s * (hl - 0.045));
+    b.box(bx - hx + 0.03, 0.05, 0.04, TC.CREAM_L, (bx + hx) / 2, hy - 0.025, s * (hl - 0.045));
+  }
+  b.box(0.03, 0.044, len - 0.13, TC.STEEL_D, bx, 0.323, 0);
+  // ---- header pipe behind the cradles (against the wall, so the canisters show from above) with a sleeve per feed
+  //      head; at the north end it turns into the wall
+  cylZ(b, 0.034, -hl + 0.02, hl - 0.07, hy, hx, TC.STEEL);
+  cylZ(b, 0.042, hl - 0.085, hl - 0.055, hy, hx, TC.STEEL_D, 10);                            // end cap
+  for (let i = 0; i < FEED.n; i++) b.cyl(0.04, 0.04, 0.1, TC.STEEL_D, hx, hy - 0.05, feedZ(i), 10);
+  const zw = -hl + 0.02;
+  b.cyl(0.042, 0.042, 0.08, TC.STEEL_D, hx, hy - 0.04, zw, 10);                              // elbow
+  cylX(b, 0.034, hx, FEED.wall - 0.012, hy, zw, TC.STEEL);
+  b.box(0.012, 0.2, 0.2, TC.STEEL_D, FEED.wall - 0.018, hy - 0.1, zw);                        // bulkhead plate (outside)
+  for (const [y, z] of [[0.07, 0.07], [0.07, -0.07], [-0.07, 0.07], [-0.07, -0.07]]) b.box(0.012, 0.024, 0.024, TC.STEEL_DD, FEED.wall - 0.03, hy + y - 0.012, zw + z);
+  b.box(0.012, 0.2, 0.2, TC.STEEL_D, FEED.wall + 0.036, hy - 0.1, zw);                        // bulkhead plate (inside the booth)
+  // the gun's fluid hose leaves the inner plate and hangs in a loop on a hook
+  cylX(b, 0.02, FEED.wall + 0.042, FEED.wall + 0.1, hy, zw, TC.STEEL_DD);
+  b.box(0.032, 0.5, 0.032, VALVE, FEED.wall + 0.11, hy - 0.5, zw);
+  b.box(0.032, 0.032, 0.16, VALVE, FEED.wall + 0.11, hy - 0.52, zw + 0.064);
+  b.box(0.032, 0.36, 0.032, VALVE, FEED.wall + 0.11, hy - 0.52 + 0.012, zw + 0.144);
+  b.box(0.05, 0.03, 0.05, TC.STEEL_DD, FEED.wall + 0.11, hy - 0.16, zw + 0.144);              // hook
+  // ---- regulator on the south post: body, gauge, red valve handle, line up to the header
+  const rz = hl - 0.045, rx = bx - 0.06;
+  b.box(0.07, 0.16, 0.1, PUMP, rx, 0.7, rz);
+  b.cyl(0.045, 0.045, 0.02, TC.CREAM_L, rx - 0.035, 0.84, rz, 12, 0, 0, R90);
+  b.box(0.004, 0.03, 0.006, TC.NAVY, rx - 0.047, 0.84, rz, 0.6, 0, 0);
+  b.box(0.05, 0.02, 0.02, VALVE, rx - 0.045, 0.72, rz);
+  cylY(b, 0.016, 0.86, hy - 0.025, rx, rz, TC.STEEL_DD, 6);
+});
+/** Feed head (moves): a small clamp on the canister's valve, a short stem, an arm back to the header and the guide
+ *  rod sliding in the header sleeve. Origin = the cradle axis at the head's underside. */
+const feedHeadGeo = () => geo('pfeed|head', (b) => {
+  const ay = FEED.header + 0.08 - FEED.top, ax = FEED.hx - FEED.x;
+  b.cyl(0.044, 0.044, 0.012, TC.DARK, 0, 0, 0, 10);
+  b.cyl(0.05, 0.05, 0.04, PUMP, 0, 0.012, 0, 10);
+  b.box(0.07, 0.016, 0.02, VALVE, -0.05, 0.034, 0);                                            // quick-release lever
+  cylY(b, 0.018, 0.052, ay + 0.018, 0, 0, TC.STEEL, 8);
+  cylX(b, 0.018, 0, ax, ay, 0, TC.STEEL, 8);
+  b.cyl(0.026, 0.026, 0.04, TC.STEEL_D, ax, ay - 0.02, 0, 8);                                  // elbow over the sleeve
+  cylY(b, 0.016, ay - 0.2, ay - 0.02, ax, 0, TC.STEEL_DD, 6);                                  // guide rod (in the sleeve)
+});
+const feedLampGeo = new THREE.BoxGeometry(0.05, 0.026, 0.06).translate(0, 0.013, 0);
+/**
+ * Paint feed rack for one booth: { group, slotAnchor(i), setSlot(i, 'empty' | 'loaded' | 'feeding'), update(dt) }.
+ * A canister parented to slotAnchor(i) with an identity transform stands upright in cradle i.
+ * group.userData.obstacles = local box of the rack.
+ */
+export function createPaintFeed() {
+  const group = new THREE.Group();
+  group.add(mesh(feedGeo(), litMat, { cast: true, receive: true }));
+  const slots = [];
+  for (let i = 0; i < FEED.n; i++) {
+    const z = feedZ(i);
+    const head = mesh(feedHeadGeo(), litMat, { cast: false });
+    head.position.set(FEED.x, FEED.top + FEED.lift, z);
+    group.add(head);
+    const lamp = new THREE.Mesh(feedLampGeo, LAMP.off);
+    lamp.position.set(-FEED.d / 2 + 0.013, 0.085, z);            // status light on the front rim
+    group.add(lamp);
+    const anchor = new THREE.Object3D();
+    anchor.position.set(FEED.x + 0.122, FEED.base + 0.204, z);   // the canister's own frame: axis along x, base at -0.2
+    anchor.rotation.z = R90;
+    group.add(anchor);
+    slots.push({ head, lamp, anchor, state: 'empty', y: FEED.lift });
+  }
+  group.userData.obstacles = [{ minX: -FEED.d / 2, maxX: FEED.d / 2 + 0.02, minZ: -FEED.len / 2, maxZ: FEED.len / 2 }];
+  let t = 0;
+  const target = (s) => (s.state === 'empty' ? FEED.lift : 0);
+  function place(s) { s.head.position.y = FEED.top + s.y + (s.state === 'feeding' ? Math.sin(t * 91) * 0.0015 : 0); }
+  function setSlot(i, st) {
+    const s = slots[i];
+    if (!s || s.state === st) return;
+    s.state = st;
+    s.lamp.material = st === 'loaded' ? LAMP.green : st === 'feeding' ? LAMP.amber : LAMP.off;
+  }
+  /** Settle every head at once (the booth was off screen). */
+  function settle() { for (const s of slots) { s.y = target(s); place(s); } }
+  function update(dt = 0.016) {
+    t += dt;
+    for (const s of slots) {
+      const to = target(s);
+      if (s.y !== to) s.y = to > s.y ? Math.min(to, s.y + dt / 0.25 * FEED.lift) : Math.max(to, s.y - dt / 0.18 * FEED.lift);
+      if (s.state === 'feeding') s.lamp.material = Math.floor(t * 4) % 2 ? LAMP.amber : LAMP.amberDim;
+      place(s);
+    }
+  }
+  return { group, slotAnchor: (i) => slots[i]?.anchor ?? null, slotCount: FEED.n, setSlot, settle, update };
+}
+
 // ================================================================ paint hall "Spray Bay" (WORLD coordinates)
 // A bright, clean paint shop in the garage family: cream walls over a dark slate wainscot (hides overspray), navy
 // caps with the paint-colour "spectrum band" on top of every cap and pillar (the hall's livery), light grey epoxy
