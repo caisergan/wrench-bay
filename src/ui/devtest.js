@@ -44,7 +44,7 @@ export function run(ui) {
     ui.label({ kind: 'info', text: 'No free lift!', worldPos: V(-3.5, 2.4, 5) });
     const stations = ['tire', 'oil', 'battery', 'engine', 'paint'].map((t, i) =>
       ui.label({ kind: 'station', icon: t, text: String(i % 4 + 1), worldPos: V(-3.8 + i * 1.9, 1.6, 7) }));
-    stations[4].setText('MAX');
+    stations[4].setText('FULL');
     ['happy', 'angry', 'wait', 'star'].forEach((e, i) => ui.label({ kind: 'emote', text: e, worldPos: V(-3.5 + i * 2.4, 2.2, 9) }));
     const hidden = ui.label({ kind: 'info', text: 'hidden', worldPos: V(3, 2, 0) });
     hidden.setVisible(false);

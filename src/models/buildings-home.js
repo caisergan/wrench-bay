@@ -1261,9 +1261,10 @@ export function createPaintTank(colorId = 'red') {
 
 // ================================================================ spray booth (bay model), ORIGIN = car centre, front +z
 // Downdraft grate deck, glass side walls on steel kick plates (extraction filter slots), white posts, light boxes
-// on the top rails (glass-topped, tilted in), a roll-down clear PVC curtain at the south (vehicle) mouth, open north
-// (personnel) end, control column outside the north-west corner (timer ring, booth number, beacon, hose reel), IR
-// curing arrays (upgrade) and an overspray haze inside the glass.
+// on the top rails (glass-topped, tilted in), glazed bi-fold doors at the south (vehicle) mouth, glazed automatic
+// sliding doors at the north (personnel) mouth (both shut while the booth sprays and cures: setDoors), control
+// column outside the north-west corner (timer ring, booth number, beacon, hose reel), IR curing arrays (upgrade) and
+// an overspray haze inside the glass.
 /** Soft fog sheet: alpha fades out towards every edge, with a little wispiness. */
 function hazeTex() {
   return canvasTex('boothHaze', 64, 128, (g, w, h) => {
@@ -1285,6 +1286,14 @@ const BOOTH = () => {
   return { hw, z0: PAINT.boothZ[0] - bay.z, z1: PAINT.boothZ[1] - bay.z, colX: -(hw + 0.25), colZ: PAINT.boothZ[0] - bay.z + 0.5 };
 };
 const BOOTH_RAIL = 2.25, LENS_TILT = 0.44;
+// Doors (leaves 0.03 .. 2.21 high, under the track). South: bi-fold, hinged on the post centre line, folding OUT of
+// the booth (+z) in front of the posts; leaf A turns by theta about the post, leaf B by -theta about A's free edge, so
+// B's free edge runs along the track. Open = a narrow V (84 deg: the two leaves never lie in one plane).
+// North: telescopic sliding doors outside the posts, two leaves per side in two planes; the centre leaf travels twice
+// as far as the side leaf and both park beside the booth. All x are |x| from the booth centre line, z from z0.
+const DOOR_Y0 = 0.03, DOOR_Y1 = 2.21;
+const FOLD = { T: 0.05, plane: 0.085, open: 1.466, w: () => (PAINT.boothHalfW - 0.003) / 2 };
+const SLIDE = { T: 0.045, planes: [-0.08, -0.14], edge: [1.8, 0.9], width: [0.95, 0.897], travel: [0.875, 1.75] };
 const boothMats = {
   lensIdle: new THREE.MeshLambertMaterial({ color: 0xc9d4dc }),
   white: new THREE.MeshBasicMaterial({ color: 0xffffff }),
@@ -1348,11 +1357,20 @@ function boothGeo() {
       b.box(0.32, 0.03, len - 0.02, TC.STEEL_D, px, py - 0.015, zc, 0, 0, s * LENS_TILT);
       for (const z of [z0 + 0.3, zm, z1 - 0.3]) b.box(0.06, 0.12, 0.06, TC.STEEL_DD, x - s * 0.02, BOOTH_RAIL - 0.02, z);
     }
-    // ---- roller box over the south (vehicle) mouth; the clear curtain hangs from it
+    // ---- door header over the south (vehicle) mouth: the bi-fold leaves hang from the track under it
     b.box(2 * hw + 0.12, 0.2, 0.22, 0xe9edf0, 0, BOOTH_RAIL, z1);
     b.box(2 * hw + 0.14, 0.03, 0.24, TC.STEEL_D, 0, BOOTH_RAIL, z1);
-    b.box(0.16, 0.16, 0.2, TC.STEEL_DD, hw + 0.14, BOOTH_RAIL + 0.02, z1);                       // roller motor
+    b.box(0.16, 0.16, 0.2, TC.STEEL_DD, hw + 0.14, BOOTH_RAIL + 0.02, z1);                       // door operator
     for (let i = 0; i < 9; i++) b.box(0.18, 0.02, 0.01, i % 2 ? P.hazardB : P.hazardA, -0.8 + i * 0.2, BOOTH_RAIL + 0.08, z1 + 0.112);
+    b.box(2 * hw, BOOTH_RAIL - DOOR_Y1, 0.07, TC.STEEL_DD, 0, DOOR_Y1, z1 + FOLD.plane);          // top track
+    // ---- sliding-door header outside the north (personnel) mouth, long enough for the leaves parked beside the booth
+    const nz = z0 + (SLIDE.planes[0] + SLIDE.planes[1]) / 2, nw = SLIDE.edge[0] + SLIDE.travel[0] + 0.05;
+    b.box(2 * nw - 0.04, 0.02, 0.12, TC.STEEL_DD, 0, DOOR_Y1, nz);                                // track
+    b.box(2 * nw, 0.2, 0.14, 0xe9edf0, 0, DOOR_Y1 + 0.02, nz);
+    for (const s of [-1, 1]) b.box(0.04, 0.25, 0.16, TC.STEEL_D, s * nw, DOOR_Y1 - 0.01, nz);     // end caps
+    b.box(1.0, 0.08, 0.12, TC.STEEL_D, 0, DOOR_Y1 + 0.22, nz);                                    // operator
+    b.box(0.18, 0.06, 0.02, TC.DARK, 0, DOOR_Y1 + 0.08, nz + 0.08);                               // motion sensor (inner face)
+    b.box(0.03, 0.03, 0.006, 0x5fd38d, 0.05, DOOR_Y1 + 0.095, nz + 0.093);
     // ---- control column outside the north-west corner (timer face, number plate, beacon are separate meshes)
     const cz = BOOTH().colZ;
     b.box(0.42, 0.04, 0.42, TC.STEEL_DD, colX, 0, cz);
@@ -1439,13 +1457,76 @@ function boothNumTex(n) {
     g.fillStyle = css(TC.MUSTARD); g.font = `700 78px ${FONT}`; g.fillText(String(n), 200, 60);
   });
 }
-const curtainTex = () => canvasTex('boothCurtain', 128, 64, (g, w, h) => {
-  g.clearRect(0, 0, w, h);
-  g.fillStyle = 'rgba(205,232,246,0.42)'; g.fillRect(0, 0, w, h);
-  for (let x = 0; x < w; x += 16) { g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillRect(x + 2, 0, 2, h); g.fillStyle = 'rgba(110,150,175,0.35)'; g.fillRect(x + 14, 0, 2, h); }
-});
-let curtainMat = null;
-const curtainGeo = new THREE.PlaneGeometry(1, 1).translate(0, -0.5, 0);   // hangs down from its top edge
+const doorGeoCache = new Map();
+/** One glazed door leaf, local: outer edge at x = 0, inner edge at x = w, standing on the floor, centred on z = 0.
+ *  Cream steel frame, kick panel with an air-intake grille through both faces, glass between the rails (separate
+ *  geometry). knuckles: bi-fold hinges on both edges; seal: rubber on the inner edge; pull: bar handle, both faces. */
+function doorLeaf(key, w, T, { knuckles = false, seal = false, pull = false } = {}) {
+  return memo(doorGeoCache, key, () => {
+    const b = new Builder(), g = new Builder();
+    const st = 0.065, x0 = 0.004, x1 = w - 0.004, iw = x1 - x0 - 2 * st, cx = (x0 + x1) / 2, H = DOOR_Y1 - DOOR_Y0;
+    b.box(st, H, T, TC.CREAM_L, x0 + st / 2, DOOR_Y0, 0);                                      // stiles
+    b.box(st, H, T, TC.CREAM_L, x1 - st / 2, DOOR_Y0, 0);
+    b.box(iw, 0.08, T, TC.CREAM_L, cx, DOOR_Y1 - 0.08, 0);                                     // top rail
+    b.box(iw, 0.05, T, TC.CREAM_L, cx, 0.4, 0);                                                // lock rail
+    b.box(iw, 0.4 - DOOR_Y0, T - 0.012, TC.STEEL_D, cx, DOOR_Y0, 0);                           // kick panel (recessed)
+    const gw = iw * 0.64;
+    // intake grille: one bar across the slot (thin louvres would be under a pixel from the game camera and shimmer)
+    b.box(gw, 0.17, T - 0.004, 0x23282e, cx, 0.12, 0);
+    b.box(gw - 0.012, 0.04, T + 0.002, TC.STEEL_DD, cx, 0.185, 0);
+    b.box(x1 - x0, DOOR_Y0 - 0.008, T * 0.6, TC.RUBBER, cx, 0.008, 0);                         // floor sweep
+    if (seal) b.box(0.008, H - 0.08, T * 0.6, TC.RUBBER, w - 0.004, DOOR_Y0 + 0.04, 0);
+    if (pull) for (const s of [-1, 1]) {
+      b.box(0.024, 0.5, 0.024, TC.STEEL, x1 - 0.034, 0.82, s * (T / 2 + 0.034));
+      for (const y of [0.88, 1.22]) b.box(0.018, 0.018, 0.04, TC.STEEL_DD, x1 - 0.034, y, s * (T / 2 + 0.012));
+    }
+    if (knuckles) for (const x of [0, w]) for (const y of [0.32, 1.1, 1.88]) b.cyl(0.03, 0.03, 0.13, TC.STEEL_DD, x, y, 0, 8);
+    g.box(iw + 0.01, DOOR_Y1 - 0.08 - 0.44 + 0.01, 0.012, 0xffffff, cx, 0.44, 0);
+    return { frame: b.build(), glass: g.build() };
+  });
+}
+/** The eight leaves of a booth, in rig order: south A/B west, A/B east, north side/centre west, side/centre east. */
+function boothLeaves() {
+  const fw = FOLD.w();
+  const A = doorLeaf(`foldA|${fw}`, fw, FOLD.T, { knuckles: true });
+  const Bl = doorLeaf(`foldB|${fw}`, fw, FOLD.T, { seal: true, pull: true });
+  const S1 = doorLeaf('slide1', SLIDE.width[0], SLIDE.T);
+  const S2 = doorLeaf('slide2', SLIDE.width[1], SLIDE.T, { seal: true, pull: true });
+  return [A, Bl, A, Bl, S1, S2, S1, S2];
+}
+/** Several rigid parts posed on the CPU into ONE mesh (one draw call instead of one per part): pose(i, matrix) for
+ *  the parts that moved, then commit(). Rotation + translation only (normals use the same 3x3). */
+function poseRig(parts, sphere) {
+  let n = 0;
+  const offs = parts.map((g) => { const o = n; n += g.attributes.position.count; return o; });
+  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), col = new Float32Array(n * 3);
+  parts.forEach((g, i) => col.set(g.attributes.color.array, offs[i] * 3));
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+  geom.setAttribute('normal', new THREE.BufferAttribute(nor, 3).setUsage(THREE.DynamicDrawUsage));
+  geom.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geom.boundingSphere = sphere;
+  return {
+    geom,
+    pose(i, m) {
+      const sp = parts[i].attributes.position.array, sn = parts[i].attributes.normal.array, o = offs[i] * 3, e = m.elements;
+      for (let k = 0; k < sp.length; k += 3) {
+        const x = sp[k], y = sp[k + 1], z = sp[k + 2], a = sn[k], b = sn[k + 1], c = sn[k + 2];
+        pos[o + k] = e[0] * x + e[4] * y + e[8] * z + e[12];
+        pos[o + k + 1] = e[1] * x + e[5] * y + e[9] * z + e[13];
+        pos[o + k + 2] = e[2] * x + e[6] * y + e[10] * z + e[14];
+        nor[o + k] = e[0] * a + e[4] * b + e[8] * c;
+        nor[o + k + 1] = e[1] * a + e[5] * b + e[9] * c;
+        nor[o + k + 2] = e[2] * a + e[6] * b + e[10] * c;
+      }
+    },
+    commit() { geom.attributes.position.needsUpdate = true; geom.attributes.normal.needsUpdate = true; },
+  };
+}
+const _dm = new THREE.Matrix4(), _dq = new THREE.Quaternion(), _dp = new THREE.Vector3(), _dy = new THREE.Vector3(0, 1, 0), _d1 = new THREE.Vector3(1, 1, 1);
+const leafAt = (x, z, ry) => _dm.compose(_dp.set(x, 0, z), _dq.setFromAxisAngle(_dy, ry), _d1);
+const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+const easeOut = (t) => 1 - (1 - t) ** 3;
 const shelterRoofMat = new THREE.MeshLambertMaterial({ color: 0xe8f6fb, transparent: true, opacity: 0.16, depthWrite: false });
 const boothGlassMat = new THREE.MeshLambertMaterial({ color: 0xcfeefa, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
 export function createSprayBooth(index = 0) {
@@ -1458,17 +1539,32 @@ export function createSprayBooth(index = 0) {
   group.add(glass);
   const lens = new THREE.Mesh(boothLensGeo(), boothMats.lensIdle);
   group.add(lens);
-  // curtain (rolls from the roller box down to the deck)
-  if (!curtainMat) {
-    curtainMat = new THREE.MeshLambertMaterial({ map: curtainTex(), transparent: true, depthWrite: false, side: THREE.DoubleSide });
-    curtainMat.map.wrapS = THREE.RepeatWrapping; curtainMat.map.repeat.set(3, 1);
+  // doors: the eight leaves posed into one frame mesh + one glass mesh (2 draw calls), re-posed only while they move
+  const leaves = boothLeaves();
+  const sphere = new THREE.Sphere(new THREE.Vector3(0, 1.1, (z0 + z1) / 2), 4.9);
+  const frameRig = poseRig(leaves.map((l) => l.frame), sphere), glassRig = poseRig(leaves.map((l) => l.glass), sphere);
+  group.add(mesh(frameRig.geom, litMat, { cast: true, receive: true }));
+  const doorGlass = new THREE.Mesh(glassRig.geom, boothGlassMat);
+  doorGlass.renderOrder = 3;
+  group.add(doorGlass);
+  /** south: closed fraction 0..1 (leaf angle = FOLD.open * (1 - c)); north: closed fraction (slide = 1 - c). */
+  function poseDoors(cs, cn) {
+    const fw = FOLD.w(), th = FOLD.open * (1 - cs), c = Math.cos(th), sn = Math.sin(th), zs = z1 + FOLD.plane;
+    for (const s of [-1, 1]) {
+      const i = s < 0 ? 0 : 2, hx = s * hw;
+      const ryA = s < 0 ? -th : PI + th, ryB = s < 0 ? th : PI - th;
+      for (const r of [frameRig, glassRig]) {
+        r.pose(i, leafAt(hx, zs, ryA));
+        r.pose(i + 1, leafAt(hx - s * fw * c, zs + fw * sn, ryB));
+      }
+    }
+    const k = 1 - cn;
+    for (const s of [-1, 1]) for (let j = 0; j < 2; j++) {
+      const i = 4 + (s < 0 ? 0 : 2) + j, ox = SLIDE.edge[j] + SLIDE.travel[j] * k;
+      for (const r of [frameRig, glassRig]) r.pose(i, leafAt(s * ox, z0 + SLIDE.planes[j], s < 0 ? 0 : PI));
+    }
+    frameRig.commit(); glassRig.commit();
   }
-  const CURTAIN_H = BOOTH_RAIL - 0.03;
-  const curtain = new THREE.Mesh(curtainGeo, curtainMat);
-  curtain.scale.set(2 * hw, 0.001, 1);
-  curtain.position.set(0, BOOTH_RAIL, z1 - 0.13);
-  curtain.renderOrder = 4; curtain.visible = false;
-  group.add(curtain);
   // control column faces: timer ring (map swapped per lit count), booth number, beacon
   const timer = face(boothTimerTex(0), 0.26, 0.26);
   timer.position.set(colX, 1.5 + 0.0015, cz + 0.2 + 0.0026);
@@ -1510,23 +1606,62 @@ export function createSprayBooth(index = 0) {
     { minX: hw - 0.08, maxX: hw + 0.08, minZ: z0, maxZ: z1 },
     { minX: colX - 0.21, maxX: colX + 0.21, minZ: cz - 0.21, maxZ: cz + 0.21 },
   ];
-  let state = 'idle', irOn = false, hazeTarget = 0, curtainK = 0, curtainTarget = 0, t = 0, doneT = 0, lastTimer = -1, lastUpd = -1e9;
-  function applyCurtain() {
-    curtain.visible = curtainK > 0.002;
-    curtain.scale.y = Math.max(0.001, curtainK * CURTAIN_H);
+  // door solids by state (local; gameplay swaps them as the doors move): the folded bi-fold stacks in front of the
+  // south corners, the shut south doors, the sliding leaves parked beside the north corners (a shut north door has
+  // none: it opens for whoever walks up to it)
+  const nx0 = SLIDE.edge[0] + SLIDE.travel[0] - SLIDE.width[0] - 0.01, nx1 = SLIDE.edge[0] + SLIDE.travel[0] + 0.01;
+  const nzA = z0 + SLIDE.planes[1] - 0.03, nzB = z0 + SLIDE.planes[0] + 0.03;
+  group.userData.doorSolids = {
+    southOpen: [-1, 1].map((s) => ({ minX: s < 0 ? -hw - 0.06 : hw - 0.24, maxX: s < 0 ? -hw + 0.24 : hw + 0.06, minZ: z1 + 0.04, maxZ: z1 + 1.02 })),
+    southShut: [{ minX: -hw - 0.06, maxX: hw + 0.06, minZ: z1 + 0.04, maxZ: z1 + 0.13 }],
+    northOpen: [-1, 1].map((s) => ({ minX: s < 0 ? -nx1 : nx0, maxX: s < 0 ? -nx0 : nx1, minZ: nzA, maxZ: nzB })),
+    northShut: [],
+  };
+  let state = 'idle', irOn = false, hazeTarget = 0, t = 0, doneT = 0, lastTimer = -1, lastUpd = -1e9;
+  // door motion: closed fraction c per mouth, eased from `from` to `to` over `T` s (a reversal starts from where the
+  // leaves are, so they never jump). South: 1.15 s to fold shut, 0.9 s open. North: 0.38 s open, 0.75 s shut.
+  const doors = [
+    { c: 0, from: 0, to: 0, t: 0, T: 0, ease: easeInOut, shut: 1.15, open: 0.9, openEase: easeInOut },
+    { c: 0, from: 0, to: 0, t: 0, T: 0, ease: easeInOut, shut: 0.75, open: 0.38, openEase: easeOut },
+  ];
+  let doorsDriven = false;                                        // gameplay calls setDoors; previews follow the lamp
+  function doorTo(d, closed) {
+    const to = closed ? 1 : 0;
+    if (to === d.to) return;
+    d.from = d.c; d.to = to; d.t = 0;
+    d.T = Math.max(0.12, Math.abs(to - d.c) * (closed ? d.shut : d.open));
+    d.ease = closed ? easeInOut : d.openEase;
+  }
+  function stepDoors(dt) {
+    let moved = false;
+    for (const d of doors) {
+      if (d.c === d.to) continue;
+      d.t = Math.min(d.T, d.t + dt);
+      d.c = d.t >= d.T ? d.to : d.from + (d.to - d.from) * d.ease(d.t / d.T);
+      moved = true;
+    }
+    if (moved) poseDoors(doors[0].c, doors[1].c);
+  }
+  /** south / north: true = shut. Safe to call every frame. */
+  function setDoors(south, north) {
+    doorsDriven = true;
+    doorTo(doors[0], !!south); doorTo(doors[1], !!north);
+    if (stale()) settle();
   }
   // gameplay only updates a bay model while it is on screen: a booth that was not updated lately jumps straight
-  // to its current state (curtain, haze), so it never rolls its curtain late when the player comes back
+  // to its current state (doors, haze), so it never shuts its doors late when the player comes back
   const stale = () => performance.now() - lastUpd > 300;
   function settle() {
-    curtainK = curtainTarget; applyCurtain();
+    let moved = false;
+    for (const d of doors) if (d.c !== d.to) { d.c = d.to; moved = true; }
+    if (moved) poseDoors(doors[0].c, doors[1].c);
     hazeMat.opacity = hazeTarget; haze.visible = hazeTarget > 0;
   }
   function setLamp(s) {
     state = ['idle', 'spray', 'cure', 'done'].includes(s) ? s : 'idle';
     lens.material = state === 'idle' ? boothMats.lensIdle : state === 'cure' ? boothMats.warm : boothMats.white;
     beacon.material = state === 'spray' ? LAMP.amber : state === 'cure' ? boothMats.orange : state === 'done' ? LAMP.green : LAMP.off;
-    curtainTarget = state === 'spray' || state === 'cure' ? 1 : 0;
+    if (!doorsDriven) { const shut = state === 'spray' || state === 'cure'; doorTo(doors[0], shut); doorTo(doors[1], shut); }
     if (stale()) settle();
     doneT = 0;
     if (state === 'idle') setTimer(0);
@@ -1552,11 +1687,7 @@ export function createSprayBooth(index = 0) {
     if (stale()) settle();
     lastUpd = performance.now();
     t += dt;
-    // curtain rolls in 0.8 s
-    if (curtainK !== curtainTarget) {
-      curtainK = curtainTarget > curtainK ? Math.min(curtainTarget, curtainK + dt / 0.8) : Math.max(curtainTarget, curtainK - dt / 0.8);
-      applyCurtain();
-    }
+    stepDoors(dt);
     // haze eases in / out over 0.5 s
     const o = hazeMat.opacity;
     if (o !== hazeTarget) {
@@ -1569,8 +1700,11 @@ export function createSprayBooth(index = 0) {
     }
     if (irOn && state === 'cure') { const k = 0.9 + 0.1 * Math.sin(t * 2.2); irMat.color.setHex(0xff7a3a).multiplyScalar(k); poolMat.opacity = 0.85 * k; }
   }
+  poseDoors(0, 0);
   setLamp('idle');
-  return { group, setLamp, setTimer, setHaze, setIR, update };
+  /** Closed fraction of the south / north doors right now (0 open .. 1 shut). */
+  const doorState = () => ({ south: doors[0].c, north: doors[1].c });
+  return { group, setLamp, setTimer, setHaze, setIR, setDoors, doorState, update };
 }
 
 // ================================================================ paint feed rack (booth side), ORIGIN = rack centre on the floor

@@ -8,15 +8,16 @@
 //     standing on its mat outside the booth's west glass wall (PAINT.feed / feedMat). Each canister stands in its
 //     cradle (cradle i = job i) and a feed head clamps onto it. Wrong colours are useless: dump them in the waste drum
 //     (PAINT.scrapBin);
-//   - go in: through the booth's open north end onto the work mat in front of the nose; standing still there the
-//     painter sprays the loaded canisters (the rack feeds the gun through the wall, the canister's lamp blinks; an
-//     empty canister is taken out). From the first canister the clear curtain rolls down behind the car, the painter
-//     holds a spray gun,
+//   - go in: through the booth's north end (its sliding doors open for anyone walking up) onto the work mat in front
+//     of the nose; standing still there, in the paint suit, the painter sprays the loaded canisters (the rack feeds the
+//     gun through the wall, the canister's lamp blinks; an empty canister is taken out). From the first canister the
+//     booth's doors shut (bi-fold behind the car, sliding doors at the nose end whenever nobody walks through), the
+//     painter holds a spray gun,
 //     a mist in that colour comes out of the gun and a light haze fills the booth, and the new colour sweeps over
 //     the body from nose to tail, one section per canister;
 //   - cure: every canister sprayed -> the booth bakes for PAINT.cure s (IR lamps: cureIR) with its timer ring
 //     counting. Nobody is needed for that: start the next car meanwhile;
-//   - done: curtain up, green beacon, masking off, a gloss, payout (resprayPayout) beside the booth, the car backs
+//   - done: doors open, green beacon, masking off, a gloss, payout (resprayPayout) beside the booth, the car backs
 //     out, picks up its owner at PAINT.pickupStop and leaves in its new colour.
 // Staff: painters (mechanic logic: load at the rack, then spray from inside) and the prep tech (valet logic: drives
 // waiting cars into booths).
@@ -33,7 +34,7 @@ import {
 import { events } from '../core/events.js';
 import { ui } from '../ui/index.js';
 import { registerFacility } from './registry.js';
-import { DEFAULT_HOOKS, townChain } from './facility.js';
+import { DEFAULT_HOOKS, townChain, previewObj, staffPreview } from './facility.js';
 import { Car } from './cars.js';
 import { Bay } from './lifts.js';
 import { Station } from './stations.js';
@@ -105,7 +106,7 @@ class PaintCar extends Car {
 }
 
 // ---------------------------------------------------------------- spray booth (bay)
-// Phases: empty -> snap -> up (masked; deliver + spray) -> cure -> lower (done: curtain rolling up) -> done -> empty
+// Phases: empty -> snap -> up (masked; deliver + spray) -> cure -> lower (done: doors folding open) -> done -> empty
 class SprayBooth extends Bay {
   constructor(sys, index, animate) {
     super(sys, index, animate);
@@ -134,6 +135,14 @@ class SprayBooth extends Bay {
     this.makeFeedMat(null);
     this.cans = [];                // canister standing in feed cradle i (= job i) or null
     this.playerLoading = false;
+    // doors: shut while the booth sprays and cures (updateDoors); their solids follow the leaves
+    this.doorsShut = { south: false, north: false };
+    this.northHold = 0;
+    this.doorSolids = [];
+    this.seen = new Map();          // walker -> last position + speed (the north door's sensor)
+    this.people = [];
+    this.model.setDoors?.(false, false);
+    this.applyDoorSolids();
   }
 
   /** The feed mat shows a spray can in the colour the car on the booth wants (rebuilt when that colour changes). */
@@ -153,6 +162,7 @@ class SprayBooth extends Bay {
     this.playerLoading = false;
     super.update(dt);
     this.updateStatusUI();
+    this.updateDoors(dt);
     if (!this.feed) return;
     if (this.ctx.near(this.feedPos, 3)) this.feed.update(dt); else this.feed.settle();
   }
@@ -257,6 +267,80 @@ class SprayBooth extends Bay {
     this.workMat.glow(go ? pulse : 0);
   }
 
+  /** Doors: shut while the booth sprays and cures. The south (vehicle) doors fold shut once nobody stands in their
+   *  swing and fold open when the paint is cured. The north (personnel) doors slide open for anyone at the doorway or
+   *  walking up to it, and shut again PAINT.doors.hold s after the last one went through. */
+  updateDoors(dt) {
+    const people = this.sensePeople(dt);
+    const sealed = this.lamp === 'spray' || this.lamp === 'cure';
+    const south = sealed && (this.doorsShut.south || !this.inSouthSwing(people));
+    if (sealed && this.atNorthDoor(people)) this.northHold = PAINT.doors.hold;
+    else this.northHold = Math.max(0, this.northHold - dt);
+    const north = sealed && this.northHold <= 0;
+    if (south === this.doorsShut.south && north === this.doorsShut.north) return;
+    if (this.ctx.near(this.workPos, 2)) ui.sfx(south !== this.doorsShut.south ? (south ? 'boothShut' : 'boothOpen') : 'slideDoor');
+    this.doorsShut.south = south; this.doorsShut.north = north;
+    this.model.setDoors?.(south, north);
+    this.applyDoorSolids();
+  }
+
+  /** Player, painters and the prep tech with their speed over the last frame: [{ x, z, vx, vz, foot }]. */
+  sensePeople(dt) {
+    const out = this.people, pl = this.ctx.player;
+    out.length = 0;
+    const add = (key, pos, foot) => {
+      let s = this.seen.get(key);
+      if (!s) { s = { x: pos.x, z: pos.z, vx: 0, vz: 0, foot }; this.seen.set(key, s); }
+      if (dt > 0) { s.vx = (pos.x - s.x) / dt; s.vz = (pos.z - s.z) / dt; }
+      s.x = pos.x; s.z = pos.z; s.foot = foot;
+      out.push(s);
+    };
+    if (pl?.pos) add(pl, pl.pos, !!pl.onFoot);
+    for (const m of this.fac.staff.mechanics) add(m, m.pos, true);
+    const v = this.fac.staff.valet;
+    if (v && !v.hidden) add(v, v.pos, true);
+    return out;
+  }
+
+  /** Anyone where the south leaves swing (in the mouth, or in front of it where they fold out)? A car: wider margin. */
+  inSouthSwing(people) {
+    const z1 = PAINT.boothZ[1], hw = PAINT.boothHalfW;
+    for (const s of people) {
+      const m = s.foot ? 0 : 1.2;
+      if (Math.abs(s.x - this.x) < hw + 0.4 + m && s.z > z1 - 1.2 - m && s.z < z1 + 1.45 + m) return true;
+    }
+    return false;
+  }
+
+  /** Anyone on foot in the north doorway, or walking up to it (from either side) fast enough to reach it before the
+   *  leaves could slide apart? Walkers passing along the staff lane stay outside the band. */
+  atNorthDoor(people) {
+    const D = PAINT.doors, hw = PAINT.boothHalfW, zP = PAINT.boothZ[0] - 0.11;   // between the two leaf planes
+    for (const s of people) {
+      if (!s.foot) continue;
+      const dx = Math.abs(s.x - this.x), d = s.z - zP;             // d < 0: north of the doors (outside)
+      if (dx > hw + 1.5) continue;
+      if (dx < hw + 0.2 && d > -D.bandOut && d < D.bandIn) return true;
+      const toward = d < 0 ? s.vz : -s.vz;
+      if (toward < 0.3) continue;
+      const t = (Math.abs(d) - (d < 0 ? D.bandOut : D.bandIn)) / toward;
+      if (t < D.lead && Math.abs(s.x + s.vx * Math.max(0, t) - this.x) < hw + 0.2) return true;
+    }
+    return false;
+  }
+
+  /** Swap the door solids for the doors' state: folded stacks / shut south doors, parked sliding leaves. */
+  applyDoorSolids() {
+    const ds = this.model.group.userData.doorSolids;
+    for (const b of this.doorSolids) this.ctx.solids.remove(b);
+    this.doorSolids.length = 0;
+    if (!ds) return;
+    const sets = [this.doorsShut.south ? ds.southShut : ds.southOpen, this.doorsShut.north ? ds.northShut : ds.northOpen];
+    for (const set of sets) {
+      for (const b of set) this.doorSolids.push(this.ctx.solids.add({ minX: b.minX + this.x, maxX: b.maxX + this.x, minZ: b.minZ + this.z, maxZ: b.maxZ + this.z }));
+    }
+  }
+
   setLamp(s) { if (s !== this.lamp) { this.lamp = s; this.model.setLamp?.(s); } }
 
   isWorkable() { return !!this.car && this.phase === 'up' && !this.car.finished; }
@@ -265,7 +349,7 @@ class SprayBooth extends Bay {
   /** Colour of the next canister (painters fill their gun cup with it). */
   jobHex() { const j = this.activeJob(); return j ? hexOf(colorOf(j.type)) : null; }
 
-  /** The car stands in the booth: masked at once; the curtain stays up until the first canister is sprayed. */
+  /** The car stands in the booth: masked at once; the doors stay open until the first canister is sprayed. */
   onSnapped(car) {
     this.phase = 'up';
     car.model.setMasked?.(true);
@@ -280,9 +364,11 @@ class SprayBooth extends Bay {
       // load: canisters go into the feed rack from its mat outside the booth; spray: from the work mat inside
       if (this.playerOnFeed()) { this.playerLoading = true; this.deliverFromPlayer(); }
       const inZone = this.playerInZone();
-      if (inZone) { this.playerHere = true; pl.workLift = this; }
+      // on the mat the player pulls on the paint suit (syncPlayerSuit) and only sprays once it is on
+      if (inZone) { this.playerHere = true; pl.workLift = this; this.fac.suitWanted = true; }
+      const suited = !pl.ch?.setSuit || pl.ch.suited;
       const job = car.firstReady();
-      const works = !!job && this.playerCanWork(inZone);   // spraying only while standing still on the mat
+      const works = !!job && suited && this.playerCanWork(inZone);   // spraying only in the suit, standing still on the mat
       car.tag.setSolid(works);
       let hex = null;
       if (job) {
@@ -323,13 +409,13 @@ class SprayBooth extends Bay {
     car.model.setColor?.(hexOf(p.body), (done + job.progress) / Math.max(1, p.bodyCans));
   }
 
-  /** Spraying on / off this frame: curtain + lamps, haze, gun mist, hiss. */
+  /** Spraying on / off this frame: lamps (and so the doors), haze, gun mist, hiss. */
   setSpraying(hex, dt) {
     if (hex !== this.sprayHex) {
       this.sprayHex = hex;
       this.sprayT = 0;
       this.model.setHaze?.(hex);
-      // the curtain closes behind the car with the first canister (the car is standing still by now)
+      // the doors shut with the first canister (the car is standing still by now): updateDoors reads the lamp
       if (hex != null) this.setLamp('spray');
     }
     if (hex == null) return;
@@ -372,14 +458,14 @@ class SprayBooth extends Bay {
     if (this.ctx.near(this.workPos, 3)) ui.sfx('cure');
   }
 
-  /** After the payout (Bay.finish): curtain up, masking off, gloss; the car may back out once the curtain is up. */
+  /** After the payout (Bay.finish): doors open, masking off, gloss; the car may back out once the doors are open. */
   lowerAndRelease(car) {
     this.timer.setVisible(false);
     this.setLamp('done');
     car.model.setMasked?.(false);
     car.model.setGloss?.([0.95, 0.95, 0.95, 0.95]);
     tween({
-      duration: 0.01, delay: PAINT.curtainUp,
+      duration: 0.01, delay: PAINT.doors.release,
       onComplete: () => {
         if (this.car !== car) return;
         this.phase = 'done';
@@ -405,6 +491,8 @@ class SprayBooth extends Bay {
     this.feedMat?.dispose();
     for (const b of this.feedSolids) this.ctx.solids.remove(b);
     this.feedSolids.length = 0;
+    for (const b of this.doorSolids) this.ctx.solids.remove(b);
+    this.doorSolids.length = 0;
   }
 }
 
@@ -426,7 +514,7 @@ class Painter extends Mechanic {
     if (!lift.feedPos) return super.deliverSpot(lift);
     let k = 0;
     for (const m of this.fac.staff.mechanics) { if (m === this) break; if (m.lift === lift) k++; }
-    return { x: lift.feedPos.x - 0.1, z: lift.feedPos.z + (k % 2 ? 0.3 : -0.2), yaw: Math.PI / 2 };
+    return { x: lift.feedPos.x - 0.2, z: lift.feedPos.z + (k % 2 ? 0.3 : -0.2), yaw: Math.PI / 2 };   // clear of the parked sliding leaves
   }
   /** Nothing in hand to load (the player filled the rack): go straight in to spray. */
   goLift() {
@@ -459,6 +547,24 @@ function syncPlayerSpray(fac) {
   if (hex != null && hex !== fac.cupShown) { fac.cupShown = hex; ch.setSprayColor?.(hex); }
   const on = hex != null;
   if (on !== fac.sprayShown) { fac.sprayShown = on; ch.setSpraying(on); }
+}
+
+// ---------------------------------------------------------------- the player's paint suit
+/** On a booth's work mat with a car to paint (fac.suitWanted, set by the booth) the player pulls on the white paint
+ *  suit; it stays on inside the hall (fetching more paint, the next car) and comes off when they walk out. Changes
+ *  while driving or off screen happen at once. */
+function syncPlayerSuit(fac) {
+  const pl = fac.ctx.player, ch = pl?.ch;
+  if (!ch?.setSuit) return;
+  if (fac.suitCh !== ch) { fac.suitCh = ch; fac.suitOn = false; }
+  const W = PAINT.walls, p = pl.pos, m = 0.6;
+  const inHall = p.x > W.minX - m && p.x < W.maxX + m && p.z > W.minZ - m && p.z < W.maxZ + m;
+  const on = fac.suitWanted || (fac.suitOn && inHall);
+  if (on === fac.suitOn) return;
+  fac.suitOn = on;
+  const animate = !!pl.onFoot && fac.ctx.near(p, 2);
+  ch.setSuit(on, M.paintSuitLook?.(ch.look), animate);
+  if (animate) ui.sfx(on ? 'suitUp' : 'suitOff');
 }
 
 // ---------------------------------------------------------------- facility
@@ -550,15 +656,43 @@ export const PAINT_DEF = {
         default: DEFAULT_HOOKS.applyUnlock(fac, u, from);   // tank -> station, bay -> booth
       }
     },
+    /** Pad previews: a booth straight from the model (with its feed rack), painters by their lockers, the prep
+     *  tech at the podium. Tanks use the default (stationModel); IR lamps and the stripe kit have no single spot. */
+    previewModel(fac, u) {
+      const L = fac.L;
+      switch (u.type) {
+        case 'bay': {
+          const b = L.bays[u.index];
+          if (!b || !M.createSprayBooth) return null;
+          const obj = previewObj(M.createSprayBooth(u.index));
+          if (M.createPaintFeed) {                                  // with its paint feed rack
+            const fd = M.createPaintFeed();
+            fd.group.position.set(PAINT.feed.x, 0, PAINT.feed.z);
+            obj.add(fd.group);
+          }
+          return { obj, x: b.x, z: b.z };
+        }
+        case 'painter': return staffPreview(fac, fac.h('mechanicLook', u.index), L.staffIdle[u.index % L.staffIdle.length]);
+        case 'preptech': return staffPreview(fac, fac.h('valetLook'), { x: L.valetStand.x - 0.75, z: L.valetStand.z + 0.15 });
+      }
+      return DEFAULT_HOOKS.previewModel(fac, u);
+    },
   },
   setup(fac) {
     fac.playerSpray = null; fac.sprayShown = false; fac.cupShown = null;
+    fac.suitWanted = false; fac.suitOn = false; fac.suitCh = null;
     const update = fac.bays.update;
-    fac.bays.update = (dt, t) => { fac.playerSpray = null; update(dt, t); syncPlayerSpray(fac); };
+    fac.bays.update = (dt, t) => {
+      fac.playerSpray = null; fac.suitWanted = false;
+      update(dt, t);
+      syncPlayerSuit(fac); syncPlayerSpray(fac);
+    };
   },
   teardown(fac) {
     fac.playerSpray = null;
     syncPlayerSpray(fac);
+    if (fac.suitOn) fac.ctx.player?.ch?.setSuit?.(false, null, false);
+    fac.suitOn = false;
   },
 };
 registerFacility(PAINT_DEF);
@@ -602,7 +736,7 @@ function installDebug() {
       return {
         fac: f,
         state: () => ({
-          booths: f.bays.active.map((b) => ({ i: b.index, phase: b.phase, lamp: b.lamp, feed: b.cans.map((p) => (p ? colorOf(p.userData.partType) : null)), car: b.car?.id ?? null, jobs: b.car?.jobs.map((j) => `${colorOf(j.type)}:${j.state}`) })),
+          booths: f.bays.active.map((b) => ({ i: b.index, phase: b.phase, lamp: b.lamp, doors: { ...b.doorsShut }, shut: b.model.doorState?.(), feed: b.cans.map((p) => (p ? colorOf(p.userData.partType) : null)), car: b.car?.id ?? null, jobs: b.car?.jobs.map((j) => `${colorOf(j.type)}:${j.state}`) })),
           lane: f.cars.lane.map((c) => ({ id: c.id, mode: c.mode, wants: c.paint, x: +c.pos.x.toFixed(1) })),
           cars: f.cars.list.map((c) => ({ id: c.id, mode: c.mode })),
           stock: f.stations.list.map((s) => `${s.key}:${s.stack.ready}`),

@@ -1,6 +1,11 @@
 // Pay pads. PayPad = one yellow pad that drains cash into a price while the player stands on it (on foot).
 // Used by every unlock chain (garage UNLOCKS, PAINT_UNLOCKS, VIP_UNLOCKS: createChainPads) and by the town's
 // property / district pads (town.js). The garage also has the teal upgrade pad (createUpgradePad).
+// Every pad uses the same three steps (docs/pad-redesign, docs/upgrade-pads): a ground tag on the pad (icon + price),
+// within NEAR also its name, and the pay dock at the bottom of the screen while you stand on it. Chain pads add a
+// picture of what you buy on the tag, a hop when you can pay it, a "before -> after" row in the dock, and a faded
+// preview of the thing standing where it will go (unlock-info.js has the words, the facility's previewModel hook
+// the model).
 import * as THREE from 'three';
 import { createUnlockPad, createUpgradePad as createUpgradePadModel } from '../models/index.js';
 import { LAYOUT as L, VISIBLE_PADS, ECONOMY } from '../config.js';
@@ -9,11 +14,14 @@ import { events } from '../core/events.js';
 import { ui } from '../ui/index.js';
 import { popIn, popOut } from './tween.js';
 import { Tag, fmt } from './util.js';
+import { unlockInfo } from './unlock-info.js';
 
 const HALF = 0.85;
 const GRACE = 0.35;
 const NEAR = 3.5;          // ground tags show their name (+ level) within this distance (on foot)
 const DOCK_DWELL = 0.2;    // seconds on a pad before its pay dock slides in (walking across does not flash it)
+const PREVIEW_NEAR = 0.3;  // opacity of a chain pad's preview while you are within NEAR ...
+const PREVIEW_ON = 0.55;   // ... and while you stand on the pad
 // Partial payments persist for the session (keyed by pad id; cleared when moving to the next garage).
 const partial = new Map();
 export function resetPartialPayments() { partial.clear(); }
@@ -34,7 +42,10 @@ export function padPosition(u, fac = null) {
  * ground?: the label is a building pad tag lying on the pad: setNear(b) within NEAR, hidden while driving and while
  *   the player stands on the pad,
  * dock?: () => ui.payDock info; while the player stands on the pad its details sit at the bottom of the screen,
- * doneText?: () => string for the dock's "Bought!" moment }.
+ * doneText?: () => string for the dock's "Bought!" moment,
+ * canHint?: the label's setCan shows whether the cash covers what is left (icon hops / price dimmed),
+ * preview?: () => { obj: Object3D, x, z, yaw? } | null; a faded copy of what the pad buys, built the first time the
+ *   player comes within NEAR, shown while near (PREVIEW_NEAR) or on the pad (PREVIEW_ON), removed with the pad }.
  * Call pad.update(dt) every frame (true = paid this frame); pad.remove() when done.
  */
 export class PayPad {
@@ -128,13 +139,88 @@ export class PayPad {
       const vis = foot && !on;          // off while driving, and while you stand on it (the dock has the details)
       if (vis !== this.tagVis) { this.tagVis = vis; this.tag.setVisible?.(vis); }
     }
+    if (this.opts.canHint) this.tag.setCan?.(this.locked ? null : state.cash >= this.remaining);
+    if (this.opts.preview) this.updatePreview(dt, this.docked ? PREVIEW_ON : this.isNear ? PREVIEW_NEAR : 0);
+  }
+  /** Fade the preview towards `target` opacity (built on first use; hidden at 0). */
+  updatePreview(dt, target) {
+    if (!this.preview) {
+      if (!target || this.preview === null) return;
+      this.preview = makePreview(this.ctx, this.opts.preview()) || null;   // null: nothing to show, don't try again
+      if (!this.preview) return;
+    }
+    this.preview.fade(target, dt);
   }
   remove() {
     if (this.docked) { this.docked = false; ui.payDock.hide(this.id); }
-    if (this.ownTag) this.tag.remove();
+    this.preview?.dispose(); this.preview = null;
+    if (this.ownTag || this.opts.ownsLabel) this.tag.remove();
     const g = this.model.group;
     popOut(g, 0.25, () => { if (g.parent) g.parent.remove(g); });
   }
+}
+
+/**
+ * Ground tag: a 'tag' label lying on the pad itself (icon + price; close by also the name and the level). It is never
+ * drawn above the pad: the camera looks down from the south, so "above the pad" on screen is the building or the slot.
+ * Exposes the PayPad label interface (setRemaining, setProgress, setVisible, setNear, setCan, remove) plus setInfo(info).
+ * info: see labels.js addTagApi ({ name, icon, price, fame, locked, level, reason, up, pic, color }).
+ */
+export function groundTag(info, x, z) {
+  const L = ui.label({ text: '', kind: 'tag', worldPos: new THREE.Vector3(x, 0.02, z) });
+  let cur = { ...info };
+  const lab = {
+    setInfo(i) { cur = { ...cur, ...i }; L.setInfo(cur); return lab; },
+    setRemaining(rem) { return lab.setInfo({ price: rem }); },
+    setProgress(k) { L.setProgress?.(k); return lab; },
+    setVisible(v) { L.setVisible?.(v); return lab; },
+    setNear(b) { L.setNear?.(b); return lab; },
+    setCan(b) { L.setCan?.(b); return lab; },
+    remove() { L.remove(); },
+  };
+  lab.setInfo(info);
+  return lab;
+}
+
+/**
+ * Faded copy of what a chain pad buys, where it will stand. spec = { obj, x, z, yaw? } (facility previewModel hook).
+ * Every material is cloned see-through (no depth writes, no shadows), so the real model keeps its own; the shared
+ * geometry is left alone on dispose. Returns { fade(target, dt), dispose() } or null.
+ */
+function makePreview(ctx, spec) {
+  if (!spec?.obj) return null;
+  const g = spec.obj;
+  g.position.set(spec.x, 0, spec.z);
+  g.rotation.y = spec.yaw || 0;
+  const mats = [];
+  const ghost = (m) => {
+    const c = m.clone();
+    c.transparent = true; c.depthWrite = false; c.opacity = 0;
+    mats.push({ m: c, k: m.transparent ? m.opacity : 1 });
+    return c;
+  };
+  g.traverse((o) => {
+    if (!o.material) return;
+    o.castShadow = false; o.receiveShadow = false;
+    o.material = Array.isArray(o.material) ? o.material.map(ghost) : ghost(o.material);
+    o.renderOrder = 4;
+  });
+  g.visible = false;
+  ctx.root.add(g);
+  let a = 0;
+  return {
+    fade(target, dt) {
+      if (a === target && g.visible === a > 0) return;
+      a += (target - a) * Math.min(1, dt * 8);
+      if (Math.abs(target - a) < 0.005) a = target;
+      g.visible = a > 0;
+      if (g.visible) for (const e of mats) e.m.opacity = a * e.k;
+    },
+    dispose() {
+      if (g.parent) g.parent.remove(g);
+      for (const e of mats) e.m.dispose();
+    },
+  };
 }
 
 /**
@@ -155,9 +241,18 @@ export function createChainPads(ctx, fac, chain) {
       }
       for (const u of want) {
         if (list.some((p) => p.u === u)) continue;
+        const pos = fac.h('padPosition', u), info = unlockInfo(fac.id, u);
+        const tag = groundTag({ name: info.name, icon: info.icon, color: info.color, up: info.kind === 'up', pic: true, price: chain.price(u) }, pos.x, pos.z);
         const pad = new PayPad(ctx, {
-          id: fac.id + ':' + u.id, pos: fac.h('padPosition', u), animate,
+          id: fac.id + ':' + u.id, pos, animate,
           price: () => chain.price(u),
+          label: tag, ownsLabel: true, ground: true, canHint: true,
+          dock: () => ({
+            kind: info.kind, icon: info.icon, iconColor: info.color, pic: true, name: info.name, rib: info.rib,
+            what: info.what, change: info.change, levels: 0, owned: 0, price: pad.price, fame: 0, fameOk: true,
+          }),
+          doneText: () => info.done,
+          preview: () => fac.h('previewModel', u),
           onPaid: () => complete(u),
         });
         pad.u = u;
@@ -167,7 +262,13 @@ export function createChainPads(ctx, fac, chain) {
     update(dt) {
       for (let i = 0; i < list.length; i++) if (list[i].update(dt)) return;   // completing mutates the list
     },
-    dispose() { for (const pad of list) if (pad.ownTag) pad.tag.remove(); },
+    dispose() {
+      for (const pad of list) {
+        if (pad.docked) ui.payDock.hide(pad.id);
+        pad.preview?.dispose();
+        pad.tag.remove();
+      }
+    },
   };
   function complete(u) {
     const at = padPosition(u, fac);

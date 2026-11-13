@@ -307,18 +307,23 @@ drop-off lane on its own forecourt, its own customers, waiting awning, exit.
    the floor in front of its mouth (`PAINT.chip`) takes over: a ring in the paint colour around a spray gun, filling
    over the whole respray (a stripe job turns it to the stripe colour), and the owner's mood as a face on its corner
    (it pulses once patience is low). The control column's ring fills with the spray progress too.
-4. Spray: go in through the booth's open north (personnel) end onto the work mat in front of the nose (it pulses once
-   a canister is loaded and the player carries nothing more for this car) and stand still. The rack feeds the gun
-   through the wall: the canister being sprayed shudders with a blinking amber light, and when it is empty the head
-   lets go and it is lifted out. Each canister is `work` seconds; the booth's clear curtain rolls down
-   behind the car (`setLamp('spray')`), the player holds a spray gun, a mist in that colour and a soft haze inside
+4. Spray: go in through the booth's north (personnel) end, behind automatic sliding doors that open for anyone at
+   or walking up to the doorway, onto the work mat in front of the nose (it pulses once a canister is loaded and the
+   player carries nothing more for this car) and stand still. The player first pulls on the white paint suit
+   (`ch.setSuit`: cap off, a wipe from the feet up with a dressing pose, hood, respirator, goggles; `paint.js
+   syncPlayerSuit`), sprays only once it is on, and keeps it on inside the hall until they walk out. The rack feeds the
+   gun through the wall: the canister being sprayed shudders with a blinking amber light, and when it is empty the head
+   lets go and it is lifted out. Each canister is `work` seconds; the booth's doors shut (`setLamp('spray')`;
+   `SprayBooth.updateDoors` -> `setDoors(south, north)`): the bi-fold doors behind the car fold shut once nobody
+   stands in their swing, the north sliding doors close whenever nobody walks through, the player holds a spray gun,
+   a mist in that colour and a soft haze inside
    the glass (`booth.setHaze(hex)`), and the new colour **sweeps over the body from nose to tail** as progress
    rises (`setColor(hex, k)`), one section per canister.
 5. Cure: all canisters sprayed -> the booth bakes (`setLamp('cure')`, amber lights; with the IR upgrade
    `setIR(true)` the infra-red arrays glow), its timer ring counts `cure` s (`setTimer`) and the status chip turns
    into the amber clock (mood face still on it). You are free to leave;
    this is the juggling moment (start the next car, fetch paint).
-6. Done: `setLamp('done')` (curtain up, green beacon), masking off, gloss, confetti, payout pile beside the booth
+6. Done: `setLamp('done')` (doors open; the car backs out `PAINT.doors.release` s later, green beacon), masking off, gloss, confetti, payout pile beside the booth
    (`resprayPayout`), the car backs out, picks up its owner at `PAINT.pickupStop` and leaves in its new colour.
 - Speedy / streak rules as in the garage (one shared streak). Repair-speed, capacity, supply and price upgrades
   apply here too.
@@ -496,8 +501,10 @@ flicker, reception, vending machine; tier 2 adds bar, aquarium with moving fish,
 corner, colour lab, waste drum at `PAINT.scrapBin`, forecourt markings, waiting shelter at `PAINT.loungeSpots`,
 prep desk, planters; every position in `PAINT.decor`; full design: `docs/town-agents/briefs/painthall.txt`);
 `createSprayBooth(index = 0) -> { group, setLamp('idle' | 'spray' | 'cure' | 'done'), setTimer(0..1),
-setHaze(hex | null), setIR(bool), update(dt) }` (origin = car centre, open personnel end at -z, roll-down clear
-curtain at the +z vehicle end while spraying / curing, glass side walls, downdraft grate, light boxes, control
+setHaze(hex | null), setIR(bool), setDoors(southShut, northShut), doorState(), update(dt) }` (origin = car centre;
+glazed bi-fold doors at the +z vehicle end, folding out; glazed telescopic sliding doors at the -z personnel end,
+parking beside the booth; all eight leaves posed into two merged meshes; `group.userData.doorSolids` = local solids
+per door state, swapped by gameplay; glass side walls, downdraft grate, light boxes, control
 column with timer ring and beacon; `group.userData.obstacles` = local wall + column boxes);
 `createPaintFeed() -> { group, slotAnchor(i), slotCount, setSlot(i, 'empty' | 'loaded' | 'feeding'), settle(),
 update(dt) }` (paint feed rack, origin = rack centre on the floor, +x = the wall it stands against; drip tray, four
@@ -558,7 +565,8 @@ every character: `setSpraying(bool)` (spray gun, sweeping arm), `setPolishing(bo
 - `ui.pointer({ kind, icon?, text?, worldPos }) -> { setPos, setText, setVisible, remove }`: arrow + chip at the
   screen edge pointing at an off-screen world position, hidden while that position is on screen. Kinds:
   `'rescue' | 'vehicle' | 'sale' | 'cash' | 'alert' | 'goal'`. Must not cover the HUD buttons or the joystick.
-- `ui.payDock` (`paydock.js`): a building pad's details at the bottom of the screen while the player stands on it.
+- `ui.payDock` (`paydock.js`): a pay pad's details at the bottom of the screen while the player stands on it
+  (`info.change` adds the "before -> after" chips, `info.pic` / `info.iconColor` the chain pads' picture icon).
   `show(id, info)`, `update(id, { price, remaining, paying, broke })`, `nudge(id)` (locked buzz), `done(id, text)`
   ("Bought!" then away), `hide(id?)`. Display only: it never takes touches. Pointers move above it while it is up.
 - `ui.hint(text | null)` (pill under the top card; replaces the fixed driving hint), `ui.banner(text, seconds)`
@@ -715,6 +723,7 @@ unlocks?: chain, stayText?, setup?(fac), teardown?(fac) }`.
 | `mechanicLook(fac, i)`, `valetLook(fac)`, `ownerLook?(fac, car)` | mechanic / valet / random customer | painter, prep tech, host, VIP customer |
 | `padPosition(fac, u)` | `u.pad`, station/tank pickup zone, bay centre | |
 | `applyUnlock(fac, u, from)` | `station`/`tank` -> station, `lift`/`bay` -> bay, `mechanic`, `valet` | + `painter`, `preptech`, `irlamps` ... (handle your own types, fall back to `DEFAULT_HOOKS.applyUnlock`) |
+| `previewModel(fac, u)` -> `{ obj, x, z, yaw? }` or null | a fresh station / bay model, or the mechanic / valet at their idle spot (garage: + coffee cart, billboard, valet stand) | booth (`createSprayBooth`), painter, prep tech; null = no preview (IR lamps, stripe kit). Must not touch the facility's state |
 | `depart?(fac, car)` -> true if handled | (absent: reverse out of the bay to `exitLaneZ`, then `pickupStop`, owner, `carExit`) | VIP: back onto the turntable |
 
 **classes** (subclass instead of copying; pass `classes: { Bay: SprayBooth, Mechanic: Painter }`):
@@ -760,6 +769,16 @@ player stands on it; partial payments kept for the session under `id`. Building 
 `tag`: near state within 3.5 m, hidden while driving or standing on the pad) and `dock` (the pay dock while standing
 on it, after a 0.2 s pause). Call `pad.update(dt)` each frame (returns true the frame it is paid), `pad.remove()`.
 `pad.remaining`, `pad.price`, `pad.locked`, `pad.pos`. For chains use `createChainPads` (done by the facility).
+More options: `ownsLabel` (remove the passed label with the pad), `canHint` (the tag's icon hops when the cash covers
+what is left, the price is dimmed when it doesn't), `preview: () => spec` (a faded copy of what the pad buys, within
+3.5 m at 30%, on the pad at 55%). `groundTag(info, x, z)` (`pads.js`) is the `tag` label wrapper both kinds use.
+
+Unlock-chain pads (`createChainPads`; design: `docs/upgrade-pads/`) use all of it: the tag shows a picture of what you
+buy (`pic`: on cream inside the mustard / teal ring; the paint canister in its colour), its name within 3.5 m, the
+dock says what it does with a "before -> after" row ("Colours 3 -> 4", "Curing 6 s -> 3 s", "Parks the cars: You ->
+Valet"), and the facility's `previewModel` hook gives the preview. The words live in `unlock-info.js`, one table per
+workshop (garage, Spray Bay, Platinum Club); its numbers are computed from the config. Full stations say FULL (not
+MAX, which next to the pads read as "maxed out").
 
 ### 6a.5 Town: `ctx.town` (`town.js`)
 - Opening: `checkOpen()` runs on every garage unlock and at world creation; valet + `mechanic0` -> `openTown()`.

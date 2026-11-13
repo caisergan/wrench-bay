@@ -230,7 +230,7 @@ which carry `data-ui`). Exports `ui`:
     fills up green from the bottom (green ring, icon wiggles), `setPatience(0..1)` = the owner's mood row: a face
     (happy / meh / sad / angry) + bar, green -> amber -> coral, grey and empty at 0; the bubble shakes when low,
     `setVip(bool)` (gold bubble + star). Must stay readable at ~10 on screen; compact.
-  - `'station'`: small pill over a part station: part icon (`icon: 'tire'` etc.) + count text ("3", "MAX").
+  - `'station'`: small pill over a part station: part icon (`icon: 'tire'` etc.) + count text ("3", "FULL": coral when full).
   - `'max'`: "MAX" over the player when the carry stack is full.
   - `'info'`: small plain text ("No free lift!").
   - `'emote'`: little round bubble over a character; `text` is one of `'happy' | 'angry' | 'wait' | 'star'`.

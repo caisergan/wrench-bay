@@ -95,7 +95,7 @@ function makeLabel(kind) {
       if (kind === 'call') { txt.textContent = s || 'Rescue call'; return L; }
       if (kind === 'emote') { bubbleEl.innerHTML = EMOTES[s] || EMOTES.happy; bubbleEl.dataset.e = EMOTES[s] ? s : 'happy'; return L; }
       txt.textContent = s;
-      if (kind === 'station') el.classList.toggle('full', s.toUpperCase() === 'MAX');
+      if (kind === 'station') el.classList.toggle('full', s.toUpperCase() === 'FULL');
       return L;
     },
     setIcon(name) {
@@ -150,7 +150,7 @@ function makeLabel(kind) {
   else if (kind === 'tag') addTagApi(L, el);
   else if (kind === 'stars') addStarsApi(L, el);
   // every label answers every setter, so a caller never has to know which kind it holds (unknown kinds must not throw)
-  for (const m of ['setJobs', 'setPatience', 'setVip', 'setBonus', 'setStars', 'setInfo', 'setWork', 'setNear', 'setSolid', 'setTint', 'setMood']) if (!L[m]) L[m] = () => L;
+  for (const m of ['setJobs', 'setPatience', 'setVip', 'setBonus', 'setStars', 'setInfo', 'setWork', 'setNear', 'setSolid', 'setCan', 'setTint', 'setMood']) if (!L[m]) L[m] = () => L;
   layer.appendChild(el);
   if (SEE_KINDS.has(kind)) {
     // box size for the see-through test: measured by a ResizeObserver, so the per-frame test never forces a layout
@@ -338,32 +338,47 @@ function addJobApi(L, el) {
   mood.hidden = true;
 }
 
-// ---- building pad tag: icon + price on the pad; close by (setNear) also the name and the level ----
-// info = { name, icon (ICON key), price, fame, locked, level, reason }. level > 1 = an upgrade (teal, arrow badge).
-// locked: grey with a padlock badge; for reason 'fame' it shows the fame level it needs in a gold star (like the HUD
-// badge) instead of the price. The bar under the price shows a part payment (setProgress), kept while you are away.
+// ---- pad tag: icon + price on the pad; close by (setNear) also the name and the level ----
+// info = { name, icon (ICON key), price, fame, locked, level, reason, up?, pic?, color? }. level > 1 = an upgrade
+// (teal, arrow badge, "Lv n"); up = an upgrade without levels (unlock-chain pads). pic: the icon is a picture of what
+// you buy (unlock-chain pads), drawn on cream with a mustard / teal ring; color = var(--c) for icons that use it (the
+// paint canister). locked: grey with a padlock badge; for reason 'fame' it shows the fame level it needs in a gold star
+// (like the HUD badge) instead of the price. The bar under the price shows a part payment (setProgress), kept while you
+// are away. setCan(true | false | null): the icon hops now and then (you can pay the rest now) / the price is dimmed
+// (you can't yet) / neither.
 function addTagApi(L, el) {
   const ic = el.querySelector('.gt-ic'), badge = el.querySelector('.gt-badge'), name = el.querySelector('.gt-name b');
   const lv = el.querySelector('.gt-lv'), price = el.querySelector('.gt-p em'), fame = el.querySelector('.gt-fame em');
-  let last = '', near = false;
+  let last = '', near = false, can = null;
   L.setInfo = (info) => {
     info = info || {};
-    const key = JSON.stringify([info.name, info.icon, info.price, info.fame, !!info.locked, info.level, info.reason]);
+    const key = JSON.stringify([info.name, info.icon, info.price, info.fame, !!info.locked, info.level, info.reason, !!info.up, !!info.pic, info.color]);
     if (key === last) return L;
     last = key;
-    const up = (info.level | 0) > 1, k = info.locked ? 'lock' : up ? 'up' : 'buy';
+    const lvUp = (info.level | 0) > 1, up = lvUp || !!info.up, k = info.locked ? 'lock' : up ? 'up' : 'buy';
     if (el.dataset.k !== k) { el.dataset.k = k; badge.innerHTML = k === 'lock' ? ICON.lock : k === 'up' ? ICON.arrowUp : ''; }
     el.dataset.r = info.locked ? info.reason || 'fame' : '';
+    el.classList.toggle('pic', !!info.pic);
     ic.innerHTML = ICON[info.icon] || ICON.tag;
+    if (info.color) ic.style.setProperty('--c', info.color); else ic.style.removeProperty('--c');
     name.textContent = info.name || '';
-    lv.textContent = up ? 'Lv ' + info.level : '';
-    lv.hidden = !up;
+    lv.textContent = lvUp ? 'Lv ' + info.level : '';
+    lv.hidden = !lvUp;
     price.textContent = '$' + fmt(info.price || 0);
     fame.textContent = info.fame ? String(info.fame) : '';
     return L;
   };
   L.setNear = (b) => { b = !!b; if (b !== near) { near = b; el.classList.toggle('near', b); } return L; };
-  L.resetKind = () => { last = ''; near = false; el.classList.remove('near', 'part'); el.dataset.k = 'buy'; el.dataset.r = ''; badge.innerHTML = ''; name.textContent = ''; };
+  L.setCan = (b) => {
+    b = b == null ? null : !!b;
+    if (b !== can) { can = b; el.classList.toggle('can', b === true); el.classList.toggle('cant', b === false); }
+    return L;
+  };
+  L.resetKind = () => {
+    last = ''; near = false; can = null;
+    el.classList.remove('near', 'part', 'pic', 'can', 'cant'); el.dataset.k = 'buy'; el.dataset.r = ''; badge.innerHTML = ''; name.textContent = '';
+    ic.style.removeProperty('--c');
+  };
 }
 
 // ---- three-star judge for a VIP job: [careful, fast, spotless], each true (earned) | false (lost) | null (pending) ----
