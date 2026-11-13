@@ -147,8 +147,9 @@ export function createOwners(ctx, fac) {
         s.taken = true;
         return s;
       }
-      // debug spawns can exceed the lounge: stand on the walkway next to it
+      // debug spawns can exceed the lounge: stand on the walkway next to it (an add-on may say where: overflowSpot)
       const k = overflow++ % 6;
+      if (sys.overflowSpot) return { ...sys.overflowSpot(k), overflow: true };
       const s0 = L.loungeSpots[0];
       return { x: s0.x - 0.9 - k * 0.6, z: s0.z, overflow: true };
     },
@@ -170,8 +171,9 @@ export function createOwners(ctx, fac) {
       const i = list.indexOf(o); if (i >= 0) list.splice(i, 1);
     },
     update(dt) { for (let i = list.length - 1; i >= 0; i--) list[i].update(dt); },
-    /** Swap the waiting spots (e.g. the lounge annex adds seats). Taken spots of walking owners stay valid. */
-    setSpots(newSpots) { spots.length = 0; newSpots.forEach((s, i) => spots.push({ x: s.x, z: s.z, yaw: s.yaw, sit: s.sit, i, taken: false })); },
+    /** Swap the waiting spots (e.g. the lounge annex adds seats). Taken spots of walking owners stay valid.
+     *  Extra keys of a spot (sit, lounge ...) are kept for the Owner class's routes. */
+    setSpots(newSpots) { spots.length = 0; newSpots.forEach((s, i) => spots.push({ ...s, i, taken: false })); },
     dispose() { for (const o of list) o.emo.remove(); list.length = 0; },
   };
   return sys;
