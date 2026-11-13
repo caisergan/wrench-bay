@@ -546,7 +546,8 @@ every character: `setSpraying(bool)` (spray gun, sweeping arm), `setPolishing(bo
 - `ui.pointer({ kind, icon?, text?, worldPos }) -> { setPos, setText, setVisible, remove }`: arrow + chip at the
   screen edge pointing at an off-screen world position, hidden while that position is on screen. Kinds:
   `'rescue' | 'vehicle' | 'sale' | 'cash' | 'alert' | 'goal'`. Must not cover the HUD buttons or the joystick.
-- `ui.payDock` (`paydock.js`): a building pad's details at the bottom of the screen while the player stands on it.
+- `ui.payDock` (`paydock.js`): a pay pad's details at the bottom of the screen while the player stands on it
+  (`info.change` adds the "before -> after" chips, `info.pic` / `info.iconColor` the chain pads' picture icon).
   `show(id, info)`, `update(id, { price, remaining, paying, broke })`, `nudge(id)` (locked buzz), `done(id, text)`
   ("Bought!" then away), `hide(id?)`. Display only: it never takes touches. Pointers move above it while it is up.
 - `ui.hint(text | null)` (pill under the top card; replaces the fixed driving hint), `ui.banner(text, seconds)`
@@ -703,6 +704,7 @@ unlocks?: chain, stayText?, setup?(fac), teardown?(fac) }`.
 | `mechanicLook(fac, i)`, `valetLook(fac)`, `ownerLook?(fac, car)` | mechanic / valet / random customer | painter, prep tech, host, VIP customer |
 | `padPosition(fac, u)` | `u.pad`, station/tank pickup zone, bay centre | |
 | `applyUnlock(fac, u, from)` | `station`/`tank` -> station, `lift`/`bay` -> bay, `mechanic`, `valet` | + `painter`, `preptech`, `irlamps` ... (handle your own types, fall back to `DEFAULT_HOOKS.applyUnlock`) |
+| `previewModel(fac, u)` -> `{ obj, x, z, yaw? }` or null | a fresh station / bay model, or the mechanic / valet at their idle spot (garage: + coffee cart, billboard, valet stand) | booth (`createSprayBooth`), painter, prep tech; null = no preview (IR lamps, stripe kit). Must not touch the facility's state |
 | `depart?(fac, car)` -> true if handled | (absent: reverse out of the bay to `exitLaneZ`, then `pickupStop`, owner, `carExit`) | VIP: back onto the turntable |
 
 **classes** (subclass instead of copying; pass `classes: { Bay: SprayBooth, Mechanic: Painter }`):
@@ -747,6 +749,16 @@ player stands on it; partial payments kept for the session under `id`. Building 
 `tag`: near state within 3.5 m, hidden while driving or standing on the pad) and `dock` (the pay dock while standing
 on it, after a 0.2 s pause). Call `pad.update(dt)` each frame (returns true the frame it is paid), `pad.remove()`.
 `pad.remaining`, `pad.price`, `pad.locked`, `pad.pos`. For chains use `createChainPads` (done by the facility).
+More options: `ownsLabel` (remove the passed label with the pad), `canHint` (the tag's icon hops when the cash covers
+what is left, the price is dimmed when it doesn't), `preview: () => spec` (a faded copy of what the pad buys, within
+3.5 m at 30%, on the pad at 55%). `groundTag(info, x, z)` (`pads.js`) is the `tag` label wrapper both kinds use.
+
+Unlock-chain pads (`createChainPads`; design: `docs/upgrade-pads/`) use all of it: the tag shows a picture of what you
+buy (`pic`: on cream inside the mustard / teal ring; the paint canister in its colour), its name within 3.5 m, the
+dock says what it does with a "before -> after" row ("Colours 3 -> 4", "Curing 6 s -> 3 s", "Parks the cars: You ->
+Valet"), and the facility's `previewModel` hook gives the preview. The words live in `unlock-info.js`, one table per
+workshop (garage, Spray Bay, Platinum Club); its numbers are computed from the config. Full stations say FULL (not
+MAX, which next to the pads read as "maxed out").
 
 ### 6a.5 Town: `ctx.town` (`town.js`)
 - Opening: `checkOpen()` runs on every garage unlock and at world creation; valet + `mechanic0` -> `openTown()`.

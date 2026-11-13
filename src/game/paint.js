@@ -28,7 +28,7 @@ import {
 import { events } from '../core/events.js';
 import { ui } from '../ui/index.js';
 import { registerFacility } from './registry.js';
-import { DEFAULT_HOOKS, townChain } from './facility.js';
+import { DEFAULT_HOOKS, townChain, previewObj, staffPreview } from './facility.js';
 import { Car } from './cars.js';
 import { Bay } from './lifts.js';
 import { Station } from './stations.js';
@@ -467,6 +467,20 @@ export const PAINT_DEF = {
         case 'stripes': break;                         // rollJobs reads townUnlocked('stripes')
         default: DEFAULT_HOOKS.applyUnlock(fac, u, from);   // tank -> station, bay -> booth
       }
+    },
+    /** Pad previews: a booth straight from the model (bayModel keeps a reference), painters by their lockers, the prep
+     *  tech at the podium. Tanks use the default (stationModel); IR lamps and the stripe kit have no single spot. */
+    previewModel(fac, u) {
+      const L = fac.L;
+      switch (u.type) {
+        case 'bay': {
+          const b = L.bays[u.index];
+          return b && M.createSprayBooth ? { obj: previewObj(M.createSprayBooth(u.index)), x: b.x, z: b.z } : null;
+        }
+        case 'painter': return staffPreview(fac, fac.h('mechanicLook', u.index), L.staffIdle[u.index % L.staffIdle.length]);
+        case 'preptech': return staffPreview(fac, fac.h('valetLook'), { x: L.valetStand.x - 0.75, z: L.valetStand.z + 0.15 });
+      }
+      return DEFAULT_HOOKS.previewModel(fac, u);
     },
   },
   setup(fac) {

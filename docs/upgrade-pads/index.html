@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wrench Bay · Upgrade pads proposal</title>
+<link rel="stylesheet" href="./page.css">
+</head>
+<body>
+<main>
+  <header class="hero">
+    <span class="kicker">Proposal · unlock pads in the garage and the Spray Bay</span> <span class="kicker built">Built · branch upgrade-pads</span>
+    <h1>Every pad says what it buys, before you pay</h1>
+    <p class="lede">
+      Inside the garage and the Spray Bay, every pad shows only a price: <em>$1.5K</em>, <em>$4K</em>. You find out what you
+      bought after the money is gone. The fix reuses the tag and the bottom dock that the town's building pads already
+      have, and adds two things: a <em>faded preview</em> of the thing, standing where it will go, and a
+      <em>before → after</em> line ("Colours 3 → 4"). Paying works exactly as it does now. All the screenshots below
+      come from the live prototype running in the real game.
+    </p>
+  </header>
+
+  <!-- 1. today -->
+  <section>
+    <h2><span class="n">1</span>What goes wrong today</h2>
+    <div class="row3">
+      <figure>
+        <div class="shot wide"><img src="img/user-report.jpg" alt="">
+          <div class="co" style="left:35.5%;top:22.5%;width:10%;height:17%"><span>$1K for what?</span></div>
+          <div class="co below" style="left:5.5%;top:46.5%;width:8.5%;height:11%"><span>$4K for what?</span></div>
+        </div>
+        <figcaption class="before"><b>Your screenshot.</b> Two pads, two prices. One buys lime paint, the other a painter. Nothing on screen says which.</figcaption>
+      </figure>
+      <figure>
+        <div class="shot"><img src="img/today-near.jpg" alt="">
+          <div class="co" style="left:32%;top:40.5%;width:18%;height:6%"><span>Covers the lime slot</span></div>
+        </div>
+        <figcaption class="before"><b>Walking up.</b> The pill floats 1.2 m above the pad, so on screen it sits on the empty slot it is about.</figcaption>
+      </figure>
+      <figure>
+        <div class="shot"><img src="img/today-on.jpg" alt="">
+          <div class="co" style="left:41%;top:49%;width:18%;height:6.5%"><span>You are under here</span></div>
+        </div>
+        <figcaption class="before"><b>Paying for the painter.</b> The pill covers your character, and still only says $4K.</figcaption>
+      </figure>
+    </div>
+    <ul class="facts">
+      <li><b>Only a price, 24 times.</b> All 13 garage pads and 11 Spray Bay pads show a cash icon and a number. No word, no picture.</li>
+      <li><b>The spot doesn't tell.</b> Tank and lift pads stand where the thing goes. Hires, the coffee cart, the billboard, the lamps and the stripe kit sit by a wall or a door.</li>
+      <li><b>No "what changes".</b> The toast says "Painter hired!" after you paid. Nothing says how much faster, how many more, or what you no longer have to do.</li>
+      <li><b>"MAX" reads as maxed out.</b> Full tanks say MAX in coral next to the pads. It means "full of paint", but beside upgrades it reads as "no more upgrades".</li>
+    </ul>
+  </section>
+
+  <!-- 2. design -->
+  <section>
+    <h2><span class="n">2</span>The design: the closer you get, the more it says</h2>
+    <p class="sub">Same rules as the building pads in town, so the player learns them once. The Spray Bay, phone view, $2.6K in cash.</p>
+    <div class="row4">
+      <figure>
+        <div class="shot"><img src="img/after-far.jpg" alt="">
+          <div class="co ok" style="left:67%;top:37%;width:19.5%;height:4.6%"><span>Lime canister</span></div>
+          <div class="co ok below" style="left:11%;top:48%;width:17.5%;height:4.6%"><span>Painter, dimmed</span></div>
+        </div>
+        <figcaption><span class="step">Far</span><b>A picture on the price.</b> The lime pad shows a lime canister, the painter pad a painter. You can pay for the lime now, so its icon hops; you can't afford the painter yet, so its price is dimmed.</figcaption>
+      </figure>
+      <figure>
+        <div class="shot"><img src="img/after-near.jpg" alt="">
+          <div class="co ok" style="left:37.5%;top:37%;width:13%;height:7%"><span>Preview</span></div>
+        </div>
+        <figcaption><span class="step">Within 3.5 m</span><b>The name, and a preview.</b> The tag widens to "Lime paint". A faded lime tank appears in the slot where it will stand.</figcaption>
+      </figure>
+      <figure>
+        <div class="shot"><img src="img/lime-on.jpg" alt="">
+          <div class="co ok right" style="left:21%;top:87.5%;width:30.5%;height:4.5%"><span>Before → after</span></div>
+        </div>
+        <figcaption><span class="step">On the pad</span><b>The dock says what changes.</b> "Customers who want lime start coming", <i>Colours 3 → 4</i>, and the price bar that fills as you pay. The preview gets stronger.</figcaption>
+      </figure>
+      <figure>
+        <div class="shot"><img src="img/painter-on.jpg" alt="">
+          <div class="co ok below" style="left:46%;top:54.5%;width:12%;height:6.5%"><span>Preview</span></div>
+        </div>
+        <figcaption><span class="step">A hire</span><b>The painter at their locker.</b> "Takes a booth for you: fetches the paint and sprays the car", <i>Painters 0 → 1</i>. Your character stays visible.</figcaption>
+      </figure>
+    </div>
+
+    <h3 class="gap">Your screenshot, with the proposal (browser view)</h3>
+    <div class="pair">
+      <figure>
+        <div class="shot wide"><img src="img/user-report.jpg" alt=""></div>
+        <figcaption class="before">Two prices and three MAX badges.</figcaption>
+      </figure>
+      <figure>
+        <div class="shot wide"><img src="img/browser-after.jpg" alt="">
+          <div class="co ok" style="left:34%;top:15.5%;width:21%;height:18.5%"><span>Name + preview</span></div>
+          <div class="co ok below" style="left:11.6%;top:46%;width:9.4%;height:6.4%"><span>Painter</span></div>
+        </div>
+        <figcaption class="after">You are walking past the lime pad: its name is out and the lime tank shows in its slot. The painter pad shows a painter. Full tanks say FULL.</figcaption>
+      </figure>
+    </div>
+
+    <h3 class="gap">The garage gets the same, from the first hire</h3>
+    <div class="pair phone">
+      <figure>
+        <div class="shot"><img src="img/garage-near.jpg" alt="">
+          <div class="co ok" style="left:10%;top:42%;width:23%;height:9%"><span>Lift 3, previewed</span></div>
+        </div>
+        <figcaption class="after">$330 in cash. The mechanic ($260) hops: you can buy it now. "Lift 3" ($420) is dimmed, and its faded lift stands in the empty bay.</figcaption>
+      </figure>
+      <figure>
+        <div class="shot"><img src="img/garage-on.jpg" alt=""></div>
+        <figcaption class="after">On the mechanic pad: "Takes a lift for you: fetches the parts and fixes the car", <i>Mechanics 0 → 1</i>, and the mechanic previewed at their post.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 3. pieces -->
+  <section>
+    <h2><span class="n">3</span>The five pieces</h2>
+    <div class="cards">
+      <div class="card"><div class="demo" id="dTag"></div><b>Picture tag</b><p>Lies on the pad, like the town's building tags. The icon is the thing you buy: the tank in its own colour, the worker in their uniform, the lift, the lamp. It replaces the floating "$1.5K" pill.</p></div>
+      <div class="card"><div class="demo" id="dCan"></div><b>Can I pay?</b><p>When your cash covers what is left, the icon hops every few seconds. When it doesn't, the price is dimmed. No new colours: mustard is still "buy", teal with an arrow is still "upgrade".</p></div>
+      <div class="card"><div class="demo ghost"><img src="img/after-near.jpg" alt="" style="object-position:40% 40%"></div><b>Preview</b><p>Within 3.5 m a faded copy (30%) stands where the thing will go; on the pad it gets stronger (55%). Gone as you walk off. No shadow, never blocks.</p></div>
+      <div class="card"><div class="demo" id="dChg"></div><b>Before → after</b><p>One or two chips in the dock: a count (Lifts 2 → 3), a time (Curing 6 s → 3 s), a multiplier (×1.6) or who does a job (You → Valet).</p></div>
+      <div class="card"><div class="demo" id="dFull"></div><b>FULL, not MAX</b><p>A full tank or shelf says FULL. Same coral pill, same meaning ("come and take it"), no longer confused with a maxed upgrade.</p></div>
+    </div>
+  </section>
+
+  <!-- 4. every pad -->
+  <section>
+    <h2><span class="n">4</span>What every pad would say</h2>
+    <p class="sub">All 24 pads in the game, in the order you buy them, plus the 6 the Platinum Club will have (its config is there, the Club itself is not built yet). These are the exact words and numbers the prototype shows (numbers are read
+      from the config, so they follow any balance change). Check the wording here.</p>
+    <div id="table"></div>
+  </section>
+
+  <!-- 5. try it -->
+  <section>
+    <h2><span class="n">5</span>Try it</h2>
+    <p class="sub">The real game, now with the design built in, on its own save slot (your progress is not touched). No
+      random customers, so you can walk around the pads. The "today" look is in the screenshots above.</p>
+    <div class="try">
+      <div class="frame"><iframe id="game" title="Wrench Bay prototype"></iframe></div>
+      <div class="ctl">
+        <div>
+          <h4>Start in</h4>
+          <div class="row" id="scen">
+            <button class="btn on" data-s="paint">Spray Bay, 3 colours</button>
+            <button class="btn" data-s="garage">Early garage</button>
+          </div>
+        </div>
+        <div>
+          <h4>Tools</h4>
+          <div class="row">
+            <button class="btn" id="cash">+$5K</button>
+            <button class="btn" id="broke">Cash to $0</button>
+            <button class="btn" id="reset">Start over</button>
+          </div>
+        </div>
+        <div class="live" id="live">Loading the game…</div>
+        <p class="hint">Click the game first, then walk with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or the arrow keys
+          (or drag on it). Walk up to a pad, then stand on it.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. rules, decisions, scope -->
+  <section class="two">
+    <div>
+      <h2><span class="n">6</span>Rules</h2>
+      <ol class="rules">
+        <li><b>Nothing floats over the pad.</b> The tag lies on the pad and grows sideways. The details are in the dock at the bottom of the screen.</li>
+        <li><b>Paying is unchanged.</b> Stand on the pad, the cash drains in, part payments stay on the pad. The dock takes no touches.</li>
+        <li><b>The preview only shows where the thing will really stand.</b> Tanks, shelves, booths, lifts, the coffee cart, the billboard, and staff at their post. Things with no single spot (IR lamps, the stripe kit) get the dock only.</li>
+        <li><b>On foot only.</b> Tags hide and previews fade while you drive, as the building pads do.</li>
+        <li><b>The words live in one table per workshop</b>, next to the prices. The numbers in "before → after" are worked out from the config, never typed in.</li>
+      </ol>
+      <h2 class="gap"><span class="n">7</span>Your call</h2>
+      <ol class="qs">
+        <li><b>The preview.</b> It's a hint, not a real object: a faded copy that only shows within 3.5 m. If it feels off to you, the tag and the dock work without it. I'd keep it: it is the one piece that shows <i>where</i> a hire or a tank goes.</li>
+        <li><b>Hop on every pad I can pay, or only one?</b> Two pads are on screen at most. If both hop, the guide's arrow still says which one is next. I'd hop both.</li>
+        <li><b>FULL instead of MAX</b> on full tanks and shelves. Small, but it removes the "maxed" reading.</li>
+      </ol>
+    </div>
+    <div>
+      <h2><span class="n">8</span>What it touches</h2>
+      <ul class="files">
+        <li><code>src/game/pads.js</code>: <code>createChainPads</code> gives each pad a ground tag, dock info and a preview (PayPad already supports <code>ground</code> and <code>dock</code>)</li>
+        <li><code>src/game/unlock-info.js</code> (new): name, icon, what, before → after per unlock type, for the garage, the Spray Bay and the Club</li>
+        <li><code>src/game/facility.js</code>, <code>paint.js</code> (and the Club when it is built): a <code>previewModel(fac, u)</code> hook that builds the faded copy and says where it stands</li>
+        <li><code>src/ui/icons.js</code>: 12 new icons (painter, mechanic, valet, master tech, lift, booth, IR lamp, stripes, coffee, billboard, bar, camera)</li>
+        <li><code>src/ui/paydock.js</code> + <code>ui.css</code>: the before → after row; the tag's hop and dimmed price</li>
+        <li><code>src/game/stations.js</code>: FULL instead of MAX</li>
+        <li>Unchanged: prices, order, pad positions, the pay rules, the guide pointer, the building pads in town</li>
+      </ul>
+      <p class="hint" style="margin-top:14px">Decided: keep the preview, hop on every pad you can pay, FULL instead of MAX.
+        The screenshots came from a throwaway prototype that patched the running game. The words on
+        this page are read from the game's own <code>src/game/unlock-info.js</code>.</p>
+    </div>
+  </section>
+</main>
+<script type="module" src="./page.js"></script>
+</body>
+</html>
