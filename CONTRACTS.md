@@ -109,7 +109,11 @@ every area can run before the others are done.
 ## 3. Core API (written; read the files)
 - `core/engine.js`: `scene`, `camera`, `renderer`, `root` (#game-root), `onUpdate(fn(dt, t)) -> off`,
   `follow(obj3d)` (camera target: the player, or the car being driven), `worldToScreen(vec3) -> {x,y,visible}`,
-  `setPaused(bool)`, `paused`, `start()`.
+  `setPaused(bool)`, `paused`, `start()`, `viewReach` ({x, back, front}: how far the screen reaches on the ground
+  from the camera target; `ctx.near` uses it).
+- `core/view.js`: `viewMode()` -> `'mobile'` (portrait phone frame) or `'browser'` (fills the window: wider view,
+  shadow box fitted to the screen, bigger `viewReach`), `setViewMode(mode)`, `onViewMode(fn) -> off`,
+  `canChooseView` (false in the iOS app). `html.view-browser` is set in the browser view for CSS.
 - `core/input.js`: `input.vector -> {x, z, mag}` (world-space direction, mag 0..1), `input.setEnabled(bool)`.
   Creates `.joy-base > .joy-knob`. Any element with / inside a `data-ui` attribute does not start the joystick.
 - `core/events.js`: `events.on(name, fn) -> off`, `events.emit(name, payload)`.

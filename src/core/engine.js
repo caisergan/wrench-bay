@@ -1,8 +1,9 @@
 // Renderer, scene, lights, follow camera and the main loop.
 import * as THREE from 'three';
 import { LAYOUT } from '../config.js';
+import { isBrowserView, onViewMode } from './view.js';
 
-export const root = document.getElementById('game-root');   // phone-shaped container
+export const root = document.getElementById('game-root');   // phone-shaped container (fills the window in the browser view)
 export const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9fd8cb);
 scene.fog = new THREE.Fog(0x9fd8cb, 45, 90);
@@ -28,12 +29,15 @@ export const sun = new THREE.DirectionalLight(0xfff1dd, 2.2);
 sun.position.set(-8, 18, 10);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -20; sun.shadow.camera.right = 20;
-sun.shadow.camera.top = 20; sun.shadow.camera.bottom = -20;
-sun.shadow.camera.near = 1; sun.shadow.camera.far = 60;
 sun.shadow.bias = -0.0005;
 sun.shadow.normalBias = 0.02;
 scene.add(sun, sun.target);
+// Sun direction (from the ground towards the sun). The phone frame uses a fixed 40 x 40 m shadow box around the
+// camera target; the browser view sees far more ground, so fitShadow() sizes the box to what is on screen.
+const SUN_OFFSET = new THREE.Vector3(-8, 18, 10);
+const SUN_DIR = SUN_OFFSET.clone().normalize();
+const PHONE_SHADOW = { size: 2048, left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 60 };
+const shadowCentre = new THREE.Vector2();   // shadow box centre, relative to camTarget (browser view)
 
 // ---- follow camera ----
 let followObj = null;
@@ -53,6 +57,11 @@ export function setCameraBounds(rect) { townClamp = rect ? { ...rect } : null; }
 export function setCameraLead(x = 0, z = 0) { leadGoal.set(x, z); }
 /** Pull the camera back (k > 1) or in. Eased; 1 = default framing. */
 export function setCameraZoom(k = 1) { zoomGoal = k; }
+/**
+ * How far from camTarget the screen reaches on the ground (units): x = to each side, back = away from the camera
+ * (north, -z), front = towards it. ctx.near() reads it to skip work off screen. Updated on resize / view switch.
+ */
+export const viewReach = { x: 12, back: 22, front: 11 };
 // Debug: ?cam=x,z pins the camera target (no follow). Handy for looking at the environment.
 const camParam = new URLSearchParams(location.search).get('cam');
 const camPinned = camParam ? camParam.split(',').map(Number) : null;
@@ -79,25 +88,112 @@ function updateCamera(dt, snap = false) {
   camera.position.copy(camTarget).add(_off.copy(CAMERA_OFFSET).multiplyScalar(zoom));
   camera.lookAt(camTarget.x, 0, camTarget.z - 1.2);
   // keep the shadow frustum centred on what we see
-  sun.position.set(camTarget.x - 8, 18, camTarget.z + 10);
-  sun.target.position.set(camTarget.x, 0, camTarget.z);
+  if (isBrowserView()) {
+    if (Math.abs(zoom - shadowZoom) > 0.02) fitShadow();
+    sun.target.position.set(camTarget.x + shadowCentre.x, 0, camTarget.z + shadowCentre.y);
+    sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, SUN_DIST);
+  } else {
+    sun.position.set(camTarget.x - 8, 18, camTarget.z + 10);
+    sun.target.position.set(camTarget.x, 0, camTarget.z);
+  }
 }
 
-// ---- resize: keep a portrait phone aspect on desktop ----
+// ---- browser view: what the camera sees on the ground, and a shadow box that covers it ----
+const SUN_DIST = 70;          // sun distance from the shadow box centre (room for tall casters towards the sun)
+const SEE_FAR = 92;           // fog is solid past ~90 m: ground further than this from the camera never shows
+const ROOF = 9;               // receivers up to roof height also need shadows
+const probe = new THREE.PerspectiveCamera();
+const _p = new THREE.Vector3(), _dir = new THREE.Vector3(), _ax = new THREE.Vector3(), _ay = new THREE.Vector3(), _az = new THREE.Vector3();
+const _lm = new THREE.Matrix4();
+let shadowZoom = -1;
+/** Ground (y = h) points under the four screen corners for a camera at zoom k on target (0, 0, 0). */
+function screenCorners(k, h, out) {
+  probe.copy(camera);
+  probe.position.copy(CAMERA_OFFSET).multiplyScalar(k);
+  probe.lookAt(0, 0, -1.2);
+  probe.updateMatrixWorld();
+  for (const [nx, ny] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+    _dir.set(nx, ny, 0.5).unproject(probe).sub(probe.position).normalize();
+    // distance along the ray to the plane y = h, capped where the fog has swallowed everything
+    const t = _dir.y < -1e-4 ? Math.min((h - probe.position.y) / _dir.y, SEE_FAR) : SEE_FAR;
+    _p.copy(probe.position).addScaledVector(_dir, t);
+    out.push(_p.x, h, _p.z);
+  }
+  return out;
+}
+/** Size the sun's shadow box to the ground (and roofs) on screen at the current zoom. Browser view only. */
+function fitShadow() {
+  shadowZoom = zoom;
+  const pts = [];
+  screenCorners(zoom, 0, pts);
+  screenCorners(zoom, ROOF, pts);
+  // light space axes (same basis three.js gives the shadow camera: looking from the sun along -SUN_DIR, up = +y)
+  _lm.lookAt(SUN_DIR, _p.set(0, 0, 0), THREE.Object3D.DEFAULT_UP);
+  _lm.extractBasis(_ax, _ay, _az);
+  // box centre: middle of the ground footprint
+  let cx = 0, cz = 0;
+  for (let i = 0; i < 12; i += 3) { cx += pts[i] / 4; cz += pts[i + 2] / 4; }
+  shadowCentre.set(cx, cz);
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minD = Infinity, maxD = -Infinity;
+  for (let i = 0; i < pts.length; i += 3) {
+    _p.set(pts[i] - cx, pts[i + 1], pts[i + 2] - cz);
+    const x = _p.dot(_ax), y = _p.dot(_ay), d = SUN_DIST - _p.dot(_az);
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    minD = Math.min(minD, d); maxD = Math.max(maxD, d);
+  }
+  const M = 2, sc = sun.shadow.camera;
+  sc.left = minX - M; sc.right = maxX + M; sc.bottom = minY - M; sc.top = maxY + M;
+  sc.near = Math.max(0.5, minD - 40); sc.far = maxD + 5;
+  sc.updateProjectionMatrix();
+}
+function setShadowSize(size) {
+  if (sun.shadow.mapSize.x === size) return;
+  sun.shadow.mapSize.set(size, size);
+  if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+}
+/** Phone frame: the original fixed shadow box. Browser view: fitted to the screen, on a bigger map. */
+function applyViewShadow() {
+  const sc = sun.shadow.camera;
+  if (isBrowserView()) {
+    setShadowSize(Math.min(4096, renderer.capabilities.maxTextureSize || 4096));
+    fitShadow();
+    // how far the screen reaches on the ground (driving zooms out to 1.15: measure there, plus a margin)
+    const pts = screenCorners(1.15, 0, []);
+    let x = 0, back = 0, front = 0;
+    for (let i = 0; i < pts.length; i += 3) { x = Math.max(x, Math.abs(pts[i])); back = Math.max(back, -pts[i + 2]); front = Math.max(front, pts[i + 2]); }
+    Object.assign(viewReach, { x: Math.ceil(x + 2), back: Math.ceil(back + 2), front: Math.ceil(front + 2) });
+  } else {
+    const P = PHONE_SHADOW;
+    setShadowSize(P.size);
+    Object.assign(sc, { left: P.left, right: P.right, top: P.top, bottom: P.bottom, near: P.near, far: P.far });
+    sc.updateProjectionMatrix();
+    shadowZoom = -1;
+    Object.assign(viewReach, { x: 12, back: 22, front: 11 });
+  }
+}
+
+// ---- resize: phone frame = keep a portrait phone aspect on desktop; browser view = fill the window ----
+// The browser view draws up to this many device pixels (a 4K-ish budget), so a big retina window stays smooth.
+const BROWSER_MAX_PIXELS = 4.2e6;
 function resize() {
   const vw = window.innerWidth, vh = window.innerHeight;
-  const maxAspect = 0.62; // width / height
+  const wide = isBrowserView();
   let w = vw, h = vh;
-  if (w / h > maxAspect) w = Math.round(h * maxAspect);
+  const maxAspect = 0.62; // width / height
+  if (!wide && w / h > maxAspect) w = Math.round(h * maxAspect);
   root.style.width = w + 'px';
   root.style.height = h + 'px';
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(wide ? Math.max(1, Math.min(dpr, Math.sqrt(BROWSER_MAX_PIXELS / (w * h)))) : dpr);
   renderer.setSize(w, h);
   camera.aspect = w / h;
   // widen FOV a bit on very tall phones so the lot width still fits
   camera.fov = w / h < 0.5 ? 47 : 44;
   camera.updateProjectionMatrix();
+  applyViewShadow();
 }
 window.addEventListener('resize', resize);
+onViewMode(() => { resize(); updateCamera(0, true); });
 resize();
 
 // ---- loop ----

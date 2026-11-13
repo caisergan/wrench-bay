@@ -1,4 +1,5 @@
 import { events } from '../core/events.js';
+import { canChooseView, viewForced, viewMode, setViewMode, keepViewMode, onViewMode } from '../core/view.js';
 import { html } from './format.js';
 import { ICON } from './icons.js';
 import { unlockAudio, sfx } from './audio.js';
@@ -26,24 +27,80 @@ const LOGO = `
   <g fill="#f6c453" class="spark"><path d="M176 20l3 8 8 3-8 3-3 8-3-8-8-3 8-3z"/><path d="M36 28l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" /></g>
 </svg>`;
 
-export function buildTitle(root, hud) {
+const HOW = {
+  mobile: 'Drag to move. Hop in a car, drive it onto a lift, bring the parts.',
+  browser: 'WASD or arrow keys to move (or drag). Hop in a car, drive it onto a lift, bring the parts.',
+};
+
+/**
+ * Mobile / Browser picker (title screen and pause menu). Picking one switches the view at once, so the player sees
+ * it behind the menu. Returns { el, dispose }.
+ */
+export function buildViewPick({ compact = false } = {}) {
+  const el = html(`
+    <div class="view-pick${compact ? ' compact' : ''}" role="radiogroup" aria-label="Screen size" data-ui>
+      <button class="vp-opt pressable" data-ui data-view="mobile" role="radio">${ICON.viewPhone}<b>Mobile</b><small>Phone-sized screen</small></button>
+      <button class="vp-opt pressable" data-ui data-view="browser" role="radio">${ICON.viewBrowser}<b>Browser</b><small>Wide, full window</small></button>
+    </div>`);
+  const sync = (m) => {
+    for (const b of el.querySelectorAll('[data-view]')) {
+      const on = b.dataset.view === m;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-checked', String(on));
+    }
+  };
+  sync(viewMode());
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-view]');
+    if (b) setViewMode(b.dataset.view);
+  });
+  const off = onViewMode(sync);
+  return { el, dispose: off };
+}
+
+/** returning: the save already played the tutorial (the browser still shows the title, to pick the view). */
+export function buildTitle(root, hud, { returning = false } = {}) {
+  const pickView = canChooseView && !viewForced;
   const el = html(`
     <div class="title" data-ui>
       <div class="title-inner">
         ${LOGO}
         <h1 class="logo"><span class="l1">WRENCH</span><span class="l2">BAY</span></h1>
         <p class="tagline">Fix cars, grow your garage, run the busiest bay on the harbor!</p>
-        <button class="btn play pressable pulse" data-ui>${ICON.play}<span>PLAY</span></button>
-        <p class="how">Drag to move. Hop in a car, drive it onto a lift, bring the parts.</p>
+        <button class="btn play pressable pulse" data-ui>${ICON.play}<span>${returning ? 'CONTINUE' : 'PLAY'}</span></button>
+        <p class="how"></p>
       </div>
     </div>`);
+  const how = el.querySelector('.how');
+  const showHow = (m) => { how.textContent = HOW[m] || HOW.mobile; };
+  showHow(viewMode());
+  const offHow = onViewMode(showHow);
+  let pick = null;
+  if (pickView) {
+    pick = buildViewPick();
+    el.classList.add('picking');
+    el.querySelector('.play').before(html('<p class="vp-label">Play on</p>'), pick.el);
+  }
   root.appendChild(el);
   flags.title = true; refreshInput();
   hud.setHidden(true);
 
+  // keyboard: Enter / Space plays, left / right (or 1 / 2) switches the view
+  function onKey(e) {
+    if (!flags.title || e.repeat) return;
+    const k = e.key;
+    if (k === 'Enter' || k === ' ') { e.preventDefault(); play(); }
+    else if (pickView && (k === 'ArrowLeft' || k === '1')) setViewMode('mobile');
+    else if (pickView && (k === 'ArrowRight' || k === '2')) setViewMode('browser');
+  }
+  window.addEventListener('keydown', onKey);
+  const cleanup = () => { window.removeEventListener('keydown', onKey); offHow(); pick?.dispose(); };
+
   function play() {
     if (!flags.title) return;
     flags.title = false; refreshInput();
+    cleanup();
+    if (pickView) keepViewMode();
     unlockAudio(); sfx('unlock');
     el.classList.add('leaving');
     hud.setHidden(false);
@@ -53,7 +110,7 @@ export function buildTitle(root, hud) {
   el.querySelector('.play').addEventListener('click', play);
   return {
     skip() {
-      flags.title = false; refreshInput(); el.remove(); hud.setHidden(false);
+      flags.title = false; refreshInput(); cleanup(); el.remove(); hud.setHidden(false);
     },
   };
 }

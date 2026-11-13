@@ -10,6 +10,9 @@ import { buildHud } from './hud.js';
 import { buildPanels } from './panels.js';
 import { buildTitle } from './title.js';
 import { fmt } from './format.js';
+import { flags } from './uistate.js';
+import { closeOpenModal } from './modal.js';
+import { canChooseView, viewForced } from '../core/view.js';
 
 let panels = null;
 
@@ -72,12 +75,23 @@ export function initUI() {
   const hud = buildHud(root, api);
   panels = buildPanels(root, hud);
 
-  if (state.tutorialDone) {
+  // In a browser the title also greets returning players, to pick Mobile or Browser view (core/view.js);
+  // ?view=... or ?autoplay skip it. The iOS app is always the phone view.
+  const params = new URLSearchParams(location.search);
+  const askView = canChooseView && !viewForced && !params.has('autoplay');
+  if (state.tutorialDone && !askView) {
     // returning player: skip the title. Deferred so gameplay (initialised right after us) can subscribe.
     setTimeout(() => events.emit('ui:play'), 0);
   } else {
-    buildTitle(root, hud);
+    buildTitle(root, hud, { returning: state.tutorialDone });
   }
+
+  // Esc: close the open panel, or pause (and Esc again resumes).
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || e.repeat || flags.title) return;
+    if (closeOpenModal()) return;
+    if (!flags.complete && !flags.welcome) api.openPause();
+  });
 
   if (new URLSearchParams(location.search).has('uitest')) {
     import('./devtest.js').then((m) => m.run(ui));
