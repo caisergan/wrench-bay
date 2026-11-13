@@ -72,6 +72,8 @@ export function createPlayer(ctx) {
     mode: 'foot', car: null, vehicle: null,
     workLift: null, working: false,
     pickTimer: 0, dropTimer: 0,
+    speed: 0,           // how fast the character really moved last frame on foot (m/s; 0 off foot)
+    stillT: 0,          // seconds on foot below PLAYER.stillSpeed
     get onFoot() { return player.mode === 'foot'; },
     /** In or getting into a customer car (staff logic treats both as "the player is driving"). */
     get driving() { return (player.mode === 'entering' || player.mode === 'driving') && !!player.car; },
@@ -166,6 +168,7 @@ export function createPlayer(ctx) {
     update(dt) {
       if (!(dt > 0)) return;
       player.pickTimer -= dt; player.dropTimer -= dt;
+      if (player.mode !== 'foot') { player.speed = 0; player.stillT = 0; }
       if (player.mode === 'driving') updateDriving(dt);
       else if (player.mode === 'vehicle') { player.vehicle.drivePlayer(dt, drv); group.position.set(player.vehicle.pos.x, 0, player.vehicle.pos.z); realX = realZ = 0; }
       else if (player.mode === 'foot') updateFoot(dt);
@@ -232,13 +235,15 @@ export function createPlayer(ctx) {
     resolveCircle(group.position, PLAYER.radius, ctx.obstacles, ctx.bounds, ctx.capsules);
     realX = (group.position.x - prev.x) / dt; realZ = (group.position.z - prev.z) / dt;
     const speed = Math.hypot(realX, realZ);
+    player.speed = speed;
+    player.stillT = speed < PLAYER.stillSpeed ? player.stillT + dt : 0;
 
     const wl = player.workLift;
     if (inp.mag > 0) yaw = lerpAngle(yaw, Math.atan2(inp.x, inp.z), damp(16, dt));
     else if (wl && wl.car) yaw = lerpAngle(yaw, Math.atan2(wl.car.pos.x - group.position.x, wl.car.pos.z - group.position.z), damp(8, dt));
     group.rotation.y = yaw;
 
-    setWorking(player.working && speed < 1.2);
+    setWorking(player.working);   // bays only let the player work after standing still for PLAYER.stillTime
     ch.update(dt, Math.min(1.2, speed / PLAYER.speed));
   }
 

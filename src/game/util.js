@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PLAYER } from '../config.js';
 import { ui } from '../ui/index.js';
 
 export const rand = (a, b) => a + Math.random() * (b - a);
@@ -17,6 +18,11 @@ export function fmt(n) { return ui.fmt ? ui.fmt(n) : String(Math.round(n)); }
 
 export function disposeTree(obj) {
   obj.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+}
+
+/** Is p (x, z) on a floor mat of size { w, d } centred at c? The player's centre may overhang by PLAYER.matReach. */
+export function onMat(p, c, size, reach = PLAYER.matReach) {
+  return Math.abs(p.x - c.x) < size.w / 2 + reach && Math.abs(p.z - c.z) < size.d / 2 + reach;
 }
 
 /** Remove an Object3D from whatever it is parented to. */
@@ -42,6 +48,8 @@ export class Tag {
   setVip(v) { this.label.setVip?.(v); return this; }
   setIcon(i) { this.label.setIcon?.(i); return this; }
   setBonus(t) { this.label.setBonus?.(t); return this; }
+  /** Solid: the bubble stays opaque even while it covers the player (see labels.js seeThrough). */
+  setSolid(v) { this.label.setSolid?.(v); return this; }
   /** Any other label method, called only if the label kind has it: tag.call('setStars', [true, null, null]). */
   call(name, ...args) { this.label[name]?.(...args); return this; }
   remove() { this.label.remove(); }

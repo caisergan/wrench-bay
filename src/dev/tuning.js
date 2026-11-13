@@ -43,12 +43,12 @@ const SKIP_OBJ = new Set([
   'zone', 'pile', 'vacuums', 'seats', 'aisleX', 'door', 'crossing', 'tipTray', 'vending', 'vendingPile', 'tv', 'bar',
   'aquarium', 'arcade', 'loungeSpots', 'valetStand', 'staffIdle', 'driveArea', 'capture', 'carEntry', 'carExit',
   'queueSlots', 'staffSpotOffset', 'cashOffset', 'turntable', 'polishRing', 'redCarpet', 'stationSize', 'pickup', 'table',
-  'booms', 'hoarding', 'noGo', 'turntables', 'desk',
+  'booms', 'hoarding', 'noGo', 'turntables', 'desk', 'stationMat', 'workMat', 'liftWorkMat',
 ]);
 const SKIP_NUM = new Set([
   'x', 'y', 'z', 'minX', 'maxX', 'minZ', 'maxZ', 'radius', 'length', 'width', 'height', 'thickness', 'laneZ', 'seatYaw',
   'yaw', 'r', 'queueLaneZ', 'queuePickupOffsetZ', 'queuePickupRadius', 'ownerWalkZ', 'staffLaneZ', 'bayPostOffsetX',
-  'workOffsetZ', 'workRadius', 'stationPickupOffsetZ', 'stationZoneRadius', 'hookRadius', 'color', 'index',
+  'workOffsetZ', 'stationPickupOffsetZ', 'hookRadius', 'color', 'index',
 ]);
 
 // ---------------------------------------------------------------- paths

@@ -662,11 +662,11 @@ A facility = layout + hooks + optional subclasses. `createFacility(ctx, def)` bu
 **def**: `{ id, property?, always?, layout, hooks?, classes?, initial?: { stations: [keys], bays: [indexes] },
 unlocks?: chain, stayText?, setup?(fac), teardown?(fac) }`.
 - `layout`: `PAINT` / `VIP` as in the config. Read through `fac.L` (normalised: `bays` = `lifts`, `workOffsetZ`,
-  `workRadius`, `staffSpotOffset`, `cashOffset`, `capture`, `staffIdle`, `driveArea`, `bayPostOffsetX`, `laneYaw`
+  `workMat`, `staffSpotOffset`, `cashOffset`, `capture`, `staffIdle`, `driveArea`, `bayPostOffsetX`, `laneYaw`
   (default PI/2), plus every original key). Needed keys: `bays, stations, stationSize, stationPickupOffsetZ,
-  stationZoneRadius, queueLaneZ, queueSlots, queuePickupOffsetZ, queuePickupRadius, carEntry, exitLaneZ, pickupStop,
+  stationMat, queueLaneZ, queueSlots, queuePickupOffsetZ, queuePickupRadius, carEntry, exitLaneZ, pickupStop,
   ownerCurb, carExit, loungeSpots, ownerWalkZ, valetStand, staffIdle, staffLaneZ, driveArea, workOffsetZ,
-  workRadius, staffSpotOffset, cashOffset, capture`. Optional: `scrapBin` (+ `scrapBinRadius`) -> `fac.scrap`.
+  workMat, staffSpotOffset, cashOffset, capture`. Optional: `scrapBin` (+ `scrapBinRadius`) -> `fac.scrap`.
 - `unlocks` (chain): `{ list, isUnlocked(id), markUnlocked(id), price(u), event }`. For town facilities use
   `townChain(PAINT_UNLOCKS)` from `facility.js` (state.town.unlocked, x shopMult, emits `townunlock { id, label,
   facility }`). Pads: the next `VISIBLE_PADS` entries, same grammar as the garage; paying calls
@@ -707,7 +707,8 @@ unlocks?: chain, stayText?, setup?(fac), teardown?(fac) }`.
   slot. Override for paint: `onSnapped` (mask, lamps), `updateActive` (spray sweep, then cure timer), `finish` /
   `lowerAndRelease` (unmask, then `setReady`). Staff work while `bay.phase === 'up'` and `car.firstReady()`;
   `isWorkable()` decides whether mechanics fetch for it. Helpers: `deliverPart(part, job)`, `playerInZone()`,
-  `deliverFromPlayer()`, `payOut(car, pay)`, `exitSpot(out)`, `workPos`, `workRing`, `pile` (its CashPile), `model`.
+  `playerCanWork(inZone)` (on the mat and standing still), `deliverFromPlayer()`, `payOut(car, pay)`,
+  `exitSpot(out)`, `workPos`, `workMat` / `setWorkMat(on)`, `pile` (its CashPile), `model`.
 - `Car` (`cars.js`): `jobs[{ type, state: need|ready|done, progress, claim, incoming }]`, `types`, `remaining`,
   `tier`, `vip`, `payMult`, `bonusText`, `patience / patienceMax / patienceOn`, `owner`, `lift` (its bay), `model`
   (the car model API incl. `setColor`, `setDirt` ...), `tag` (job bubble; `tag.setBonus(text)`,

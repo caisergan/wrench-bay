@@ -102,7 +102,7 @@ class SprayBooth extends Bay {
   onSnapped(car) {
     this.phase = 'up';
     car.model.setMasked?.(true);
-    this.workRing.visible = true;
+    this.setWorkMat(true);
     this.setLamp('idle');
   }
 
@@ -112,12 +112,14 @@ class SprayBooth extends Bay {
       const inZone = this.playerInZone();
       if (inZone) { this.playerHere = true; pl.workLift = this; this.deliverFromPlayer(); }
       const job = car.firstReady();
+      const works = !!job && this.playerCanWork(inZone);   // spraying only while standing still on the mat
+      car.tag.setSolid(works);
       let hex = null;
       if (job) {
-        const rate = (inZone ? this.fac.h('playerRate') : 0) + this.mechanicRate();
+        const rate = (works ? this.fac.h('playerRate') : 0) + this.mechanicRate();
         if (rate > 0) {
           hex = hexOf(colorOf(job.type));
-          if (inZone) this.fac.playerSpray = hex;
+          if (works) this.fac.playerSpray = hex;
           job.progress = Math.min(1, job.progress + (rate * dt) / this.fac.h('workTime', job));
           this.paintCar(car, job);
           if (job.progress >= 1) {
@@ -185,7 +187,8 @@ class SprayBooth extends Bay {
   startCure() {
     this.phase = 'cure';
     this.setSpraying(null, 0);
-    this.workRing.visible = false;
+    this.setWorkMat(false);
+    this.car?.tag.setSolid(false);
     this.cureT = 0;
     this.cureTime = townUnlocked('irlamps') ? PAINT.cureIR : PAINT.cure;
     this.setLamp('cure');
@@ -230,6 +233,8 @@ class PaintTank extends Station {
     // the tank's label shows a canister in the tank's colour
     this.tag.label.el?.style.setProperty('--c', cssOf(hexOf(key)));
   }
+  /** The mat's spray can is printed in the tank's colour too. */
+  matTint() { return cssOf(hexOf(this.key)); }
 }
 
 // ---------------------------------------------------------------- painter (mechanic logic, spray pose)
