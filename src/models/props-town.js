@@ -232,10 +232,12 @@ export function hallShell(b, glow, W, o) {
       b.box(T, H - wainH, d, i % 2 ? o.wallB : o.wallA, x, wainH, (z + e) / 2);
     }
   }
-  b.box(backLen, 0.1, 0.05, o.trim, cx, wainH, W.minZ + 0.02);
+  // inner trim lines span the room only: run through the side walls, their ends z-fought with the outer faces
+  const inLen = W.maxX - W.minX;
+  b.box(inLen, 0.1, 0.05, o.trim, cx, wainH, W.minZ + 0.02);
   b.box(backLen, 0.12, T + 0.14, o.cap ?? o.trim, cx, H, W.minZ - T / 2 - 0.02);
-  b.box(backLen, 0.06, 0.04, o.trim, cx, H - 0.2, W.minZ + 0.01);
-  b.box(backLen, 0.12, 0.06, o.base ?? 0x1b2a36, cx, 0, W.minZ + 0.03);
+  b.box(inLen, 0.06, 0.04, o.trim, cx, H - 0.2, W.minZ + 0.01);
+  b.box(inLen, 0.12, 0.06, o.base ?? 0x1b2a36, cx, 0, W.minZ + 0.03);
   for (const sx of [-1, 1]) {
     if (o.skipSide === sx) continue;
     const xi = sx < 0 ? W.minX : W.maxX, xc = sx < 0 ? W.minX - T / 2 : W.maxX + T / 2;
