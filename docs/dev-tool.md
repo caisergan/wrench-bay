@@ -37,7 +37,21 @@ game: the change happens above it while you watch. The chevron makes it taller.
   purpose. Most values apply at once; prices already on pads and built things need "Rebuild world".
 - **View**: the clean screen, per layer (HUD, world labels, pointers and banners, toasts and float texts, pay dock,
   joystick), an invisible DEV button while the HUD is hidden (still tappable in the same spot), camera zoom
-  0.5-3x (fog follows), a PNG of the 3D view, and a perf meter (FPS, worst frame, draw calls, triangles, memory).
+  0.5-3x (fog follows), a PNG of the 3D view, and a perf meter (drawn FPS, worst frame, CPU per frame, draw calls,
+  triangles, pixel size, shadow redraws, memory, and the phone's thermal state in the iOS app).
+- **Perf**: switches for testing heat and battery on a device. They are saved on the device and only apply while the
+  tool is on; with `?dev=0` the game draws exactly as before.
+  - **Heat**: the phone's thermal state (nominal / fair / serious / critical), Low Power Mode and battery, read from
+    iOS every 2 s (`ios/App/App/DevThermal.swift`; a browser shows "only in the iOS app"). A log with a clock records
+    every thermal change and every settings change. To compare presets: let the phone cool to nominal, unplug the
+    charger, pick a preset, tap "Restart the clock", play, and note when it turns fair / serious.
+  - **Presets**: Game default; Battery saver (60 fps cap, 30 fps when still, 5 fps under menus, 1.5x pixels, 1024
+    shadow map); Lowest (30 fps, 1x pixels, no antialiasing, no shadows), the floor for how far heat can drop.
+  - **Frame rate**: cap (screen rate / 60 / 30), 30 fps while neither the camera nor the player moves, 5 fps while a
+    menu pauses the game.
+  - **Resolution**: pixel ratio (auto / 2 / 1.5 / 1.25 / 1), dynamic resolution (steps down 0.125 a second while
+    frames come late, back up after 3 s of keeping up), antialiasing (needs a reload).
+  - **Shadows**: on / off, map size (auto / 2048 / 1024 / 512), redraw every frame / 2nd / 4th.
 - **Save**: jump to a stage (brand new, early garage, garage complete, mid town, late game, everything maxed),
   named snapshots kept on the device, copy / download / import the save as JSON, lifetime stats, reset the save, turn
   the tool off.
@@ -64,6 +78,8 @@ Destructive buttons (the ferry, presets, loading a snapshot, import, reset) need
   Structural ones (taking unlocks or buildings away, setting a fame level) edit the save and call
   `__game.rebuild()`, the same world rebuild the ferry uses, debounced so several taps cost one rebuild.
 - `view.js`: the clean-screen classes on `#game-root`, camera zoom, the perf meter and the snapshot.
+- `perf.js`, `thermal.js`, `tabs-perf.js`: the Perf tab. The switches themselves live in `src/core/perf.js` (tiny,
+  always loaded, reads `wrench-bay-dev:perf` only when the tool is on) and `src/core/engine.js` applies them.
 - `panel.js`, `kit.js`, `tabs-*.js`, `dev.css`: the UI, built from the game's own tokens.
 
 Nothing of the tool is saved into the game save; its own settings use `wrench-bay-dev:*` keys.

@@ -48,6 +48,40 @@ of JavaScript per frame. Early readings of 33 to 52 fps were caused by other loa
 a video stream, a second browser), not by the game. On this Mac the visible change is the flicker. The label fix
 matters most on slower CPUs (iPhone), where a forced layout costs more.
 
+## Dev switches for device tests (2026-11-14)
+
+The iPhone 13 gets hot within minutes and the M5 MacBook works hard. To find out which change actually helps, the dev
+tool has a **Perf** tab (see `docs/dev-tool.md`): frame cap, 30 fps when still, 5 fps under menus, pixel ratio, dynamic
+resolution, antialiasing, shadow on / off, shadow map size and shadow redraw rate, plus presets and a log of the
+phone's own thermal state. Nothing changes for players; the switches only apply while the dev tool is on.
+
+Measured in the Search browser (late-game save, phone view 390 x 844, at the garage), each switch did what it says:
+
+| Switch | Result |
+|---|---|
+| Cap 30 | 29-30 drawn frames a second |
+| 30 fps when still | 30 standing still, 58 while walking |
+| 5 fps under menus | 5 while paused, back to 60 after |
+| Pixel ratio 1.5 | 585 x 1266 drawing buffer instead of 780 x 1688 (-44% pixels) |
+| Shadow redraw every 2nd | 31 shadow redraws a second at 60 fps |
+| Shadows off | 164 draw calls instead of 350 |
+| Dynamic resolution | with frames forced to ~33 ms, 2.0 -> 1.25 in 6 s; back up 0.125 every 3 s once fast |
+
+Where a frame goes at the garage: 391 draw calls and 214k triangles, of which the shadow pass is 184 calls and 115k
+triangles (more than the picture itself). Inside the shadow box, the static town and environment are about 84k of the
+138k shadow-casting triangles in only 29 meshes; the 16 cars are 30k in 64 meshes; the rest of the game objects 24k.
+
+Two ideas were measured and dropped:
+- **Fitting the phone's shadow box to the screen** (as the browser view does): the fitted box came out 40 x 36 m, about
+  the fixed 40 x 40, and its deeper range drew more shadow triangles (141k instead of 115k). The phone's box already
+  matches what is on screen.
+- **No shadows from small or flat things** (under 5 cm high or 0.45 m across): only 41 meshes, about 1.6k triangles
+  and 5-10 draw calls.
+
+What the numbers point to next: **cached static shadows** (draw the town's shadows once, redraw them only when
+something is built, and redraw only cars, people and cash every frame) would remove most of the shadow pass's
+triangles; instancing (below) would remove most of its draw calls. Both wait for the device results.
+
 ## Left, not implemented
 
 ### Draw calls (the main remaining cost)
@@ -70,7 +104,8 @@ The cash and coin piles are the best first target. They save the most draw calls
 parts and the wheels.
 
 ### Not checked
-- **iPhone:** not profiled on a device. The Capacitor build should be checked with Safari Web Inspector's timeline.
+- **iPhone:** not profiled on a device yet. The Perf tab's heat log is the first step; Safari Web Inspector's timeline
+  on the Capacitor build would show the CPU side.
 - **`THREE.Clock`:** deprecated in favour of `THREE.Timer`, so the console warns about it. No performance effect.
 - **"Script error."** appears once in the console after load, with no file or line. It looks like an injected
   cross-origin script, not the game, but this wasn't confirmed.

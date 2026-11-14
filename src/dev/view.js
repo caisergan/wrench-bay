@@ -1,6 +1,9 @@
 // Dev tool: what is on screen. Clean screen (no HUD) per layer, camera zoom, the perf meter and a PNG of the 3D view.
 // Layer switches are classes on #game-root (the joystick lives there, outside #ui); dev.css does the hiding.
-import { renderer, scene, camera, setCameraZoom, setPaused, paused } from '../core/engine.js';
+import * as THREE from 'three';
+import { renderer, scene, camera, sun, setCameraZoom, setPaused, paused } from '../core/engine.js';
+import { perfStats } from '../core/perf.js';
+import { heat } from './thermal.js';
 
 export const LAYERS = [
   { id: 'hud', icon: 'gauge', label: 'HUD', sub: 'Cash, gems, garage card, side buttons, streak, hints, chips' },
@@ -55,25 +58,31 @@ export function setMeter(on) {
   meter = document.createElement('div');
   meter.className = 'dv-meter';
   document.getElementById('ui').appendChild(meter);
-  let frames = 0, last = performance.now(), worst = 0, prev = last;
+  // counts frames the engine actually drew (the dev Perf tab can cap the loop), not animation frames
+  let drawn = perfStats.drawn, shadows = perfStats.shadowDraws, last = performance.now();
+  perfStats.maxGap = 0;
   const tick = (now) => {
     raf = requestAnimationFrame(tick);
-    frames++;
-    worst = Math.max(worst, now - prev);
-    prev = now;
     if (now - last < 500) return;
-    const fps = (frames * 1000) / (now - last);
+    const sec = (now - last) / 1000;
+    const fps = (perfStats.drawn - drawn) / sec, shadowFps = (perfStats.shadowDraws - shadows) / sec;
+    const worst = perfStats.maxGap;
     const r = renderer.info.render, m = renderer.info.memory;
     const g = window.__game;
     const cars = g ? g.world.allCars.filter((c) => c.mode !== 'gone').length : 0;
     const heap = performance.memory ? ` · ${Math.round(performance.memory.usedJSHeapSize / 1048576)} MB` : '';
-    meter.innerHTML = `<b class="${fps < 30 ? 'bad' : fps < 50 ? 'meh' : ''}">${Math.round(fps)} fps</b> <span>worst ${Math.round(worst)} ms</span>`
-      + `<br>${r.calls} calls · ${fmtK(r.triangles)} tris<br>${m.geometries} geo · ${m.textures} tex · ${cars} cars${heap}`;
-    frames = 0; last = now; worst = 0;
+    const b = renderer.getDrawingBufferSize(_buf);
+    const shadow = sun.castShadow ? `shadow ${sun.shadow.mapSize.x} · ${Math.round(shadowFps)}/s` : 'no shadows';
+    const hot = heat.supported && heat.thermal ? `<br><i class="th-${heat.thermal}">${heat.thermal}</i>${heat.charging ? ' · charging' : ''}` : '';
+    meter.innerHTML = `<b class="${fps < 30 ? 'bad' : fps < 50 ? 'meh' : ''}">${Math.round(fps)} fps</b> <span>worst ${Math.round(worst)} ms · cpu ${perfStats.cpuMs.toFixed(1)} ms</span>`
+      + `<br>${r.calls} calls · ${fmtK(r.triangles)} tris<br>${perfStats.pixelRatio.toFixed(2)}x ${b.x}×${b.y} · ${shadow}`
+      + `<br>${m.geometries} geo · ${m.textures} tex · ${cars} cars${heap}${hot}`;
+    drawn = perfStats.drawn; shadows = perfStats.shadowDraws; last = now; perfStats.maxGap = 0;
   };
   raf = requestAnimationFrame(tick);
   notify();
 }
+const _buf = new THREE.Vector2();
 const fmtK = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'K' : String(n));
 
 // ---------------------------------------------------------------- snapshot

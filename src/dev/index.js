@@ -4,6 +4,7 @@
 import { applySaved, tunedCount } from './tuning.js';
 import { setClean } from './view.js';
 import { buildPanel } from './panel.js';
+import { initPerf } from './perf.js';
 import { ui } from '../ui/index.js';
 
 let booted = false, panel = null;
@@ -17,6 +18,7 @@ export function boot() {
 /** announce: the tool was switched on mid-game (cash pill gesture): say so, and rebuild if overrides were applied late. */
 export function start({ announce = false } = {}) {
   if (panel) return panel;
+  initPerf();
   panel = buildPanel(ui);
   if (new URLSearchParams(location.search).has('nohud')) setClean(true);
   if (announce) {
