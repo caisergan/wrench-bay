@@ -1,4 +1,4 @@
-// Tutorial arrow: car -> lift -> station -> work zone -> cash -> pad. Hidden after a few unlocks; later it shows the
+// Tutorial arrow: car -> lift -> station -> work zone -> cash -> upgrade board. Hidden after a few unlocks; later it shows the
 // town's guide target (ctx.town.guideTarget: tow shed pad, the truck, a map target ...).
 import * as THREE from 'three';
 import { state } from '../core/state.js';
@@ -29,6 +29,9 @@ export function createGuide(ctx) {
     if (!pl.onFoot) return null;
     for (const p of ctx.piles) if (p.amount > 0) return target.copy(p.trigger);
     for (const pad of ctx.pads.list) if (pad.remaining > 0 && state.cash >= pad.remaining) return target.copy(pad.pos);
+    // the garage sells its unlocks on its upgrade board (board.js): point there while one of them is affordable
+    const board = ctx.facilities.garage?.board;
+    if (board && !board.isOpen && board.buildable > 0) return target.copy(board.pos);
     const lift = activeLift();
     if (lift) {
       const car = lift.car;

@@ -21,6 +21,7 @@ import { Station, createStations } from './stations.js';
 import { Owner, createOwners } from './owners.js';
 import { Mechanic, Valet, createStaff } from './staff.js';
 import { createChainPads } from './pads.js';
+import { createChainBoard, createBoard } from './board.js';
 
 /**
  * Normalised layout: the garage's LAYOUT uses lift / mechanic names, PAINT and VIP use bay / staff names.
@@ -208,6 +209,8 @@ export const GARAGE_DEF = {
   id: 'garage',
   layout: LAYOUT,
   stayText: 'Customer cars stay on the lot',
+  /** Upgrade board (board.js): the teal pad sells the whole unlock chain and the boosts. */
+  board: { at: LAYOUT.upgradePad, name: 'Wrench Bay', icon: 'wrench', carry: 'parts', staff: 'mechanics', job: 'repair', refill: 'shelf refills' },
   /** Built at creation (before the saved unlocks are applied). */
   initial: { stations: ['tire'], bays: [0] },
   unlocks: {
@@ -261,7 +264,8 @@ export function townChain(list) {
 /**
  * Build one facility inside a world ctx. Returns `fac`:
  *   fac.id, fac.def, fac.L (normalised layout), fac.hooks (merged; may be patched at runtime by add-ons),
- *   fac.cars / bays / stations / owners / staff / pads (systems), fac.scrap ({ x, z, radius } or null),
+ *   fac.cars / bays / stations / owners / staff / pads (systems), fac.board (upgrade board, def.board only),
+ *   fac.scrap ({ x, z, radius } or null),
  *   fac.applyUnlock(u, from), fac.patienceMult() / spawnMult() (products of fac.mods.*), fac.dispose().
  */
 export function createFacility(ctx, def) {
@@ -293,13 +297,15 @@ export function createFacility(ctx, def) {
   for (const i of init.bays || []) fac.bays.add(i, false);
   if (def.unlocks) {
     for (const u of def.unlocks.list) if (def.unlocks.isUnlocked(u.id)) fac.applyUnlock(u, null);
-    fac.pads = createChainPads(ctx, fac, def.unlocks);
+    // a facility with an upgrade board sells its chain there; otherwise one pay pad per entry on the floor
+    fac.pads = def.board ? createChainBoard(ctx, fac, def.unlocks) : createChainPads(ctx, fac, def.unlocks);
     fac.pads.refresh(false);
+    if (def.board) fac.board = createBoard(ctx, fac);
   }
   if (def.setup) def.setup(fac);
 
   fac.dispose = () => {
-    for (const s of [fac.cars, fac.bays, fac.stations, fac.owners, fac.staff, fac.pads]) s?.dispose();
+    for (const s of [fac.cars, fac.bays, fac.stations, fac.owners, fac.staff, fac.pads, fac.board]) s?.dispose();
     def.teardown?.(fac);
   };
   return fac;

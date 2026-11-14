@@ -623,7 +623,7 @@ Main Street gate + services pads, buying the other properties and upgrades, ferr
 `reserveSlot` / `spawn({ reserved, at, path })`, `jobView`, `buyManager`, the debug helpers other than `buy('tow')`,
 `tp`, `drive`. Treat those as written-to-spec; report anything that does not match. Files: `world.js` (the rebuildable world + `ctx`),
 `facility.js` (the facility machine), `cars.js` / `lifts.js` (Bay) / `stations.js` / `owners.js` / `staff.js` (its
-systems, one instance per facility), `pads.js` (`PayPad`, unlock-chain pads), `registry.js` (how features plug in),
+systems, one instance per facility), `pads.js` (`PayPad`, unlock-chain pads), `board.js` (upgrade boards), `registry.js` (how features plug in),
 `features.js` (one import line per feature), `town.js` (town opening, bounds, properties, Main Street gate),
 `vehicles.js` (player vehicles, parking, the tow truck), `pointers.js`, `guide.js`, `facilitytest.js` (a working
 second facility, the smallest complete example). Conventions of `CONTRACTS.md` hold (`+z` south, `yaw = atan2(dx, dz)`).
@@ -768,12 +768,21 @@ armOnLeave?, ground?, dock?: () => info, doneText?: () => text })` (`pads.js`): 
 player stands on it; partial payments kept for the session under `id`. Building pads pass `ground` (the label is a
 `tag`: near state within 3.5 m, hidden while driving or standing on the pad) and `dock` (the pay dock while standing
 on it, after a 0.2 s pause). Call `pad.update(dt)` each frame (returns true the frame it is paid), `pad.remove()`.
-`pad.remaining`, `pad.price`, `pad.locked`, `pad.pos`. For chains use `createChainPads` (done by the facility).
+`pad.remaining`, `pad.price`, `pad.locked`, `pad.pos`. For chains the facility does it: `createChainPads`, or with
+`def.board` the upgrade board (below).
 More options: `ownsLabel` (remove the passed label with the pad), `canHint` (the tag's icon hops when the cash covers
 what is left, the price is dimmed when it doesn't), `preview: () => spec` (a faded copy of what the pad buys, within
 3.5 m at 30%, on the pad at 55%). `groundTag(info, x, z)` (`pads.js`) is the `tag` label wrapper both kinds use.
 
-Unlock-chain pads (`createChainPads`; design: `docs/upgrade-pads/`) use all of it: the tag shows a picture of what you
+Upgrade boards (`board.js` + `ui/board.js`; design: `docs/central-upgrades/`). A facility with `def.board = { at,
+name, icon, carry, staff, job, refill }` (the garage: `LAYOUT.upgradePad`; the Spray Bay: `PAINT.board`, inside the
+colour lab, whose sliding door `paint.js` opens) sells its chain there and has no chain pads on the floor:
+`fac.pads = createChainBoard(...)` keeps the chain API (`list` empty, `complete(u)` for dev tools), `fac.board` is the
+pad + ground tag (arrow and how many things you can afford; the name within 3.5 m) + the reveal after a purchase
+(`ctx.cam.focus` glides to `padPosition(u)`, the thing pops in, `ctx.cam.lift` keeps the player above the sheet).
+The sheet uses the same `unlock-info.js` words as the pads below.
+
+Unlock-chain pads (`createChainPads`; design: `docs/upgrade-pads/`; now only for a facility without a board) use all of it: the tag shows a picture of what you
 buy (`pic`: on cream inside the mustard / teal ring; the paint canister in its colour), its name within 3.5 m, the
 dock says what it does with a "before -> after" row ("Colours 3 -> 4", "Curing 6 s -> 3 s", "Parks the cars: You ->
 Valet"), and the facility's `previewModel` hook gives the preview. The words live in `unlock-info.js`, one table per

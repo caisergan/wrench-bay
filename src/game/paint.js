@@ -568,12 +568,36 @@ function syncPlayerSuit(fac) {
 }
 
 // ---------------------------------------------------------------- facility
+/** The colour lab's sliding door (the upgrade board is inside): open while the player is on foot at the doorway or
+ *  walking up to it (either side), shut 0.6 s after they left; a solid fills the doorway only while it is shut. */
+function syncLabDoor(fac, dt) {
+  const ctx = fac.ctx, hall = ctx.town?.building?.('paint');
+  if (!hall?.setLabDoor) return;
+  const LB = PAINT.decor.colourLab, pl = ctx.player, p = pl?.pos;
+  const at = !!p && pl.onFoot && Math.abs(p.x - LB.minX) < 1.35 && Math.abs(p.z - LB.doorZ) < LB.doorW / 2 + 0.55;
+  fac.labHold = at ? 0.6 : Math.max(0, fac.labHold - dt);
+  const open = fac.labHold > 0;
+  if (open === fac.labOpen) return;
+  const first = fac.labOpen === null;
+  fac.labOpen = open;
+  hall.setLabDoor(open);
+  if (!first && ctx.near({ x: LB.minX, z: LB.doorZ }, 1)) ui.sfx('slideDoor');
+  if (open) {
+    if (fac.labSolid) { ctx.solids.remove(fac.labSolid); fac.labSolid = null; }
+  } else if (!fac.labSolid) {
+    const box = hall.group.userData.labDoorSolid;
+    if (box) fac.labSolid = ctx.solids.add({ ...box });
+  }
+}
+
 export const PAINT_DEF = {
   id: 'paint',
   property: 'paint',
   layout: PAINT,
   stayText: 'Paint customers stay at the Spray Bay',
   noFreeText: 'No free booth!',
+  /** Upgrade board (board.js) on the floor of the colour lab ("the office"); its door slides open (setup). */
+  board: { at: PAINT.board, name: 'Spray Bay', icon: 'paintShop', carry: 'cans', staff: 'painters', job: 'respray', refill: 'tank refills' },
   initial: { stations: ['red', 'blue', 'white'], bays: [0] },
   unlocks: townChain(PAINT_UNLOCKS),
   classes: { Car: PaintCar, Bay: SprayBooth, Station: PaintTank, Mechanic: Painter },
@@ -681,14 +705,18 @@ export const PAINT_DEF = {
   setup(fac) {
     fac.playerSpray = null; fac.sprayShown = false; fac.cupShown = null;
     fac.suitWanted = false; fac.suitOn = false; fac.suitCh = null;
+    fac.labOpen = null; fac.labHold = 0; fac.labSolid = null;
+    syncLabDoor(fac, 0);
     const update = fac.bays.update;
     fac.bays.update = (dt, t) => {
       fac.playerSpray = null; fac.suitWanted = false;
       update(dt, t);
       syncPlayerSuit(fac); syncPlayerSpray(fac);
+      syncLabDoor(fac, dt);
     };
   },
   teardown(fac) {
+    if (fac.labSolid) { fac.ctx.solids.remove(fac.labSolid); fac.labSolid = null; }
     fac.playerSpray = null;
     syncPlayerSpray(fac);
     if (fac.suitOn) fac.ctx.player?.ch?.setSuit?.(false, null, false);

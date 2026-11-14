@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wrench Bay · Upgrade boards proposal</title>
+<link rel="stylesheet" href="./page.css">
+<link rel="stylesheet" href="./board.css">
+</head>
+<body>
+<main>
+  <header class="hero">
+    <span class="kicker">Proposal · upgrades in the garage and the Spray Bay</span> <span class="kicker built">Built · branch central-upgrades</span>
+    <h1>Everything you can buy, in one place</h1>
+    <p class="lede">
+      Today the garage has <em>24 unlock pads</em> (13 in Wrench Bay, 11 in the Spray Bay), each one on the floor next to what it
+      buys, and a teal pad that only sells the five boosts. The proposal: one <em>upgrade board</em> per workshop. Wrench Bay keeps
+      its teal pad in the middle of the floor. The Spray Bay gets one inside the glass office in the bottom-right corner.
+      Stand on it and you get every unlock and every boost for that workshop on one sheet. The floor pads go away.
+    </p>
+    <p class="lede revised"><b>Built with your review:</b> keys are held to buy (a quick tap only wiggles the key), the
+      pad's tag shows the word "Upgrades" only when you're close (far away: the arrow and the count), a purchase has its
+      own moment (stamp, confetti from the key, the camera glides to the new thing; a boost flashes its row and pops
+      "Lv 3!"), and the pictures on the cards stay still. The mock below follows the same rules.</p>
+  </header>
+
+  <!-- 1. today -->
+  <section>
+    <h2><span class="n">1</span>Today</h2>
+    <div class="row3">
+      <figure>
+        <div class="shot"><img src="img/user-garage.png" alt="">
+          <div class="co" style="left:44.5%;top:67%;width:18%;height:22%"><span>Boosts only</span></div>
+        </div>
+        <figcaption class="before"><b>Wrench Bay.</b> The teal pad sells the boosts. Shelves, lifts, staff, the coffee cart and the billboard are each paid on their own pad, wherever that thing goes.</figcaption>
+      </figure>
+      <figure>
+        <div class="shot"><img src="img/user-paint.png" alt="">
+          <div class="co ok" style="left:67.5%;top:55%;width:31%;height:41%"><span>New home of the board</span></div>
+        </div>
+        <figcaption class="before"><b>Spray Bay.</b> No upgrade spot at all: paint, booths, painters, the lamps and the stripe kit are all floor pads. The glass office is a solid block today; you can't walk in.</figcaption>
+      </figure>
+      <figure>
+        <div class="shot tall"><img src="img/today-sheet.jpg" alt="">
+          <div class="co" style="left:38%;top:40%;width:24%;height:9%"><span>You are under here</span></div>
+        </div>
+        <figcaption class="before"><b>The boosts sheet.</b> Five rows, a small level bar, a coral BUY key. It covers your character, and "-0% wait" reads oddly.</figcaption>
+      </figure>
+    </div>
+    <ul class="facts">
+      <li><b>Shopping is a walk.</b> Only the next two unlocks have a pad. They are often at opposite ends (the engine shelf at the back wall, the valet stand on the forecourt), so spending your cash means walking laps.</li>
+      <li><b>Nothing shows what's next.</b> You see two pads and nothing about the 11 after them. There's no "how far through the garage am I".</li>
+      <li><b>Two ways to pay.</b> Unlocks drain cash while you stand on them, boosts are a tap. On the board, both are a tap.</li>
+    </ul>
+  </section>
+
+  <!-- 2. the board -->
+  <section>
+    <h2><span class="n">2</span>The board (live: tap the tabs and the plan icons, hold a key to buy)</h2>
+    <p class="sub">Real items, prices, sentences and icons from the game's config. Wrench Bay with 5 of 13 built and $700; the Spray Bay with 3 of 11 built and $7.5K.
+      The camera rises a little while the board is open, so your character stays in view above it.</p>
+    <div class="board-row">
+      <figure>
+        <div class="ui" id="ph-garage" style="background-image:url(img/garage-bg.jpg)"></div>
+        <div class="ctl" data-for="garage"><button data-add="300">+ $300</button><button data-add="2000">+ $2K</button><button data-reset>Reset</button></div>
+      </figure>
+      <figure>
+        <div class="ui" id="ph-paint" style="background-image:url(img/paint-bg.jpg)"></div>
+        <div class="ctl" data-for="paint"><button data-add="1500">+ $1.5K</button><button data-add="20000">+ $20K</button><button data-reset>Reset</button></div>
+      </figure>
+      <ol class="notes">
+        <li><b>Header: the workshop and your cash.</b> Prices sit right next to what you have, so you don't have to look up at the HUD.</li>
+        <li><b>Two tabs.</b> <i>Build</i> is this workshop's unlocks, <i>Boosts</i> the five levelled upgrades. The coral number is how many you can buy right now. The board opens on the tab that has one.</li>
+        <li><b>The plan.</b> Every unlock of the workshop on one line, in buying order: teal ones are built, the two outlined ones are for sale, grey ones come later. Tap one to see its name and price. It shows how far you are and what's coming.</li>
+        <li><b>Two cards for sale.</b> Same rule as today: the next two in line. Each card has the picture, the name and ribbon, the sentence and the "before → after" chips that the floor pads show today. A card you can afford turns yellow and its picture hops.</li>
+        <li><b>The BUY key.</b> Coral when you can pay; hold it until it fills. When you can't, it's grey, fills with yellow as your cash gets closer, and says how much is missing ("$200 to go").</li>
+        <li><b>After you buy.</b> The card gets a <i>Built!</i> stamp, the sheet dips, and the camera glides to the spot while the new thing pops in with the usual poof and toast. Then the camera comes back, the sheet rises, and the next unlock in line slides into the empty slot. Tapping skips it.</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 3. around the board -->
+  <section>
+    <h2><span class="n">3</span>Boosts, and finding the board</h2>
+    <div class="board-row">
+      <figure>
+        <div class="ui" id="ph-boost" style="background-image:url(img/garage-bg.jpg)"></div>
+        <figcaption><span class="step">Boosts tab</span><b>Same five boosts, easier to read.</b> A "Lv 2" chip, a bigger level bar (the next segment blinks when you can afford it), and the change written as <i>now → next</i>, with "base" in place of "-0%". The words follow the workshop: in the Spray Bay, Carry capacity counts cans and Repair speed says "you + painters". The boosts are shared, so a level bought in one workshop counts in every workshop.</figcaption>
+      </figure>
+      <figure>
+        <div class="ui" id="ph-walk" style="background-image:url(img/garage-walk.jpg)">
+          <span class="w-tag" style="left:195px;top:368px"><span class="gi" data-ico="arrowUp"></span>Upgrades<span class="n">2</span></span>
+        </div>
+        <figcaption><span class="step">Walking past</span><b>The pad says when there's something to buy.</b> Its ground tag (the same tag the town's pads use) shows how many things you can afford, and the arrow hops. With nothing affordable it just says "Upgrades". The tutorial arrow, which today points at an affordable floor pad, points here instead.</figcaption>
+      </figure>
+      <figure class="office">
+        <div class="shot"><img src="img/office.jpg" alt="">
+          <div class="co ok l" style="left:3%;top:47%;width:14%;height:20%"><span>Door slides open</span></div>
+          <div class="co ok below" style="left:27%;top:53%;width:30%;height:23%"><span>Board pad</span></div>
+        </div>
+        <figcaption><span class="step">Spray Bay office</span><b>A room you can walk into.</b> (Close-up from the game with a stand-in pad.) Today the office is one solid block. It becomes three glass walls plus the counter and the mixing rack as obstacles. The glass door in the west wall slides open as you walk up, like the booths' sliding doors. The board pad goes on the floor in front of the counter, and the stool moves up to the counter. The pad sits far enough from the south wall that the window band doesn't hide it from the game camera.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 4. scope -->
+  <section>
+    <h2><span class="n">4</span>What changes, what stays</h2>
+    <div class="cols">
+      <div class="col keep"><h3>Stays</h3>
+        <ul>
+          <li>The unlock order and prices, and "the next two are for sale".</li>
+          <li>What an unlock does when bought (the shelf, lift, booth or hire appears in its place, with the poof and the toast).</li>
+          <li>The teal pad in Wrench Bay, its spot and its short wait before the sheet opens. Stepping off still closes it.</li>
+          <li>The words on the cards: the same table that writes today's pad dock (unlock-info.js).</li>
+          <li>Town building pads, Pro Gear and the Academy: untouched.</li>
+        </ul></div>
+      <div class="col change"><h3>Changes</h3>
+        <ul>
+          <li>No unlock pads on the floor in Wrench Bay or the Spray Bay. Unlocks are a tap, not a cash drain.</li>
+          <li>One board sheet replaces the boosts sheet. The Spray Bay gets the same board in its office.</li>
+          <li>The office stops being a solid block and gets a sliding door.</li>
+          <li>The camera rises a little while the board is open, then glides to each new unlock.</li>
+          <li>The board pad gets a ground tag with an "affordable" count. The tutorial arrow points at it.</li>
+        </ul></div>
+      <div class="col ask"><h3>Your call</h3>
+        <ul>
+          <li><b>Camera glide after BUY:</b> it's the "look what you built" moment, but you can't move for about 1.5 s. The alternative is a short-lived arrow at the screen edge pointing to the new thing.</li>
+          <li><b>Two for sale, or the whole plan?</b> I kept "the next two" so the balance stays the same. Opening the whole plan would give more choice, but players could skip the cheap early steps.</li>
+          <li><b>Platinum Club:</b> its unlocks are floor pads too. The club isn't built yet, so it can get a board when it is.</li>
+        </ul></div>
+    </div>
+  </section>
+</main>
+<script type="module" src="./page.js"></script>
+</body>
+</html>

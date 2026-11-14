@@ -61,7 +61,7 @@ function build(kind) {
       // building pad tag: lies ON the pay pad (never above it, where the building is). Icon + price; close by it also
       // shows the name (+ level). The details are in the pay dock (paydock.js) while the player stands on the pad.
       return html('<div class="wl wl-tag" data-k="buy"><div class="gt"><span class="gt-i"><span class="gt-ic"></span><span class="gt-badge"></span></span>' +
-        '<span class="gt-name"><b></b><span class="gt-lv"></span></span><span class="gt-sep"></span><span class="gt-p"><em></em></span>' +
+        '<span class="gt-name"><b></b><span class="gt-lv"></span></span><span class="gt-sep"></span><span class="gt-p"><em></em></span><span class="gt-n"></span>' +
         `<span class="gt-fame">${ICON.star}<em></em></span><span class="bar"><i></i></span></div></div>`);
     case 'till':
       return html(`<div class="wl wl-till"><div class="pill"><s class="tl-i">${ICON.coins}</s><b></b></div><div class="bar"><i></i></div></div>`);
@@ -345,16 +345,20 @@ function addJobApi(L, el) {
 // paint canister). locked: grey with a padlock badge; for reason 'fame' it shows the fame level it needs in a gold star
 // (like the HUD badge) instead of the price. The bar under the price shows a part payment (setProgress), kept while you
 // are away. setCan(true | false | null): the icon hops now and then (you can pay the rest now) / the price is dimmed
-// (you can't yet) / neither.
+// (you can't yet) / neither. board: an upgrade board's tag (game/board.js): no price; a coral bubble with `count` (how
+// many things you can afford there) when > 0; the name only close by, as on every tag.
 function addTagApi(L, el) {
   const ic = el.querySelector('.gt-ic'), badge = el.querySelector('.gt-badge'), name = el.querySelector('.gt-name b');
   const lv = el.querySelector('.gt-lv'), price = el.querySelector('.gt-p em'), fame = el.querySelector('.gt-fame em');
+  const cnt = el.querySelector('.gt-n');
   let last = '', near = false, can = null;
   L.setInfo = (info) => {
     info = info || {};
-    const key = JSON.stringify([info.name, info.icon, info.price, info.fame, !!info.locked, info.level, info.reason, !!info.up, !!info.pic, info.color]);
+    const key = JSON.stringify([info.name, info.icon, info.price, info.fame, !!info.locked, info.level, info.reason, !!info.up, !!info.pic, info.color, !!info.board, info.count]);
     if (key === last) return L;
     last = key;
+    el.dataset.m = info.board ? 'board' : '';
+    cnt.textContent = info.board && info.count > 0 ? String(info.count) : '';
     const lvUp = (info.level | 0) > 1, up = lvUp || !!info.up, k = info.locked ? 'lock' : up ? 'up' : 'buy';
     if (el.dataset.k !== k) { el.dataset.k = k; badge.innerHTML = k === 'lock' ? ICON.lock : k === 'up' ? ICON.arrowUp : ''; }
     el.dataset.r = info.locked ? info.reason || 'fame' : '';
@@ -376,7 +380,8 @@ function addTagApi(L, el) {
   };
   L.resetKind = () => {
     last = ''; near = false; can = null;
-    el.classList.remove('near', 'part', 'pic', 'can', 'cant'); el.dataset.k = 'buy'; el.dataset.r = ''; badge.innerHTML = ''; name.textContent = '';
+    el.classList.remove('near', 'part', 'pic', 'can', 'cant'); el.dataset.k = 'buy'; el.dataset.r = ''; el.dataset.m = ''; badge.innerHTML = ''; name.textContent = '';
+    cnt.textContent = '';
     ic.style.removeProperty('--c');
   };
 }

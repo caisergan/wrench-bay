@@ -1,13 +1,13 @@
 // Pay pads. PayPad = one yellow pad that drains cash into a price while the player stands on it (on foot).
-// Used by every unlock chain (garage UNLOCKS, PAINT_UNLOCKS, VIP_UNLOCKS: createChainPads) and by the town's
-// property / district pads (town.js). The garage also has the teal upgrade pad (createUpgradePad).
+// Used by the town's property / district pads (town.js) and by the unlock chain of a facility without an upgrade board
+// (createChainPads). Wrench Bay and the Spray Bay sell their chains on their upgrade board instead (board.js).
 // Every pad uses the same three steps (docs/pad-redesign, docs/upgrade-pads): a ground tag on the pad (icon + price),
 // within NEAR also its name, and the pay dock at the bottom of the screen while you stand on it. Chain pads add a
 // picture of what you buy on the tag, a hop when you can pay it, a "before -> after" row in the dock, and a faded
 // preview of the thing standing where it will go (unlock-info.js has the words, the facility's previewModel hook
 // the model).
 import * as THREE from 'three';
-import { createUnlockPad, createUpgradePad as createUpgradePadModel } from '../models/index.js';
+import { createUnlockPad } from '../models/index.js';
 import { LAYOUT as L, VISIBLE_PADS, ECONOMY } from '../config.js';
 import { state, trySpend } from '../core/state.js';
 import { events } from '../core/events.js';
@@ -283,24 +283,4 @@ export function createChainPads(ctx, fac, chain) {
   }
   sys.complete = complete;
   return sys;
-}
-
-/** The garage's teal upgrade pad (opens the upgrades sheet after 0.4 s on it). */
-export function createUpgradePad(ctx) {
-  const up = createUpgradePadModel();
-  up.group.position.set(L.upgradePad.x, 0, L.upgradePad.z);
-  ctx.root.add(up.group);
-  let onUpgrade = false, upDwell = 0;
-  return {
-    update(dt) {
-      const pl = ctx.player, p = pl.pos;
-      up.update(dt);
-      const inU = pl.onFoot && Math.abs(p.x - L.upgradePad.x) < 0.7 && Math.abs(p.z - L.upgradePad.z) < 0.7;
-      // the pad sits on the main walkway: only open the sheet after a short pause on it, not when walking across
-      upDwell = inU ? upDwell + dt : 0;
-      const onU = inU && (onUpgrade || upDwell >= 0.4);
-      if (onU !== onUpgrade) { onUpgrade = onU; events.emit(onU ? 'upgradepad:enter' : 'upgradepad:exit'); }
-    },
-    dispose() { if (onUpgrade) events.emit('upgradepad:exit'); },
-  };
 }

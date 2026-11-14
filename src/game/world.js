@@ -1,7 +1,7 @@
 // One garage's dynamic world: everything lives under a root group that is disposed on rebuild (shop:changed).
 // ctx is the shared gameplay context every system receives (TOWN.md section 6a documents its fields).
 import * as THREE from 'three';
-import { scene, camTarget, viewReach, setCameraLead, setCameraZoom } from '../core/engine.js';
+import { scene, camTarget, viewReach, setCameraLead, setCameraZoom, setCameraFocus, leadForScreenY } from '../core/engine.js';
 import * as M from '../models/index.js';
 import { UNLOCKS, LAYOUT as L, TOWN } from '../config.js';
 import { state, isUnlocked, save, townOpen } from '../core/state.js';
@@ -11,7 +11,6 @@ import { clearTweens, tween } from './tween.js';
 import { disposeTree } from './util.js';
 import { createCashSystem } from './cash.js';
 import { createPlayer } from './player.js';
-import { createUpgradePad } from './pads.js';
 import { createExtras } from './extras.js';
 import { createGuide } from './guide.js';
 import { createFacility, GARAGE_DEF } from './facility.js';
@@ -50,10 +49,14 @@ export function createWorld(game) {
     add(box) { ctx.obstacles.push(box); return box; },
     remove(box) { const i = ctx.obstacles.indexOf(box); if (i >= 0) { ctx.obstacles.splice(i, 1); ctx.obstaclesVersion++; } },
   };
-  /** Camera helpers: lead(x, z, zoom) looks ahead of a vehicle (eased); lead(0, 0, 1) = back to normal. */
+  /** Camera helpers: lead(x, z, zoom) looks ahead of a vehicle (eased); lead(0, 0, 1) = back to normal.
+   *  lift(fy): keep the player at fraction fy of the screen height (0 top .. 1 bottom), e.g. above a bottom sheet;
+   *  lift(null) = centred again. focus({ x, z }): glide to a ground point and hold it; focus(null): back to the player. */
   ctx.cam = {
     lead(x = 0, z = 0, zoom = 1) { setCameraLead(x, z); setCameraZoom(zoom); },
-    reset() { setCameraLead(0, 0); setCameraZoom(1); },
+    lift(fy) { setCameraLead(0, fy == null ? 0 : Math.max(0, leadForScreenY(fy))); },
+    focus(p) { setCameraFocus(p); },
+    reset() { setCameraLead(0, 0); setCameraZoom(1); setCameraFocus(null); },
   };
   const _fx = new THREE.Vector3();
   /** fx helpers bound to the scene; every one is optional in models (missing ones are skipped). */
@@ -89,7 +92,8 @@ export function createWorld(game) {
   ctx.owners = garage.owners; ctx.staff = garage.staff; ctx.pads = garage.pads;
 
   ctx.player = createPlayer(ctx);
-  ctx.upgradePad = createUpgradePad(ctx);
+  /** Legacy alias: the garage's upgrade board (board.js) is what the teal pad used to be. */
+  ctx.upgradePad = garage.board;
   ctx.pointers = createPointers(ctx);
   ctx.vehicles = createVehicles(ctx);
   ctx.town = createTown(ctx);
@@ -172,8 +176,7 @@ export function createWorld(game) {
       for (let i = 0; i < facs.length; i++) facs[i].staff.update(dt, t);
       ctx.extras.update(dt, t);
       ctx.cash.update(dt, t);
-      for (let i = 0; i < facs.length; i++) facs[i].pads?.update(dt, t);
-      ctx.upgradePad.update(dt, t);
+      for (let i = 0; i < facs.length; i++) { facs[i].pads?.update(dt, t); facs[i].board?.update(dt, t); }
       ctx.town.update(dt, t);
       for (let i = 0; i < features.length; i++) features[i].update?.(dt, t);
       ctx.guide.update(dt, t);
@@ -187,7 +190,6 @@ export function createWorld(game) {
       ctx.vehicles.dispose();
       for (const fac of facs.slice()) fac.dispose();
       ctx.player.dispose();
-      ctx.upgradePad.dispose();
       ctx.extras.dispose();
       ctx.cash.dispose();
       ctx.pointers.dispose();

@@ -1,4 +1,5 @@
 // Gameplay entry: one rebuildable world per garage (the static environment is built by main.js).
+import * as engine from '../core/engine.js';
 import { onUpdate } from '../core/engine.js';
 import { events } from '../core/events.js';
 import { state, addCash, isUnlocked, markUnlocked, openTown, openDistrict, addFame, fameNeed, fameLevel } from '../core/state.js';
@@ -58,6 +59,8 @@ export function initGame() {
     get staff() { return world.ctx.staff; },
     get owners() { return world.ctx.owners.list; },
     get pads() { return world.ctx.pads.list; },
+    /** The live engine module (camera, renderer, scene, setPaused ...): importing it again from the console gives a copy. */
+    engine,
     get timeScale() { return dbg.timeScale; },
     set timeScale(v) { dbg.timeScale = v; },
     state,

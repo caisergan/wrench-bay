@@ -2240,7 +2240,8 @@ function paintCorner(b, gl) {
   b.push(W.maxX + T / 2, 0, pz + pw / 2, 0); extinguisher(b); b.pop();
   b.push(PD.colourLab.minX - 0.05, 0, PD.colourLab.doorZ - PD.colourLab.doorW / 2 - 0.35, -R90); extinguisher(b); b.pop();
 }
-/** Colour lab: glass room in the front-east corner (not enterable), mixing bank, counter, matching box. */
+/** Colour lab ("the office"): glass room in the front-east corner with the upgrade board's pad (game/board.js) on its
+ *  floor, mixing bank, counter, matching box. The sliding door leaf is its own mesh (createPaintHall: setLabDoor). */
 function colourLab(b, gl) {
   const W = PAINT.walls, LB = PD.colourLab, x0 = LB.minX, x1 = W.maxX, z0 = LB.minZ, z1 = LB.maxZ - 0.05;
   const pillarX = W.maxX + W.thickness / 2 - 0.4;                                                 // west face of the east pillar
@@ -2261,13 +2262,14 @@ function colourLab(b, gl) {
       if (r.axis === 'x') b.box(0.05, 1.35, WT + 0.02, AL_D, p, 0.9, r.c); else b.box(WT + 0.02, 1.35, 0.05, AL_D, r.c, 0.9, p);
     }
   }
-  // door in the west wall (closed glass door): frame, header, push bar, threshold
+  // door in the west wall: frame, header, threshold; the automatic sliding leaf (a mesh of its own, labDoorGeo)
+  // runs on a track along the inside face and parks over the wall south of the opening
   const dz0 = LB.doorZ - LB.doorW / 2, dz1 = LB.doorZ + LB.doorW / 2;
   for (const z of [dz0, dz1]) b.box(0.12, 2.25, 0.06, AL_D, x0, 0, z);
   b.box(0.12, 0.1, LB.doorW, AL_D, x0, 2.15, LB.doorZ);
-  b.box(0.04, 2.1, LB.doorW - 0.06, AL, x0, 0.04, LB.doorZ - 0.0, 0, 0, 0);                    // door leaf frame (glass in it)
-  b.box(0.08, 0.04, LB.doorW - 0.2, TC.STEEL, x0 - 0.06, 1.0, LB.doorZ);
   b.box(0.16, 0.012, LB.doorW, TC.STEEL_D, x0, 0.03, LB.doorZ);
+  b.box(0.07, 0.09, LB.doorW * 2 + 0.06, AL_D, x0 + LAB_DOOR_X + 0.01, 2.17, LB.doorZ + LB.doorW / 2 - 0.03);   // track
+  b.box(0.05, 0.06, 0.14, TC.DARK, x0 + LAB_DOOR_X + 0.02, 2.11, dz0 + 0.12);                    // door sensor
   // ---- mixing bank against the east wall: steel rack, 3 shelves of tint tins with agitator lids and drive bars
   const mz0 = z0 + 0.12, mz1 = -0.25, mxc = x1 - 0.3;
   for (const z of [mz0, (mz0 + mz1) / 2, mz1]) for (const x of [x1 - 0.57, x1 - 0.03]) b.box(0.04, 1.62, 0.04, TC.STEEL_DD, x, 0.03, z);
@@ -2313,8 +2315,8 @@ function colourLab(b, gl) {
   const fx = mox - 0.45, fz = cz + 0.18;
   Object.values(PAINT_COLORS).forEach((c, i) => { const a = -0.7 + i * 0.2; b.box(0.04, 0.006 + i * 0.001, 0.3, c.hex, fx + Math.sin(a) * 0.15, tY + i * 0.002, fz - Math.cos(a) * 0.15, 0, a, 0); });
   b.cyl(0.015, 0.015, 0.03, TC.STEEL_DD, fx, tY, fz, 6);
-  // stool
-  const sx = mox - 0.1, sz = cz + 0.75;
+  // stool, pushed in at the counter (the upgrade board's pad is on the floor in front of it)
+  const sx = mox - 0.1, sz = cz + LAB_STOOL_DZ;
   b.cyl(0.18, 0.2, 0.04, TC.STEEL_DD, sx, 0.03, sz, 10); b.cyl(0.035, 0.035, 0.6, TC.CHROME, sx, 0.07, sz, 6); b.cyl(0.18, 0.18, 0.07, TC.CORAL, sx, 0.66, sz, 10);
 }
 /** The colour lab's wall runs: x runs (north / south) at z = c from a to b, z runs (west) at x = c. Door gap left. */
@@ -2334,7 +2336,21 @@ const labGlassGeo = () => geo('paint|labGlass', (b) => {
     const len = r.b - r.a, mid = (r.a + r.b) / 2;
     if (r.axis === 'x') b.box(len, 1.32, 0.03, 0xffffff, mid, 0.93, r.c); else b.box(0.03, 1.32, len, 0xffffff, r.c, 0.93, mid);
   }
-  b.box(0.03, 1.95, LB.doorW - 0.14, 0xffffff, LB.minX, 0.12, LB.doorZ);
+});
+// Sliding leaf of the colour lab door (origin = leaf centre on the floor, plane x = 0): aluminium frame + push bar;
+// its glass is labDoorGlassGeo.
+const LAB_DOOR_X = 0.075;                                          // leaf plane, inside the west wall
+const LAB_STOOL_DZ = 0.52;                                         // stool centre south of the counter's centre line
+const labDoorGeo = () => geo('paint|labDoor', (b) => {
+  const LB = PD.colourLab, w = LB.doorW - 0.04, AL = 0xc9d1d6;
+  for (const z of [-w / 2 + 0.025, w / 2 - 0.025]) b.box(0.04, 2.08, 0.05, AL, 0, 0.04, z);
+  b.box(0.04, 0.07, w, AL, 0, 0.04, 0); b.box(0.04, 0.06, w, AL, 0, 2.06, 0);
+  b.box(0.03, 0.035, w - 0.2, TC.STEEL, 0.035, 1.0, 0);                                          // push bar (inside)
+  b.box(0.03, 0.035, w - 0.2, TC.STEEL, -0.035, 1.0, 0);                                         // pull bar (outside)
+});
+const labDoorGlassGeo = () => geo('paint|labDoorGlass', (b) => {
+  const w = PD.colourLab.doorW - 0.04;
+  b.box(0.02, 1.93, w - 0.08, 0xffffff, 0, 0.11, 0);
 });
 /** Waste-paint drum on its spill pallet at PAINT.scrapBin. */
 function wasteDrum(b) {
@@ -2599,11 +2615,38 @@ export function createPaintHall() {
   solids.push({ minX: W.minX, maxX: W.minX + 0.47, minZ: Lk.z0, maxZ: Lk.z1 });
   solids.push({ minX: G.x - 0.46, maxX: G.x + 0.46, minZ: G.z - 0.31, maxZ: G.z + 0.33 });
   solids.push({ minX: Mt.x - 0.24, maxX: Mt.x + 0.26, minZ: Mt.z - 0.53, maxZ: Mt.z + 0.53 });
-  solids.push({ minX: LB.minX - 0.08, maxX: W.maxX, minZ: LB.minZ - 0.06, maxZ: LB.maxZ });
+  // colour lab: walls (door gap left open: game/paint.js adds userData.labDoorSolid while the door is shut), the
+  // counter with the north wall, the mixing bank, the stool
+  const lx0 = LB.minX - 0.08, lx1 = LB.minX + 0.08, ldz0 = LB.doorZ - LB.doorW / 2, ldz1 = LB.doorZ + LB.doorW / 2;
+  const lcz = LB.minZ + 0.36, lsx = LB.minX + 1.5, lsz = lcz + LAB_STOOL_DZ;
+  solids.push({ minX: lx0, maxX: lx1, minZ: LB.minZ - 0.06, maxZ: ldz0 });
+  solids.push({ minX: lx0, maxX: lx1, minZ: ldz1, maxZ: LB.maxZ });
+  solids.push({ minX: lx0, maxX: W.maxX, minZ: LB.minZ - 0.06, maxZ: lcz + 0.3 });
+  solids.push({ minX: lx0, maxX: W.maxX, minZ: LB.maxZ - 0.14, maxZ: LB.maxZ });
+  solids.push({ minX: W.maxX - 0.62, maxX: W.maxX, minZ: LB.minZ, maxZ: -0.2 });
+  solids.push({ minX: lsx - 0.2, maxX: lsx + 0.2, minZ: lsz - 0.2, maxZ: lsz + 0.2 });
+  group.userData.labDoorSolid = { minX: lx0, maxX: lx1, minZ: ldz0, maxZ: ldz1 };
   solids.push({ minX: S.x - 0.45, maxX: S.x + 0.45, minZ: S.z - 0.45, maxZ: S.z + 0.45 });
   const labGlass = new THREE.Mesh(labGlassGeo(), boothGlassMat);
   labGlass.renderOrder = 3;
   group.add(labGlass);
+  // the lab's automatic sliding door: shut by default; setLabDoor(true) slides the leaf south along the inside face
+  const labDoor = new THREE.Group();
+  labDoor.add(mesh(labDoorGeo(), litMat, { cast: false }));
+  const ldGlass = new THREE.Mesh(labDoorGlassGeo(), boothGlassMat);
+  ldGlass.renderOrder = 3;
+  labDoor.add(ldGlass);
+  labDoor.position.set(LB.minX + LAB_DOOR_X, 0, LB.doorZ);
+  group.add(labDoor);
+  const doorTravel = LB.doorW - 0.06;
+  let doorK = 0, doorWant = 0;
+  anim.push((dt) => {
+    if (doorK === doorWant) return;
+    const v = doorWant > doorK ? dt / 0.32 : -dt / 0.45;              // opens briskly, closes a little slower
+    doorK = Math.max(0, Math.min(1, doorK + v));
+    const e = doorK * doorK * (3 - 2 * doorK);
+    labDoor.position.z = LB.doorZ + e * doorTravel;
+  });
   // forecourt: markings overlay, the shelter's clear roof sheet
   const F = PAINT.forecourt, Sh = PD.shelter;
   const fmarks = decal(forecourtTex(), F.maxX - F.minX, F.maxZ - F.minZ, 0.014);
@@ -2638,7 +2681,9 @@ export function createPaintHall() {
   let t = 0;
   function update(dt = 0.016) { t += dt; for (const a of anim) a(dt, t); }
   update(0);
-  return { group, update };
+  /** Colour lab door: true = open (slides now; update() moves it). labDoorOpen() = 0 shut .. 1 open right now. */
+  function setLabDoor(open) { doorWant = open ? 1 : 0; }
+  return { group, update, setLabDoor, labDoorOpen: () => doorK };
 }
 
 // ================================================================ STUBS (replaced one by one below this line)
