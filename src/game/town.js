@@ -477,7 +477,7 @@ export function createTown(ctx) {
     const near = ctx.near(centre(rec.def.plot), 8);
     for (const m of s.parts) { m.setProgress?.(k); if (near) m.update?.(dt); }
     s.sfxT -= dt;
-    if (near && s.sfxT <= 0 && k < 0.95) { s.sfxT = 0.9; ui.sfx('build'); }
+    if (s.sfxT <= 0 && k < 0.95) { s.sfxT = 0.9; ctx.sfxAt('build', centre(rec.def.plot)); }
     if (k < 1) return;
     for (const m of s.parts) detach(m.group);
     rec.site = null;

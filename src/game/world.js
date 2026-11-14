@@ -45,6 +45,18 @@ export function createWorld(game) {
    *  The reach comes from the engine: 12 / 22 / 11 in the phone frame, much wider in the browser view. */
   ctx.near = (pos, r = 0) => Math.abs(pos.x - camTarget.x) < viewReach.x + r
     && pos.z > camTarget.z - viewReach.back - r && pos.z < camTarget.z + viewReach.front + r;
+  /** A sound effect at pos (x, z) in the world. Full volume on screen; past the screen edge it gets quieter and duller
+   *  over about half a screen width and comes from its side, so a place you walk away from fades out behind you.
+   *  mine = the player caused it (their delivery, repair, parking ...): only then may the phone vibrate. Staff,
+   *  customers, traffic and cash landing on a pile are sound only. */
+  ctx.sfxAt = (name, pos, mine = false) => {
+    const dx = pos.x - camTarget.x;
+    const ox = Math.max(0, Math.abs(dx) - viewReach.x);
+    const oz = Math.max(0, camTarget.z - viewReach.back - pos.z, pos.z - camTarget.z - viewReach.front);
+    const fade = viewReach.x, k = Math.max(0, 1 - Math.hypot(ox, oz) / fade);
+    const pan = Math.max(-1, Math.min(1, dx / (viewReach.x + fade))) * 0.6;
+    ui.sfx(name, { vol: k * k, pan, haptic: !!mine });
+  };
   ctx.solids = {
     /** Add a static obstacle box; returns it (keep it to remove it later). */
     add(box) { ctx.obstacles.push(box); return box; },
