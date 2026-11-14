@@ -8,7 +8,7 @@ export const isNative = Capacitor.isNativePlatform();
 // The game reads and writes localStorage synchronously. iOS may wipe a web view's localStorage when the device is
 // low on space, so in the app every key below is mirrored to native storage (Preferences = UserDefaults) and
 // restored into localStorage on launch, before anything reads it.
-const MIRRORED_KEYS = ['wrench-bay-save-v1', 'wrench-bay-sound'];
+const MIRRORED_KEYS = ['wrench-bay-save-v1', 'wrench-bay-sound', 'wrench-bay-vibration'];
 let prefs = null;
 
 async function restoreStorage() {
@@ -38,17 +38,35 @@ export function persist(key, value) {
 const HAPTICS = {
   click: 'selection', pickup: 'light', drop: 'light', cash: 'light', trash: 'light',
   lift: 'medium', fix: 'medium', upgrade: 'medium',
-  unlock: 'success', done: 'success', vip: 'success',
+  unlock: 'success', done: 'success', vip: 'success', homecoming: 'success',
+  call: 'warning',
   error: 'error',
 };
-const RANK = { selection: 0, light: 1, medium: 2, success: 3, error: 3 };
+const RANK = { selection: 0, light: 1, medium: 2, success: 3, warning: 3, error: 3 };
 const HAPTIC_GAP = 80;   // ms: taps closer than this blur into one buzz
 let haptics = null, lastTapAt = -1e9, lastTapRank = -1;
+
+// the Vibration switch (pause menu). Read lazily: in the iOS app saved settings are restored after this module loads.
+const VIB_KEY = 'wrench-bay-vibration';
+let vibOff = null;
+function readVibOff() {
+  if (vibOff === null) { try { vibOff = localStorage.getItem(VIB_KEY) === 'off'; } catch { vibOff = false; } }
+  return vibOff;
+}
+export const vibrationOn = () => !readVibOff();
+export function setVibration(on) {
+  vibOff = !on;
+  const v = on ? 'on' : 'off';
+  try { localStorage.setItem(VIB_KEY, v); } catch { /* ignore */ }
+  persist(VIB_KEY, v);
+}
+/** Can this device vibrate (the iOS app)? `?haptics` shows the switch in the browser too (it does nothing there). */
+export const canVibrate = isNative || new URLSearchParams(location.search).has('haptics');
 
 /** Tap feedback for a sound effect name (see ui/audio.js). Native only. */
 export function haptic(name) {
   const kind = haptics && HAPTICS[name];
-  if (!kind) return;
+  if (!kind || readVibOff()) return;
   // one tap at a time: inside the gap only a stronger one gets through (the "done" right after the last "fix")
   const now = performance.now(), rank = RANK[kind];
   if (now - lastTapAt < HAPTIC_GAP && rank <= lastTapRank) return;
@@ -57,7 +75,8 @@ export function haptic(name) {
   const p = kind === 'selection' ? Haptics.selectionChanged()
     : kind === 'light' ? Haptics.impact({ style: ImpactStyle.Light })
     : kind === 'medium' ? Haptics.impact({ style: ImpactStyle.Medium })
-    : Haptics.notification({ type: kind === 'success' ? NotificationType.Success : NotificationType.Error });
+    : Haptics.notification({ type: kind === 'success' ? NotificationType.Success
+      : kind === 'warning' ? NotificationType.Warning : NotificationType.Error });
   p.catch(() => {});
 }
 

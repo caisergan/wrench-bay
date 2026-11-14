@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wrench Bay · Away from the garage</title>
+<link rel="stylesheet" href="./page.css">
+</head>
+<body>
+<main>
+  <header class="hero">
+    <span class="kicker">Sound and vibration away from the garage</span> <span class="kicker built">Built · step 1 sound-scope, step 2 away-calls</span>
+    <h1>Away from the garage, it only speaks up when it needs you.</h1>
+    <p class="lede">
+      Step 1: sounds belong to a place and fade as you walk away, and the phone only vibrates for what <em>you</em> do.
+      Step 2: once you can't hear a place, it stays quiet until <em>it needs you</em>; then it calls (a bell and one
+      vibration). Coming home, the <em>first pile you collect</em> gets a coin cascade. As you decided, nothing shows
+      what a place earned while you were away. Every screenshot is the real game.
+    </p>
+  </header>
+
+  <!-- 1. step 1 -->
+  <section>
+    <h2><span class="n">1</span>What step 1 already changed</h2>
+    <p class="sub">The same 60 seconds, measured twice: standing at the diner (one screen north of the garage) on a late
+      town save with three mechanics and a valet, doing nothing. Each mark is one vibration of the phone.</p>
+    <div class="panel">
+      <div class="tl" id="tl"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <ul class="facts f4 ok">
+      <li><b>Vibration = your hands</b>Your pickups, deliveries, repairs, parking, pads, collecting cash and menus. Mechanics, the valet, painters, traffic and cash landing on a pile: never.</li>
+      <li><b>Sound = a place</b>Full volume on screen. Past the edge it fades over half a screen width, gets duller and comes from its side. From the diner you still hear the garage's coins, faintly (8%).</li>
+      <li><b>One tap at a time</b>Taps closer than 80 ms blur into one buzz, so inside that gap only a stronger one gets through (the "done" right after your last "fix").</li>
+      <li><b>Your own taps got clearer</b>On a bay's mat for 6 s: your fix and the car's "done" vibrated; at the same time the mechanics' 2 fixes and 5 part drops didn't.</li>
+    </ul>
+
+    <div class="panel">
+      <h3>Hear it: walk away from the garage</h3>
+      <p class="note">Plays a garage loop (a part, the lift, the wrench, a fix, the cash) through the game's own sound code, at the
+        volume, muffle and side step 1 gives it. Drag the garage away from your screen. Headphones show the left / right best.</p>
+      <div class="walk">
+        <div class="map" id="map"><div class="ring" id="ring"></div><div class="scr"></div><div class="gar" id="gar"></div></div>
+        <div class="ctl2">
+          <div class="row">
+            <button class="btn prop" id="play">Play the garage</button>
+            <div class="seg" id="side">
+              <button class="btn on" data-s="-1">Garage to the left</button>
+              <button class="btn" data-s="1">to the right</button>
+              <button class="btn" data-s="0">behind you</button>
+            </div>
+          </div>
+          <label class="hint" for="dist">Distance past the edge of the screen: <b id="distTxt">0 m</b> (half a screen is 12 m)</label>
+          <input type="range" id="dist" min="0" max="14" step="0.5" value="0">
+          <div class="meter"><span>Volume</span><span class="bar"><b id="mVol"></b></span><span class="v" id="vVol"></span></div>
+          <div class="meter"><span>Brightness</span><span class="bar mf"><b id="mMuf"></b></span><span class="v" id="vMuf"></span></div>
+          <div class="meter"><span>Side</span><span class="bar"><b id="mPan"></b></span><span class="v" id="vPan"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. design -->
+  <section>
+    <h2><span class="n">2</span>Step 2: when a place needs you</h2>
+    <p class="sub">Phone view, in town at the diner, the garage one screen south. Late save: 3 mechanics and a valet.</p>
+    <div class="row3">
+      <figure>
+        <div class="shot"><img src="img/town-today.jpg" alt=""></div>
+        <figcaption class="before"><b>Before.</b> A "Garage!" pointer for a customer under 25% patience existed, but it ranked 5th of 6 and
+          only 3 pointers show: here the rescue, truck and for-sale pointers take all three, so it never appeared. No sound, nothing else.</figcaption>
+      </figure>
+      <figure>
+        <div class="shot"><img src="img/town-alert.jpg" alt="">
+          <div class="co below" style="left:21.5%;top:24%;width:57.5%;height:4.8%"><span>Speedy bonus countdown</span></div>
+          <div class="co right" style="left:15%;top:80%;width:15.5%;height:10.5%"><span>First in line</span></div>
+        </div>
+        <figcaption class="after"><b>The call.</b> A customer drops under 25% patience: a shop-door bell and <i>one warning vibration</i>.
+          While it lasts, a chip counts down to the lost Speedy bonus and the bell pointer leads to the car (first in line for 8 s after the call).
+          The Spray Bay does the same with its own chip and pointer.</figcaption>
+      </figure>
+      <figure>
+        <div class="shot"><img src="img/pause-vibration.jpg" alt="">
+          <div class="co ok below" style="left:13%;top:45.5%;width:74%;height:7.5%"><span>Own switch</span></div>
+        </div>
+        <figcaption class="after"><b>Vibration gets its own switch</b> beside Sound (only in the iOS app). Before, vibration ignored the
+          Sound switch and could not be turned off.</figcaption>
+      </figure>
+    </div>
+    <div class="row3" style="margin-top:34px">
+      <figure>
+        <div class="shot"><img src="img/home-piles.jpg" alt=""></div>
+        <figcaption class="after"><b>Coming home.</b> You hear the garage before you see it (it fades back in over half a screen). The first
+          pile you collect after 30 s away plays a coin cascade and <i>a success vibration</i>; the next piles get the usual quick tick.
+          No amount, no "while you were away" summary.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- 3. listen -->
+  <section>
+    <h2><span class="n">3</span>Hear the two new sounds</h2>
+    <p class="sub">Vibrations can't play in a browser; the dots show how many taps each one is on the phone.</p>
+    <div class="listen">
+      <div class="panel">
+        <h3>The call: "the garage needs you"</h3>
+        <p class="note">A shop-door bell, two notes down. It has to sound unlike anything else in town, the rescue radio most of all, because it is the
+          one sound that reaches you from anywhere.</p>
+        <div class="row">
+          <button class="btn prop" id="hCall">The call <span class="tap"><i></i><i></i></span></button>
+          <button class="btn today" id="hRadio">For comparison: rescue radio (exists)</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>The first pile after a trip</h3>
+        <p class="note">Before, every pile played the same short "cash" and a light tap, whether you were gone 5 minutes or 5 seconds.</p>
+        <div class="row">
+          <button class="btn today" id="hCashOld">Any other pile <span class="tap"><i></i></span></button>
+          <button class="btn prop" id="hCashNew">First pile after a trip <span class="tap"><i></i><i></i></span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. rules -->
+  <section>
+    <h2><span class="n">4</span>When the call comes, and when it stays quiet</h2>
+    <p class="sub">The call is the only thing that reaches you across the map, so it has to be rare and always worth it. Each place you own
+      (the garage, the Spray Bay, later the VIP club) has its own chip and its own call.</p>
+    <div class="when">
+      <div class="panel fire">
+        <h3 class="fire">It calls when both are true</h3>
+        <ol class="rules">
+          <li><b>A customer there drops under 25% patience.</b> The same condition as today's "Garage!" pointer. This one signal covers every
+            kind of stall: no free lift, nobody on the car, a missing part. At stake: the +50% Speedy bonus and your streak.</li>
+          <li><b>You can't hear that place.</b> Its own sounds are silent where you stand.</li>
+        </ol>
+      </div>
+      <div class="panel quiet">
+        <h3 class="quiet">It stays quiet when</h3>
+        <ol class="rules">
+          <li><b>You can hear the place.</b> The honk and the angry customer already tell you.</li>
+          <li><b>You left it less than 10 s ago.</b> You just saw the line.</li>
+          <li><b>The same place called less than 45 s ago.</b></li>
+          <li><b>It called twice and you didn't come.</b> From then on only the chip and the pointer, until you visit it. The shop doesn't nag.</li>
+          <li><b>The game is paused or a panel is open.</b> It calls when you close it, if it still applies.</li>
+          <li><b>You are towing a rescue</b> (hook-up, tow, drop). It calls once the car is dropped, if it still applies.</li>
+          <li><b>It already called about that customer.</b> One call per customer.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. built -->
+  <section>
+    <h2><span class="n">5</span>What was built, and your decisions</h2>
+    <div class="two">
+      <div>
+        <h3>Files</h3>
+        <ul class="files">
+          <li><code>src/game/away.js</code> (new): per place, "can you hear it", the chip, the bell pointer, the call and its limits, the homecoming pile.</li>
+          <li><code>src/game/world.js</code>: <code>ctx.hearing(pos)</code>, the volume <code>ctx.sfxAt</code> plays at (0 = out of earshot).</li>
+          <li><code>src/ui/audio.js</code>: the <code>call</code> bell and the <code>homecoming</code> cascade.</li>
+          <li><code>src/core/platform.js</code>: the <code>warning</code> vibration; the Vibration switch (saved, kept in the app's own storage like Sound).</li>
+          <li><code>src/ui/panels.js</code>, <code>ui.css</code>, <code>icons.js</code>: the Sound | Vibration row in the pause menu.</li>
+          <li><code>src/game/pointers.js</code>: <code>setPriority()</code>, so a call puts its pointer first in line.</li>
+          <li><code>src/game/town.js</code>: its old garage-only "Garage!" pointer is gone (away.js has one per place).</li>
+          <li><code>src/game/cash.js</code>: collecting a pile asks away.js whether it is the homecoming one.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Decided</h3>
+        <ol class="qs">
+          <li><b>No earnings UI.</b> Nothing shows what a place made while you were away: no chip, no summary.</li>
+          <li><b>One chip and one pointer per place</b> (Garage, Spray Bay), only while that place needs you.</li>
+          <li><b>Call limits:</b> 45 s per place, one call per customer, quiet after two calls you didn't come back for.</li>
+          <li><b>Rescues come first:</b> a call waits while you tow a car.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+</main>
+<script type="module" src="./page.js"></script>
+</body>
+</html>

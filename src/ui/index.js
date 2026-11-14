@@ -11,7 +11,7 @@ import { buildPanels } from './panels.js';
 import { buildTitle } from './title.js';
 import { fmt } from './format.js';
 import { flags } from './uistate.js';
-import { closeOpenModal } from './modal.js';
+import { closeOpenModal, anyModalOpen } from './modal.js';
 import { canChooseView, viewForced } from '../core/view.js';
 
 let panels = null;
@@ -26,6 +26,7 @@ export const ui = {
   hint,
   banner,
   chip,
+  anyModalOpen,
   sfx,
   fmt,
   /** Building pads: details at the bottom of the screen while the player stands on a pay pad (paydock.js). */

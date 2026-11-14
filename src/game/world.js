@@ -50,12 +50,16 @@ export function createWorld(game) {
    *  mine = the player caused it (their delivery, repair, parking ...): only then may the phone vibrate. Staff,
    *  customers, traffic and cash landing on a pile are sound only. */
   ctx.sfxAt = (name, pos, mine = false) => {
-    const dx = pos.x - camTarget.x;
-    const ox = Math.max(0, Math.abs(dx) - viewReach.x);
+    const pan = Math.max(-1, Math.min(1, (pos.x - camTarget.x) / (2 * viewReach.x))) * 0.6;
+    ui.sfx(name, { vol: ctx.hearing(pos), pan, haptic: !!mine });
+  };
+  /** How loud a sound at pos (x, z) plays (ctx.sfxAt): 1 on screen, 0 from half a screen width past the edge.
+   *  Below ~0.02 nothing plays: that is where a place is out of earshot (away.js). */
+  ctx.hearing = (pos) => {
+    const ox = Math.max(0, Math.abs(pos.x - camTarget.x) - viewReach.x);
     const oz = Math.max(0, camTarget.z - viewReach.back - pos.z, pos.z - camTarget.z - viewReach.front);
-    const fade = viewReach.x, k = Math.max(0, 1 - Math.hypot(ox, oz) / fade);
-    const pan = Math.max(-1, Math.min(1, dx / (viewReach.x + fade))) * 0.6;
-    ui.sfx(name, { vol: k * k, pan, haptic: !!mine });
+    const k = Math.max(0, 1 - Math.hypot(ox, oz) / viewReach.x);
+    return k * k;
   };
   ctx.solids = {
     /** Add a static obstacle box; returns it (keep it to remove it later). */

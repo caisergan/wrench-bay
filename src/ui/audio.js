@@ -250,13 +250,33 @@ const SOUNDS = {
     tone(262 * p, 0.7, { vol: 0.12, type: 'sine', at: 0.38 });
     noise(0.2, { freq: 7200, q: 3, vol: 0.05, at: 0.4 });
   },
+  // a place you own needs you (away.js): a shop-door bell, two notes down, unlike anything else in town
+  call(p) {
+    for (const [f, at] of [[1318.5, 0], [1046.5, 0.24]]) {
+      tone(f * p, 0.95, { vol: 0.2, at, a: 0.005 });
+      tone(f * 2.76 * p, 0.4, { vol: 0.064, at, a: 0.005 });
+      tone(f * 5.4 * p, 0.2, { vol: 0.02, at, a: 0.005 });
+    }
+  },
+  // the first pile you collect at a place after a trip: a coin cascade into the till
+  homecoming(p) {
+    for (let i = 0; i < 9; i++) {
+      const f = 1900 + Math.random() * 1500, at = i * 0.045;
+      tone(f * p, 0.08, { vol: 0.09, type: 'square', at });
+      tone(f * 1.5 * p, 0.12, { vol: 0.05, type: 'square', at: at + 0.03 });
+    }
+    tone(988 * p, 0.12, { vol: 0.2, type: 'triangle', at: 0.3 });
+    tone(1319 * p, 0.28, { vol: 0.22, type: 'triangle', at: 0.37 });
+    tone(1760 * p, 0.42, { vol: 0.12, type: 'triangle', at: 0.46 });
+    noise(0.08, { freq: 5000, q: 2, vol: 0.06, at: 0.3 });
+  },
   ferry(p) {
     tone(112 * p, 1.0, { vol: 0.17, type: 'sawtooth', a: 0.08 });
     tone(141 * p, 1.0, { vol: 0.13, type: 'sawtooth', a: 0.08 });
     tone(56 * p, 1.0, { vol: 0.14, type: 'sine', a: 0.08 });
   },
 };
-const MIN_GAP = { pickup: 60, pay: 60, coin: 45, drop: 50, cash: 80, click: 40, wrench: 90, honk: 200, engine: 250, lift: 300, fix: 80, spray: 200, wash: 300, polish: 150, winch: 300, radio: 400, gull: 600, coins: 120, thud: 100, build: 160, bell: 200, horn: 250, boothShut: 400, boothOpen: 400, slideDoor: 250, suitUp: 500, suitOff: 500 };
+const MIN_GAP = { pickup: 60, pay: 60, coin: 45, drop: 50, cash: 80, click: 40, wrench: 90, honk: 200, engine: 250, lift: 300, fix: 80, spray: 200, wash: 300, polish: 150, winch: 300, radio: 400, gull: 600, coins: 120, thud: 100, build: 160, bell: 200, horn: 250, boothShut: 400, boothOpen: 400, slideDoor: 250, suitUp: 500, suitOff: 500, call: 1000, homecoming: 600 };
 const last = {}, lastHaptic = {};
 
 /** A sound away from the screen centre: quieter, duller (the highs die first with distance) and from its side. */

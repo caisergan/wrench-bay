@@ -215,7 +215,7 @@ export function createTown(ctx) {
   let barriers = [];
   let gate = null;          // Main Street gate while locked: { noGo, panels[], booms[], pad, label }
   let guideTarget = null, guideId = null;
-  let salePtr = null, alertPtr = null, guidePtr = null, ptrT = 0;
+  let salePtr = null, guidePtr = null, ptrT = 0;
   let labelT = 0;
 
   for (const id in PROPERTIES) {
@@ -689,14 +689,7 @@ export function createTown(ctx) {
       if (gate?.pad && !gate.pad.locked && gate.pad.remaining <= state.cash && gate.pad.remaining < bestPrice) best = gate.pad.pos;
     }
     if (best) { salePtr ||= ctx.pointers.add({ kind: 'sale', worldPos: best }); salePtr.setPos(best).setVisible(true); } else salePtr?.setVisible(false);
-    // a garage customer about to lose patience while you are out in town
-    let alert = null;
-    if (townOpen() && Math.hypot(pl.pos.x, pl.pos.z) > 14) {
-      for (const car of ctx.facilities.garage?.cars.list || []) {
-        if (car.patienceOn && !car.patienceGone && car.patience / car.patienceMax < 0.25) { alert = car.pos; break; }
-      }
-    }
-    if (alert) { alertPtr ||= ctx.pointers.add({ kind: 'alert', text: 'Garage!', worldPos: alert }); alertPtr.setPos(alert).setVisible(true); } else alertPtr?.setVisible(false);
+    // a place you own that needs you while you are away: away.js (its own chip, call and pointer per place)
     // guide target
     if (guideTarget) {
       _v.set(guideTarget.x, 0, guideTarget.z);
@@ -788,7 +781,7 @@ export function createTown(ctx) {
     for (const id in services) if (services[id].on) events.emit('townpad:exit', { kind: services[id].kind });
     if (gate?.label) gate.label.remove();
     ui.payDock.hide();
-    salePtr?.remove(); alertPtr?.remove(); guidePtr?.remove();
+    salePtr?.remove(); guidePtr?.remove();
     // the world root (and our root inside it) is disposed by world.js; camera back to the legacy clamp
     setCameraBounds(null);
   }

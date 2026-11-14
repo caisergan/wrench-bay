@@ -72,7 +72,8 @@ export class CashPile {
       _p.copy(target.position); _p.y += 1.8;
       addCash(total, _p.clone());
       ui.floatText(_p, '+$' + fmt(total), 'cash');
-      ui.sfx('cash');
+      // the first pile at a place after a trip away from it gets the coin cascade (away.js)
+      ui.sfx(this.ctx.away?.homecoming?.(this) ? 'homecoming' : 'cash');
     };
     if (!list.length) { payout(); return; }
     const to = (out) => { out.copy(target.position); out.y += 1.0; return out; };

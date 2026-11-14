@@ -32,6 +32,9 @@ export function makeModal({ title, icon, cls = '', sticky = false }) {
 }
 
 
+/** Is any panel (modal) open right now? */
+export const anyModalOpen = () => modals.some((m) => m.isOpen);
+
 /** Close the open panel the player could close themselves (Esc key). Returns true if one was open. */
 export function closeOpenModal() {
   const m = modals.find((o) => o.isOpen && !o.sticky);
