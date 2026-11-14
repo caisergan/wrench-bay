@@ -1,9 +1,9 @@
-// Modal panels: missions, shop, upgrades sheet, pause menu, garage complete, welcome back.
+// Modal panels: missions, shop, upgrade board (board.js), pause menu, garage complete, welcome back.
 import {
-  state, save, resetSave, addCash, addGems, buyUpgrade, upgradeCost, shopMult, progress, pendingOffline, claimOffline,
+  state, save, resetSave, addCash, addGems, shopMult, progress, pendingOffline, claimOffline,
 } from '../core/state.js';
 import { events } from '../core/events.js';
-import { UPGRADES, BOOSTS, SHOP_NAMES, ECONOMY, PLAYER, BUSINESS as C_BUSINESS } from '../config.js';
+import { BOOSTS, SHOP_NAMES, ECONOMY, BUSINESS as C_BUSINESS } from '../config.js';
 import { ICON } from './icons.js';
 import { fmt, html } from './format.js';
 import { sfx, isMuted, setMuted, unlockAudio } from './audio.js';
@@ -11,6 +11,7 @@ import { toast } from './toast.js';
 import { flags, pauseGame, refreshInput } from './uistate.js';
 import { makeModal } from './modal.js';
 import { buildTownPanels } from './panels-town.js';
+import { buildBoard } from './board.js';
 import { buildViewPick } from './title.js';
 import { canChooseView } from '../core/view.js';
 import { T } from './townstate.js';
@@ -171,66 +172,8 @@ export function buildPanels(root, hud) {
   shop.onOpen = renderShop;
   events.on('gems:changed', () => { if (shop.isOpen) renderShop(); });
 
-  // ================= UPGRADES SHEET =================
-  const sheet = html(`
-    <div class="sheet" data-ui>
-      <div class="sheet-grab"></div>
-      <div class="sheet-head"><span class="ph-icon">${ICON.arrowUp}</span><h2>Upgrades</h2>
-        <button class="x-btn pressable" data-ui aria-label="Close">${ICON.x}</button></div>
-      <div class="sheet-body"></div>
-    </div>`);
-  root.appendChild(sheet);
-  const sheetBody = sheet.querySelector('.sheet-body');
-  const UP_ICON = { speed: ICON.speed, capacity: ICON.capacity, repair: ICON.wrench, supply: ICON.crate, price: ICON.price };
-  // mirrors upgradeValue() semantics in core/state.js, but for any level
-  const effect = (key, l) => {
-    const u = UPGRADES[key];
-    if (key === 'capacity') return `${PLAYER.carryBase + l * u.per} parts`;
-    if (key === 'supply') return `-${Math.round((1 - Math.pow(1 - u.per, l)) * 100)}% wait`;
-    return `+${Math.round(l * u.per * 100)}%`;
-  };
-  const UP_SUB = { speed: 'walk and drive', capacity: 'carry more parts', repair: 'you and mechanics', supply: 'restocks faster', price: 'pays more per car' };
-  const rows = {};
-  for (const key of Object.keys(UPGRADES)) {
-    const u = UPGRADES[key];
-    const row = html(`
-      <div class="urow"><span class="m-ico">${UP_ICON[key] || ICON.star}</span>
-        <div class="m-mid"><div class="m-text">${u.label}</div>
-          <div class="pips">${'<i></i>'.repeat(u.max)}</div>
-          <div class="m-sub"><span class="u-fx"></span> <em>${UP_SUB[key] || ''}</em></div></div>
-        <button class="btn buy pressable" data-ui></button></div>`);
-    row.querySelector('.buy').addEventListener('click', () => {
-      if (buyUpgrade(key)) {
-        sfx('upgrade');
-        row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash');
-      } else sfx('error');
-    });
-    rows[key] = row;
-    sheetBody.appendChild(row);
-  }
-  function renderSheet() {
-    for (const key of Object.keys(UPGRADES)) {
-      const u = UPGRADES[key], l = state.upgrades[key], row = rows[key];
-      const maxed = l >= u.max, cost = upgradeCost(key);
-      row.querySelectorAll('.pips i').forEach((p, i) => p.classList.toggle('on', i < l));
-      row.querySelector('.u-fx').textContent = maxed ? `${effect(key, l)} (max)` : `${effect(key, l)} \u2192 ${effect(key, l + 1)}`;
-      const btn = row.querySelector('.buy');
-      const html2 = maxed ? '<b>MAX</b>' : `<span class="b-lbl">BUY</span>${ICON.cash}<b>${fmt(cost)}</b>`;
-      if (btn.dataset.h !== html2) { btn.dataset.h = html2; btn.innerHTML = html2; }
-      btn.disabled = maxed || state.cash < cost;
-    }
-  }
-  const sheetCtl = {
-    open() { renderSheet(); sheet.classList.add('open'); },
-    close() { sheet.classList.remove('open'); },
-    get isOpen() { return sheet.classList.contains('open'); },
-  };
-  sheet.querySelector('.x-btn').addEventListener('click', () => sheetCtl.close());
-  events.on('cash:changed', () => { if (sheetCtl.isOpen) renderSheet(); });
-  events.on('upgrades:changed', () => { if (sheetCtl.isOpen) renderSheet(); });
-  events.on('shop:changed', () => { if (sheetCtl.isOpen) renderSheet(); });
-  events.on('upgradepad:enter', () => sheetCtl.open());
-  events.on('upgradepad:exit', () => sheetCtl.close());
+  // ================= UPGRADE BOARD (Wrench Bay's teal pad, the Spray Bay office: game/board.js) =================
+  const board = buildBoard(root);
 
   // ================= PAUSE =================
   const pause = makeModal({ title: 'Paused', icon: ICON.pause, cls: 'pause' });
@@ -357,8 +300,9 @@ export function buildPanels(root, hud) {
     openMissions() { sfx('click'); missions.open(); },
     openShop() { sfx('click'); shop.open(); },
     openPause() { pause.open(); },
-    openUpgrades: () => sheetCtl.open(),
-    closeUpgrades: () => sheetCtl.close(),
+    /** The board opens itself while you stand on a board pad; there is nothing to open from elsewhere. */
+    openUpgrades: () => {},
+    closeUpgrades: () => board.close(),
     showComplete,
     isPauseOpen: () => pause.isOpen,
     closePause: () => pause.close(),

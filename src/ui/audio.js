@@ -100,6 +100,8 @@ const SOUNDS = {
     tone(1568 * p, 0.45, { vol: 0.12, at: 0.34 });
   },
   pay(p) { tone(760 * p, 0.035, { vol: 0.14, type: 'triangle' }); noise(0.025, { freq: 3500, q: 3, vol: 0.05 }); },
+  // holding a BUY key on the upgrade board (ui/board.js): a soft rising tick, four per hold
+  charge(p) { tone(880 * p, 0.05, { to: 1180 * p, vol: 0.1, type: 'triangle' }); },
   click(p) { tone(620 * p, 0.05, { to: 480 * p, vol: 0.18 }); },
   upgrade(p) {
     tone(400 * p, 0.3, { to: 900 * p, vol: 0.18, type: 'triangle' });
@@ -254,7 +256,7 @@ const SOUNDS = {
     tone(56 * p, 1.0, { vol: 0.14, type: 'sine', a: 0.08 });
   },
 };
-const MIN_GAP = { pickup: 60, pay: 60, coin: 45, drop: 50, cash: 80, click: 40, wrench: 90, honk: 200, engine: 250, lift: 300, fix: 80, spray: 200, wash: 300, polish: 150, winch: 300, radio: 400, gull: 600, coins: 120, thud: 100, build: 160, bell: 200, horn: 250, boothShut: 400, boothOpen: 400, slideDoor: 250, suitUp: 500, suitOff: 500 };
+const MIN_GAP = { charge: 90, pickup: 60, pay: 60, coin: 45, drop: 50, cash: 80, click: 40, wrench: 90, honk: 200, engine: 250, lift: 300, fix: 80, spray: 200, wash: 300, polish: 150, winch: 300, radio: 400, gull: 600, coins: 120, thud: 100, build: 160, bell: 200, horn: 250, boothShut: 400, boothOpen: 400, slideDoor: 250, suitUp: 500, suitOff: 500 };
 const last = {};
 
 export function sfx(name) {

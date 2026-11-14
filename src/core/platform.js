@@ -34,7 +34,7 @@ export function persist(key, value) {
 
 // ---- haptics ----
 const HAPTICS = {
-  click: 'selection', pickup: 'light', drop: 'light', cash: 'light', coin: 'light', trash: 'light',
+  click: 'selection', charge: 'selection', pickup: 'light', drop: 'light', cash: 'light', coin: 'light', trash: 'light',
   lift: 'medium', fix: 'medium', upgrade: 'medium',
   unlock: 'success', done: 'success', vip: 'success',
   error: 'error',

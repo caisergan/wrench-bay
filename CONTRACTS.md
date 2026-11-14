@@ -65,9 +65,12 @@ When everything is unlocked you move to a bigger garage where everything is wort
    meanwhile walked from the lounge to `ownerCurb`, hops in (pop-out) when the car arrives (the car waits for them,
    4 s at most), and the car drives `carExit` and despawns. The lift is free again as soon as the car starts
    reversing.
-8. **Collect + spend.** Walking near a cash pile collects it (bundles fly to the player). Standing on a yellow
-   pay-pad drains cash into the next unlock (`UNLOCKS`, only the next `VISIBLE_PADS` are shown). Pausing on the
-   teal upgrade pad (0.4 s, so walking across does not trigger it) opens the upgrades sheet. After the last unlock: "garage complete" -> `nextShop()` -> world rebuilds.
+8. **Collect + spend.** Walking near a cash pile collects it (bundles fly to the player). Pausing on the teal
+   upgrade pad (0.4 s, so walking across does not trigger it) opens the upgrade board (`game/board.js`,
+   `ui/board.js`; design: `docs/central-upgrades/`): Build sells the unlocks (`UNLOCKS`, the next `VISIBLE_PADS` for
+   sale, the rest shown as the plan), Boosts the `UPGRADES`. Buying is a hold on the key; an unlock is then revealed
+   (the sheet dips, the camera glides to it, it pops in). The Spray Bay has the same board in its colour lab. After
+   the last unlock: "garage complete".
 
 ### What makes it fun (keep all of it)
 - Constant short goals: 13 unlocks, each changes how the shop looks or works; 5 upgrade tracks; daily missions.
@@ -147,7 +150,8 @@ every area can run before the others are done.
 Core: `cash:changed {cash, delta, worldPos?}`, `gems:changed {gems, delta}`, `progress:changed {done,total,name,level}`,
 `upgrades:changed`, `boosts:changed`, `shop:changed`, `streak:changed {streak, mult}`.
 Gameplay: `game:started`, `car:arrived {vip}`, `car:repaired {count, vip, speedy, total}`, `unlock {id, label}`,
-`upgradepad:enter`, `upgradepad:exit`, `drive:start`, `drive:end`, `shop:complete`.
+`board:open (api)`, `board:close {id}`, `board:reveal {id, phase: 'dip' | 'rise', u}`, `board:changed {id}`,
+`board:frame {id, top}` / `board:dismiss {id}` (from the sheet), `drive:start`, `drive:end`, `shop:complete`.
 App: `app:resume` (back from the background with offline earnings pending; the UI shows the welcome-back modal).
 UI: `ui:ready`, `ui:play` (PLAY pressed on the title screen), `ui:nextShop`.
 
@@ -245,8 +249,9 @@ which carry `data-ui`). Exports `ui`:
   double beep, a car arrived), `lift` (hydraulic whirr ~0.5 s), `wrench` (one ratchet click; called ~6x per second
   while working), `fix` (bright ding: one job done), `done` (little success jingle: car finished), `vip`
   (sparkle), `trash` (parts dumped).
-- `ui.openUpgrades()` / `ui.closeUpgrades()`: upgrades sheet, one row per key of `UPGRADES` (5 rows; must fit a
-  phone screen), opened on `upgradepad:enter`, closed on `upgradepad:exit`.
+- Upgrade board sheet (`ui/board.js`): opens on `board:open`, closes on `board:close`; tabs Build (the plan + a card
+  per unlock for sale) and Boosts (one row per key of `UPGRADES`). Keys are held to buy (0.65 s).
+  `ui.closeUpgrades()` closes it; `ui.openUpgrades()` does nothing (the board opens itself on its pad).
 - `ui.showShopComplete(onNext)`: celebration modal; its button calls `onNext` and emits `ui:nextShop`.
 - HUD: pause + cash pill, gems pill, top card with garage name + unlock progress bar, **streak chip** (flame +
   "x1.25", hidden at streak 0, bumps on `streak:changed`, breaks visibly when it resets), boost buttons ("2x
