@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wrench Bay · The new map, compact</title>
+<link rel="stylesheet" href="./page.css">
+</head>
+<body>
+<main>
+  <nav class="switch">
+    <a href="./index.html"><b>A · The bay</b><small>430 × 340 m · 8 districts · open town</small></a>
+    <a href="./compact.html" class="on"><b>B · Compact</b><small>122 × 100 m · today's town + one street</small></a>
+  </nav>
+  <header class="hero">
+    <span class="kicker">Suggestion B · compact</span> <span class="kicker sketch">Sketch · nothing built yet</span>
+    <h1>Today's town, plus one street</h1>
+    <p class="lede">
+      This is the smaller take for a mobile game that isn't an open world. Harbor Street and Main Street stay exactly as they
+      are, with every place in today's spot. One new street, <em>Crown Street</em>, goes in behind Main Street. The three
+      late-game places that are short of room move up there: the salvage yard, the Platinum Club and Bay Classics.
+      <em>Your pickup</em> gets you from the garage to the club in <span data-n="t:vip">…</span>. Everything on the map is about cars. The only additions are
+      the pickup with its carport, and Crown Street.
+    </p>
+  </header>
+
+  <!-- the map -->
+  <section id="mapsec" class="mapsec">
+    <div class="bar">
+      <div class="seg">
+        <button data-mode="districts" class="on">Streets</button>
+        <button data-mode="era">When it opens</button>
+        <button data-mode="changes">What changed</button>
+      </div>
+      <div class="seg tog">
+        <button data-layer="jobs" class="on">Jobs on the road</button>
+        <button data-layer="life">Bus, ferry</button>
+        <button data-layer="today" class="on">Today's town</button>
+        <button data-layer="phone" class="on">Phone screen</button>
+      </div>
+      <div class="seg zoom"><button id="zin">+</button><button id="zout">−</button><button id="zreset">Fit</button></div>
+    </div>
+    <div class="mapwrap">
+      <svg id="map" preserveAspectRatio="xMidYMid meet"></svg>
+      <aside id="card" class="card"></aside>
+    </div>
+    <div class="legends"><div id="legend" class="legend"></div>
+      <div class="jobkey">
+        <span><i class="pinc" style="background:#f6c453"></i>rescue spot (today's 11)</span>
+        <span><i class="pinc" style="background:#5fbf6a"></i>new spot on Crown Street</span>
+        <span><i class="gw"></i>golden wrench (16, as today)</span>
+        <span><i class="pb">P</i>P bay at every shop door</span>
+      </div>
+    </div>
+    <div class="planner">
+      <span class="pl">Time a drive</span>
+      <select id="from"></select>
+      <button id="swap" class="ghost" title="Swap">⇄</button>
+      <select id="to"></select>
+      <button id="drive" class="go">Drive</button>
+      <span id="rt" class="rt">Your pickup: 10 m/s, 14 m/s tuned. On foot: 4.8 m/s. Roads are today's, 3.8 m wide.</span>
+    </div>
+  </section>
+
+  <!-- vs -->
+  <section>
+    <h2><span class="n">1</span>B next to A and today</h2>
+    <div class="nums">
+      <table class="vs">
+        <tr><th></th><th>Today</th><th class="b">B · Compact</th><th>A · The bay</th></tr>
+        <tr><td>Size</td><td>122 × 61 m</td><td class="b"><b>122 × 100 m</b> (1.6× today)</td><td>430 × 340 m (~20× today)</td></tr>
+        <tr><td>Phone screens across</td><td>~7</td><td class="b"><b>~7</b>: same width, one row deeper</td><td>~25</td></tr>
+        <tr><td>Streets / districts</td><td>Harbor St, Main St</td><td class="b"><b>Harbor St, Main St, Crown St</b></td><td>8 districts + a lake</td></tr>
+        <tr><td>New places</td><td>—</td><td class="b"><b>your carport</b> (plus two free plots)</td><td>15+ (houses, port, cinema, marina, …)</td></tr>
+        <tr><td>Places that move</td><td>—</td><td class="b"><b>3</b>: salvage, Platinum Club, Bay Classics</td><td>7</td></tr>
+        <tr><td>New kinds of job</td><td>—</td><td class="b"><b>none</b></td><td>house calls, fleet contracts</td></tr>
+        <tr><td>Garage → Platinum Club</td><td>a short walk</td><td class="b"><b><span data-n="t:vip">…</span></b> by car · <span data-n="w:vip">…</span> on foot</td><td>17 s by car</td></tr>
+        <tr><td>Longest drive from the garage</td><td>—</td><td class="b"><b><span data-n="max">…</span></b> (<span data-n="maxName">…</span>) · longest walk <span data-n="maxW">…</span></td><td>41 s (29 s tuned)</td></tr>
+        <tr><td>Help for long trips</td><td>—</td><td class="b">not needed</td><td>route line, autopilot, call my car</td></tr>
+      </table>
+      <p class="note">B keeps what A argued for: a real reason to use your own car, the late-game places getting room, and a carport for the
+        pickup. It leaves out what makes A an open world: districts with no cars in them, new job types, long drives, and the systems those
+        long drives would need.</p>
+    </div>
+  </section>
+
+  <!-- what changes -->
+  <section>
+    <h2><span class="n">2</span>Everything that changes</h2>
+    <div class="three">
+      <div class="box"><h3 class="k">Stays</h3><p>All of Harbor Street and Main Street: the garage lot (<code>LAYOUT</code> untouched), tow shed,
+        lounge, car wash, Spray Bay, Pump &amp; Go, Quick-Fit, the ferry quay, Parts Co., the Greasy Spoon and the Academy. The traffic ring,
+        the tunnels, the bus, today's 11 rescue spots and the 16 golden wrenches (three of them move up to Crown Street).</p></div>
+      <div class="box"><h3 class="m">Moves up to Crown Street</h3><p><b>Rust &amp; Gold Salvage</b> goes from a 19 m plot to a real yard with room
+        for its stands, crane and crusher. <b>Platinum Club</b> leaves the home block, with room for its red-carpet drop-off. <b>Bay Classics</b>
+        goes next door to the club. Their floor plans don't change; they get a new origin.</p></div>
+      <div class="box"><h3 class="n2">New</h3><p><b>Crown Street</b>, two short avenue extensions (West Ave and East Ave carry on past
+        Main Street), and an alley between the diner and the Academy straight up to the club's door (the Academy shifts 1 m). <b>Your pickup</b> and its <b>carport</b> on the club's old plot, next to the garage. Two <b>free plots</b> on Main
+        Street are left empty for later.</p></div>
+    </div>
+  </section>
+
+  <!-- streets -->
+  <section>
+    <h2><span class="n">3</span>Three streets, south to north</h2>
+    <p class="sub">Each row up is a little later in the game. Click a card to fly the map there, or a place to open it.</p>
+    <div id="districts" class="districts"></div>
+  </section>
+
+  <!-- car -->
+  <section>
+    <h2><span class="n">4</span>Your car in B: a tool, not the game</h2>
+    <ul class="facts">
+      <li><b>Same pickup as in A.</b> It rolls out of the carport when the town opens (valet + a mechanic hired). You get in at its door
+        ring and out in any P bay. It drives with the joystick like the tow truck does today.</li>
+      <li><b>Walking still works everywhere.</b> The furthest place is <span data-n="maxW">…</span> on foot. The pickup halves the Crown Street
+        trips (garage → Platinum Club: <span data-n="t:vip">…</span> by car, <span data-n="w:vip">…</span> on foot), and its bed carries
+        lunch boxes to your crews.</li>
+      <li><b>Nothing extra to learn.</b> No route line, no autopilot, no calling your car: every trip is short enough to just drive. Pro Gear
+        sells a couple of items for it (engine, bed size). That's all.</li>
+    </ul>
+  </section>
+
+  <!-- jobs -->
+  <section>
+    <h2><span class="n">5</span>Jobs: only the ones the game already has</h2>
+    <div class="jobs">
+      <div><b>Rescue calls</b><p>As today, on Harbor Street and Main Street, plus two new spots on Crown Street. The tow truck and its pay stay the same.</p></div>
+      <div><b>The project car</b><p>Buy a wreck on Crown Street and tow it down West Ave to the garage. Fix it on a lift, paint it at the Spray Bay, then
+        drive it back up Crown Street to the club's turntable and next door to Bay Classics. Each leg is a 5–12 s drive.</p></div>
+      <div><b>Lunch run, tills, wrenches</b><p>The Greasy Spoon's lunch boxes ride in the pickup's bed. Tills at the diner, Pump &amp; Go and Quick-Fit
+        are collected as today. The 16 golden wrenches stay; three of them move up to Crown Street.</p></div>
+    </div>
+  </section>
+
+  <!-- timeline -->
+  <section>
+    <h2><span class="n">6</span>A six-hour game, on the map</h2>
+    <p class="sub">The same goals and prices as today. Only the three Crown Street places are somewhere new. Click a step to see it on the map.</p>
+    <ol id="timeline" class="timeline"></ol>
+  </section>
+
+  <!-- decisions -->
+  <section>
+    <h2><span class="n">7</span>Your call</h2>
+    <ol class="ask">
+      <li><b>A or B?</b> They don't fight each other. B can grow toward A later, because there's room north of Crown Street and two free
+        plots on Main Street. Building B first doesn't close any door.</li>
+      <li><b>The two free plots.</b> Leave them free for later, or move Pump &amp; Go and Quick-Fit off their narrow 10 m side strips onto them?</li>
+      <li><b>The ferry.</b> B keeps it on the east quay, a short walk from the garage, so the finish line is close to home. Should it stay there,
+        or move to the far end of Crown Street so the last trip is the longest?</li>
+    </ol>
+  </section>
+</main>
+<script type="module" src="./compact.js"></script>
+</body>
+</html>

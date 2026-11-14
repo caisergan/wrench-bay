@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wrench Bay · The new map</title>
+<link rel="stylesheet" href="./page.css">
+</head>
+<body>
+<main>
+  <nav class="switch">
+    <a href="./index.html" class="on"><b>A · The bay</b><small>430 × 340 m · 8 districts · open town</small></a>
+    <a href="./compact.html"><b>B · Compact</b><small>122 × 100 m · today's town + one street</small></a>
+  </nav>
+  <header class="hero">
+    <span class="kicker">Suggestion A · the whole map</span> <span class="kicker sketch">Sketch · nothing built yet</span>
+    <h1>Harbor Town becomes a bay you drive around</h1>
+    <p class="lede">
+      Today the whole town is <em>122 × 61 m</em>, about seven phone screens wide, and every shop is a walk from the garage.
+      The proposal grows it to <em>430 × 340 m</em> around a real bay, splits it into <em>eight districts</em>, and gives you
+      <em>your own car</em> to drive between your shops. The garage lot stays exactly where it is and the town grows around it.
+      The map below is to scale (1 m = 1 m, same coordinates as the game). Click a place, drag the phone frame, zoom with
+      the wheel, and time any drive.
+    </p>
+  </header>
+
+  <!-- the map -->
+  <section id="mapsec" class="mapsec">
+    <div class="bar">
+      <div class="seg">
+        <button data-mode="districts" class="on">Districts</button>
+        <button data-mode="era">When it opens</button>
+        <button data-mode="changes">What changed</button>
+      </div>
+      <div class="seg tog">
+        <button data-layer="jobs" class="on">Jobs on the road</button>
+        <button data-layer="life">Buses, trains, boats</button>
+        <button data-layer="today" class="on">Today's town</button>
+        <button data-layer="phone" class="on">Phone screen</button>
+      </div>
+      <div class="seg zoom"><button id="zin">+</button><button id="zout">−</button><button id="zreset">Fit</button></div>
+    </div>
+    <div class="mapwrap">
+      <svg id="map" preserveAspectRatio="xMidYMid meet"></svg>
+      <aside id="card" class="card"></aside>
+
+    </div>
+    <div class="legends"><div id="legend" class="legend"></div>
+      <div class="jobkey">
+        <span><i class="pinc" style="background:#5fbf6a"></i>rescue · near ×2.5</span>
+        <span><i class="pinc" style="background:#f6c453"></i>town ×3</span>
+        <span><i class="pinc" style="background:#f26b5b"></i>far ×4</span>
+        <span><i class="hc"></i>house call</span>
+        <span><i class="gw"></i>golden wrench (24)</span>
+        <span><i class="pb">P</i>P bay at every shop door</span>
+      </div>
+    </div>
+    <div class="planner">
+      <span class="pl">Time a drive</span>
+      <select id="from"></select>
+      <button id="swap" class="ghost" title="Swap">⇄</button>
+      <select id="to"></select>
+      <button id="drive" class="go">Drive</button>
+      <span id="rt" class="rt">Your car: 10 m/s, 14 m/s fully tuned, 40% faster on Route 1 (customer cars drive at 7.5). On foot: 4.8 m/s.</span>
+    </div>
+  </section>
+
+  <!-- today -->
+  <section>
+    <h2><span class="n">1</span>Today: one block, everything within a walk</h2>
+    <div class="today">
+      <figure class="shot"><img src="img/today-aerial.jpg" alt="Today's town from above">
+        <figcaption>The whole town today (late-game save, camera pulled up). Garage in the middle, Main Street behind it, the harbour in front, tunnels at both ends.</figcaption></figure>
+      <div class="nums">
+        <table>
+          <tr><th></th><th>Today</th><th>Proposal</th></tr>
+          <tr><td>Size</td><td>122 × 61 m</td><td><b>430 × 340 m</b> (~20× the area)</td></tr>
+          <tr><td>Phone screens across</td><td>~7</td><td><b>~25</b></td></tr>
+          <tr><td>Districts</td><td>2 streets</td><td><b>8</b> + a scenic lake</td></tr>
+          <tr><td>Roads</td><td>one one-way ring</td><td>coast road, a highway loop, a town grid, 3 bridges</td></tr>
+          <tr><td>How you get around</td><td>walk; the tow truck for rescues</td><td><b>your own car</b>, then a route line, then autopilot</td></tr>
+          <tr><td>Longest trip</td><td>~25 s on foot</td><td><span data-n="far">…</span> by car (<span data-n="farT">…</span> tuned)</td></tr>
+          <tr><td>Garage → VIP club</td><td>a few seconds' walk</td><td><span data-n="vip">…</span> drive down the coast</td></tr>
+        </table>
+        <p class="note">What's wrong with today's map isn't its looks. It's that there is nowhere to <em>go</em>. Every shop sits
+          on one block, so a car would have nothing to do, and the late game has no sense of a town growing outward.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- rules -->
+  <section>
+    <h2><span class="n">2</span>Five rules the layout follows</h2>
+    <div class="rules">
+      <div><b>Distance = progress</b><p>The first things you buy are a walk away. Goals drift outward as you go, and the ferry sits at the far tip of the bay. Trips get longer at the same pace your crew frees you from the garage.</p></div>
+      <div><b>Walk inside, drive between</b><p>Inside a district everything is under ~8 s on foot from its P bay. From the garage, every district is 5–40 s by car, and under 30 s once the car is tuned. Route 1 is the fast way round.</p></div>
+      <div><b>Every road has something on it</b><p>At least one thing per ~15 s of driving: a shop, a rescue spot, a house call, a golden wrench, a landmark, a level crossing. A road with nothing on it gets cut.</p></div>
+      <div><b>The garage stays home</b><p>Shops you're away from keep running. A shop strip on the HUD shows trouble anywhere. Nothing fails hard: being late only means less money.</p></div>
+      <div><b>Real-world logic</b><p>Shops stand on the north side of their street, facing the camera. The scrapyard is by the port and the gas station at the highway exit. Villas sit by the marina. Boats lift the drawbridge and trains close the crossing.</p></div>
+    </div>
+  </section>
+
+  <!-- districts -->
+  <section>
+    <h2><span class="n">3</span>The eight districts</h2>
+    <p class="sub">Click a card to fly the map there, or a place to open it. Drive times are door to door from the garage in the starting car.</p>
+    <div id="districts" class="districts"></div>
+  </section>
+
+  <!-- your car -->
+  <section>
+    <h2><span class="n">4</span>Your car</h2>
+    <div class="carcols">
+      <div class="carart">
+        <svg viewBox="0 0 220 140" class="pickup">
+          <rect x="0" y="0" width="220" height="140" rx="16" fill="#d9e0e3"/>
+          <g transform="translate(110 70)">
+            <ellipse cx="4" cy="34" rx="70" ry="10" fill="#1f3340" opacity=".18"/>
+            <rect x="-62" y="-22" width="124" height="50" rx="9" fill="#f26b5b" stroke="#2f4858" stroke-width="3"/>
+            <rect x="-56" y="-16" width="62" height="38" rx="4" fill="#7a4f32" stroke="#2f4858" stroke-width="2"/>
+            <rect x="-50" y="-10" width="16" height="12" rx="2" fill="#5aa9e6" stroke="#2f4858" stroke-width="1.5"/>
+            <rect x="-30" y="-10" width="16" height="12" rx="2" fill="#f6c453" stroke="#2f4858" stroke-width="1.5"/>
+            <rect x="-40" y="5" width="20" height="12" rx="2" fill="#3a4250" stroke="#2f4858" stroke-width="1.5"/>
+            <rect x="-14" y="2" width="14" height="15" rx="3" fill="#f6c453" stroke="#2f4858" stroke-width="1.5"/>
+            <rect x="12" y="-18" width="26" height="42" rx="5" fill="#cfe6ee" stroke="#2f4858" stroke-width="2.5"/>
+            <rect x="40" y="-18" width="18" height="42" rx="5" fill="#f26b5b" stroke="#2f4858" stroke-width="2"/>
+            <rect x="-70" y="-26" width="16" height="8" rx="3" fill="#2b2f36"/><rect x="-70" y="20" width="16" height="8" rx="3" fill="#2b2f36"/>
+            <rect x="34" y="-26" width="16" height="8" rx="3" fill="#2b2f36"/><rect x="34" y="20" width="16" height="8" rx="3" fill="#2b2f36"/>
+          </g>
+        </svg>
+        <figcaption>Sketch, seen from above like the game camera: parts riding in the open bed.</figcaption>
+      </div>
+      <ul class="facts">
+        <li><b>You get it when the town opens.</b> Once the valet and a mechanic are hired, the barriers lift and the garage's old shop pickup rolls out of the new carport: "Your crew can hold the shop. Take the pickup." It's free and it's yours.</li>
+        <li><b>It drives like the customer cars, only faster.</b> Same joystick. 10 m/s against their 7.5, up to 14 tuned, and 40% faster on Route 1, where there are no crossings or people. You get out only in a P bay, and every shop has one at its door.</li>
+        <li><b>The bed is its job.</b> An open pickup bed, which the high camera sees from above. It carries parts for house calls, lunch boxes, rare parts for classics. You load and unload at the tailgate ring, the same way you deliver to a lift mat.</li>
+        <li><b>The carport at home</b> (where the VIP club stands today): a tune-up pad (engine, bed size, horn). Repaint the pickup at the Spray Bay. Swap to any classic you restored, so your collection becomes your garage of rides.</li>
+        <li><b>Left out on purpose:</b> fuel, damage to your own car, speeding fines. Each is friction with no fun in it. The tow truck stays the rescue vehicle, and you can drive either one between shops.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- getting around -->
+  <section>
+    <h2><span class="n">5</span>Getting around: help arrives as the trips get longer</h2>
+    <div class="tiers">
+      <div><span class="when">0:00</span><b>Walk</b><p>The lot and the home block. Nothing changes.</p></div>
+      <div><span class="when">0:18</span><b>Drive</b><p>Your pickup. Every road is open from the moment the town opens, as the whole map is today (since 13 Nov).</p></div>
+      <div><span class="when">0:18</span><b>Route line</b><p>Free. Tap a place on the map and a line is painted on the road, with an edge pointer when it's off screen. Getting lost isn't a skill.</p></div>
+      <div><span class="when">~1:00</span><b>Drive-up cash</b><p>Stop in a managed shop's P bay and the manager runs the safe's cash out to your window. A collection round never has to leave the car.</p></div>
+      <div><span class="when">~2:00</span><b>Autopilot</b><p>Pro Gear at Harbor Parts Co. The car drives the route itself (the dispatcher's road driving, which already exists). Touch the stick to take over.</p></div>
+      <div><span class="when">~3:00</span><b>Call my car</b><p>Towed somewhere and left your pickup behind? Your valet brings it to the nearest P bay.</p></div>
+    </div>
+    <div class="two">
+      <div class="box"><h3>Driving camera</h3><p>A portrait screen sees ~27 m up but only ~17 m across, so east–west driving is blind. The camera pulls back with speed (×1.0 standing, ×1.3 at top speed) and leads ~6 m ahead of the car. Most long roads run north–south (Hill Road, the avenues, Mill Road, Cape Road) because that's the direction the screen sees furthest.</p></div>
+      <div class="box"><h3>Shop strip (HUD)</h3><p>One small chip per shop you own (garage, Spray Bay, Platinum Club, Quick-Fit). Each shows the worst customer mood there and a cash dot when its safe is full. Tap a chip and the route line goes there. Off-screen shops simulate on paper (queues, timers, payouts) and only get their 3D back when you arrive.</p></div>
+    </div>
+  </section>
+
+  <!-- jobs -->
+  <section>
+    <h2><span class="n">6</span>Jobs a bigger map makes possible</h2>
+    <div class="jobs">
+      <div><b>House calls</b><span class="new">new</span><p>A Maple Hill resident's car won't start in their driveway. The call shows which parts it needs. Grab them at the garage, load them into the bed, drive over, park in the kerb bay and fix it on the driveway. Pays on the spot plus a tip, and villas tip big. This is why the houses exist.</p></div>
+      <div><b>Rescues by distance</b><p>Calls now come from everywhere: near ×2.5, in town ×3, far ×4 (Route 1, the lake, the cape, the port). A long tow over a bridge through traffic is the challenge, and the dispatcher takes the far ones late in the game.</p></div>
+      <div><b>The project-car road trip</b><p>Buy a wreck at the Yards and tow it across the river. Garage lifts make it run, then <i>drive it yourself</i> to the Spray Bay, down the coast to the club's turntable, and next door to Bay Classics. Sell it, or keep it as your ride.</p></div>
+      <div><b>Lunch run by car</b><p>Greasy Spoon lunch boxes go in the bed. Every crew you feed (garage, paint, club, Quick-Fit) works faster for a while, so a round town trip pays off.</p></div>
+      <div><b>Fleet contracts</b><span class="new">new</span><p>The Town Hall board. Bay Cabs, the police, Harbor Buses, the school and Gelato Bros each send a batch of their vehicles to your garage. Fix them all before the deadline for a lump sum and fame. The vehicles already drive in traffic, and their depots give the new buildings a reason to be there.</p></div>
+      <div><b>24 golden wrenches</b><p>Hidden at landmarks: under the drawbridge, by the level crossing, at the lake lookout, on the last pontoon, under the lighthouse. They're a reason to take the long way round.</p></div>
+    </div>
+  </section>
+
+  <!-- timeline -->
+  <section>
+    <h2><span class="n">7</span>A six-hour game, on the map</h2>
+    <p class="sub">Each step is the next goal and where it is. Click one to see it on the map. The first hour stays within ~25 s of the garage. The last goals sit at the far ends of the map.</p>
+    <ol id="timeline" class="timeline"></ol>
+  </section>
+
+  <!-- what changes -->
+  <section>
+    <h2><span class="n">8</span>What stays, what moves, what's new</h2>
+    <div class="three">
+      <div class="box"><h3 class="k">Stays</h3><p>The garage lot (<code>LAYOUT</code> untouched), tow shed, lounge, car wash, Spray Bay, Harbor Street and the quay, and on Main Street Harbor Parts Co. and Wrench Academy. Today's whole town is the dashed box on the map, and almost all of it survives as Harbor Front and Downtown.</p></div>
+      <div class="box"><h3 class="m">Moves</h3><p><b>Platinum Club</b> and <b>Bay Classics</b> go to Marina Point. <b>Rust &amp; Gold Salvage</b> goes to the Yards. <b>Pump &amp; Go</b> and <b>Quick-Fit</b> go to Route 1 Services. The <b>ferry</b> goes to Lighthouse Cape. The <b>diner</b> moves one plot west so Hill Road can run north through the middle. Facilities keep their floor plans; only where they stand changes.</p></div>
+      <div class="box"><h3 class="n2">New</h3><p>Your car and the carport. Hill Road and the town grid. Town Hall and contracts. Maple Hill houses. The Yards: port, rail yard, bus depot. Sandy Cove, Marina Point, Pine Lake. Route 1 with its tunnel. Mill River with 3 bridges, one of them a drawbridge. The rail line and its level crossing.</p></div>
+    </div>
+    <div class="two">
+      <div class="box"><h3>Making it run on a phone</h3><p>The world is built in district chunks, and only the 2–3 nearest are in the scene (the camera never sees more than ~35 m). Far shops simulate without meshes. Traffic and pedestrians spawn only near the player, as today. Trees, houses and containers are instanced. The lot and shop code don't change; they get a new origin.</p></div>
+      <div class="box"><h3>Roads become two-way</h3><p>The one-way ring worked for a 122 m loop. On a 430 m map, one-way streets mean long detours to reach something you can see across the road. The proposal makes every road two-way, with one lane each way and the highway at two.</p></div>
+    </div>
+  </section>
+
+  <!-- decisions -->
+  <section>
+    <h2><span class="n">9</span>Your call</h2>
+    <ol class="ask">
+      <li><b>Size.</b> At 430 × 340 m the far corners (Route 1 Services, the campsite) are ~40 s from the garage in the starting car and ~29 s tuned. A tighter ~300 × 240 m version keeps the same districts with shorter roads (far trips ~25 s), but it has less room for the lake and the highway loop.</li>
+      <li><b>Spray Bay next door or in its own district?</b> The proposal keeps it next to the garage because it's the second shop you learn. Moving it (to the Yards or Sandy Cove) gives an earlier reason to drive, at the cost of a harder mid game.</li>
+      <li><b>Your car.</b> The old shop pickup (proposal: the bed makes it useful), or a car class the player picks?</li>
+      <li><b>Two-way roads everywhere</b>, or keep the one-way ring around the home block for its traffic look?</li>
+    </ol>
+  </section>
+</main>
+<script type="module" src="./map.js"></script>
+</body>
+</html>
