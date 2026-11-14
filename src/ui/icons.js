@@ -22,6 +22,8 @@ export const ICON = {
   check: S(`<path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="#fff6e6" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>`),
   arrowUp: S(`<path d="M12 20V6M6 11.5 12 5.500l6 6" fill="none" stroke="#fff6e6" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>`),
   sound: S(`<path d="M4 9.500h3.500L12 5.500v13l-4.500-4H4z" fill="${N}" stroke="${N}" stroke-width="1.4" stroke-linejoin="round"/><path d="M15.500 9a4.200 4.200 0 0 1 0 6M18 6.500a8 8 0 0 1 0 11" fill="none" stroke="${N}" stroke-width="1.8" stroke-linecap="round"/>`),
+  vibrate: S(`<rect x="8" y="3.500" width="8" height="17" rx="2.200" fill="#fff6e6" stroke="${N}" stroke-width="1.800"/><path d="M5 8.500c-1 1.100-1 5.900 0 7M2.600 6.800c-1.800 2.400-1.800 8 0 10.400M19 8.500c1 1.100 1 5.900 0 7M21.400 6.800c1.800 2.400 1.800 8 0 10.400" fill="none" stroke="${N}" stroke-width="1.700" stroke-linecap="round"/>`),
+  vibrateOff: S(`<rect x="8" y="3.500" width="8" height="17" rx="2.200" fill="#fff6e6" stroke="${N}" stroke-width="1.800"/><path d="M3 4l18 16" fill="none" stroke="#f26b5b" stroke-width="2.200" stroke-linecap="round"/>`),
   mute: S(`<path d="M4 9.500h3.500L12 5.500v13l-4.500-4H4z" fill="${N}" stroke="${N}" stroke-width="1.4" stroke-linejoin="round"/><path d="M16 9.500l5 5M21 9.500l-5 5" fill="none" stroke="#f26b5b" stroke-width="2" stroke-linecap="round"/>`),
   star: S(`<path d="M12 2.500l2.900 6 6.500.8-4.800 4.500 1.300 6.500L12 17l-5.900 3.300 1.300-6.500L2.600 9.300l6.500-.8z" fill="#f6c453" stroke="${N}" stroke-width="1.6" stroke-linejoin="round"/>`),
   // upgrade icons

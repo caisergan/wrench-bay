@@ -64,6 +64,8 @@ button:disabled { cursor: default; }
   box-shadow: 0 4px 0 var(--teal-d), 0 8px 14px rgba(0,0,0,.22);
 }
 .btn.big { width: 100%; font-size: 22px; padding: 14px 18px; border-radius: 20px; gap: 10px; box-shadow: 0 5px 0 var(--teal-d), 0 10px 18px rgba(0,0,0,.22); }
+.pause-pair { display: flex; gap: 10px; }
+.pause-pair .btn.big { flex: 1; min-width: 0; white-space: nowrap; font-size: 15.5px; padding: 17px 4px; gap: 6px; }
 .btn.coral { background: var(--coral); box-shadow: 0 5px 0 var(--coral-d), 0 10px 18px rgba(0,0,0,.22); }
 .btn.cream { background: var(--cream); color: var(--navy); box-shadow: 0 5px 0 var(--cream-d), 0 10px 18px rgba(0,0,0,.22); }
 .btn.teal { background: var(--teal); }

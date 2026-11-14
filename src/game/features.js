@@ -6,3 +6,4 @@ import './lounge.js';
 import './paint.js';
 import './rescue.js';
 import './dispatcher.js';
+import './away.js';
