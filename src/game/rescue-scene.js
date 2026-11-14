@@ -7,7 +7,6 @@ import * as THREE from 'three';
 import * as M from '../models/index.js';
 import { RESCUE, TOWN } from '../config.js';
 import { state, unlockedPartTypes } from '../core/state.js';
-import { ui } from '../ui/index.js';
 import { Walker } from './walker.js';
 import { hop } from './tween.js';
 import { Tag, clamp, angleDiff, detach } from './util.js';
@@ -400,7 +399,7 @@ export function boardTruck(ctx, call) {
       o.ch.group.visible = false;
       o.ch.group.scale.setScalar(1);
       o.state = 'riding';
-      if (ctx.near(T.pos, 2)) ui.sfx('pickup');
+      ctx.sfxAt('pickup', T.pos, T.driver === 'player');
     },
   });
 }
@@ -417,7 +416,7 @@ export function knockTri(ctx, c) {
     if (dx * dx + dz * dz < (k.r + 0.15) * (k.r + 0.15)) {
       c.tri.down = true;
       c.tri.group.userData.setDown?.(true);
-      if (ctx.near(c.carPos, 2)) ui.sfx('thud');
+      ctx.sfxAt('thud', c.carPos);
       return;
     }
   }

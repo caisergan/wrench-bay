@@ -3,7 +3,6 @@
 import * as THREE from 'three';
 import { createCharacter } from '../models/index.js';
 import { ECONOMY } from '../config.js';
-import { ui } from '../ui/index.js';
 import { Walker } from './walker.js';
 import { PartStack } from './stack.js';
 import { popIn, hop } from './tween.js';
@@ -359,7 +358,7 @@ export class Valet extends Walker {
         const sx = car.pos.x;
         car.setPath(this.pathToBay(car, lift, sx), { restYaw: Math.PI });
         car.onArrive = () => lift.capture(car, 'valet', this);
-        ui.sfx('engine');
+        this.ctx.sfxAt('engine', car.pos);
       },
     });
   }

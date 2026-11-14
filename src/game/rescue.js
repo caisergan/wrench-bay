@@ -114,7 +114,7 @@ function createRescue(ctx) {
           T.pos.x = seq.stage.x; T.pos.z = seq.stage.z; T.yaw = seq.stage.yaw;
           T.wheelSpeed = 0; T.speed = 0;
           seq.phase = 'lower'; seq.t = 0;
-          if (ctx.near(T.pos, 3)) ui.sfx('winch');
+          ctx.sfxAt('winch', T.pos);
           break;
         }
         const v = rampSpeed(seq.s, m.curve.len, m.reverse ? 1.7 : 2.4, 2.6);
@@ -145,7 +145,7 @@ function createRescue(ctx) {
         if (seq.t >= 1) {
           T.wheelSpeed = 0;
           seq.phase = 'raise'; seq.t = 0;
-          if (ctx.near(T.pos, 3)) ui.sfx('winch');
+          ctx.sfxAt('winch', T.pos);
         }
         break;
       }
@@ -216,7 +216,7 @@ function createRescue(ctx) {
     call.seq = seq;
     T.mode = 'auto'; T.speed = 0; T.vx = T.vz = 0; T.wheelSpeed = 0;
     T.script = [{ kind: 'fn', fn: (dt) => stepDrop(seq, dt) }];
-    if (ctx.near(T.pos, 3)) ui.sfx('winch');
+    ctx.sfxAt('winch', T.pos);
     return true;
   }
   /** Is the truck's centre in the drop zone, heading one of the zone's ways (RESCUE.drop.yaws) within dropAngle? */
@@ -269,7 +269,7 @@ function createRescue(ctx) {
         const e = ease.inOutQuad(seq.t), e0 = ease.inOutQuad(t0);
         T.pos.x = seq.x0 + fx(T.yaw) * PULL * e; T.pos.z = seq.z0 + fz(T.yaw) * PULL * e;
         T.wheelSpeed = dt > 0 ? PULL * (e - e0) / dt : 0;
-        if (seq.t >= 1) { T.wheelSpeed = 0; seq.phase = 'stow'; seq.t = 0; if (ctx.near(T.pos, 3)) ui.sfx('winch'); }
+        if (seq.t >= 1) { T.wheelSpeed = 0; seq.phase = 'stow'; seq.t = 0; ctx.sfxAt('winch', T.pos); }
         break;
       }
       case 'stow': {
@@ -337,7 +337,7 @@ function createRescue(ctx) {
     st.rescues = (st.rescues | 0) + 1;
     addFame('rescue', _v.set(g.position.x, 1.5, g.position.z));
     events.emit('rescue:delivered', { spot: call.spot.id, fast });
-    if (ctx.near(g.position, 3)) ui.sfx('done');
+    ctx.sfxAt('done', g.position, T.driver === 'player');
     if (T.driver === 'player') firstHint('rescueDone', `Rescued! It pays x${+RESCUE.payMult[lvl - 1].toFixed(2)}`);
     else if (!state.town.hints.rescueDone) state.town.hints.rescueDone = true;
     removeCall(call);
@@ -391,7 +391,7 @@ function createRescue(ctx) {
       car.mode = 'arriving';
       car.holding = false;
       car.model.setHazard?.(false);
-      if (ctx.near(car.pos)) ui.sfx('engine');
+      ctx.sfxAt('engine', car.pos);
       holds.splice(i, 1);
     }
   }

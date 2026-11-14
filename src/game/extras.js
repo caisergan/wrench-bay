@@ -6,7 +6,6 @@ import {
   createScrapBin, createToolbox, createCoffeeCart, createBillboard, createValetStand, poof,
 } from '../models/index.js';
 import { LAYOUT as L, PLAYER } from '../config.js';
-import { ui } from '../ui/index.js';
 import { hop, popIn, tween } from './tween.js';
 import { detach } from './util.js';
 
@@ -60,7 +59,7 @@ export function createExtras(ctx) {
         });
       }
       tween({ duration: 0.01, delay: 0.3 + n * 0.05, onComplete: () => poof(scene, _v.set(b.x, 0.6, b.z), 0x8f9aa3) });
-      ui.sfx('trash');
+      ctx.sfxAt('trash', b, stack === ctx.player.stack);
       return n;
     },
 

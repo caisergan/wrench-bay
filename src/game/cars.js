@@ -277,7 +277,7 @@ export class Car {
           if (this.fac.hooks.leave && this.fac.h('leave', this)) break;
           this.mode = 'exiting';
           this.setPath(this.fac.h('exitPath', this));
-          if (this.ctx.near(this.pos)) ui.sfx('engine');
+          this.ctx.sfxAt('engine', this.pos);
         }
         break;
       }
@@ -303,7 +303,7 @@ export class Car {
     if (this.owner) return;
     this.fac.owners.spawnFor(this);
     this.startPatience();
-    if (this.ctx.near(this.pos)) ui.sfx('honk');
+    this.ctx.sfxAt('honk', this.pos);
     this.fac.h('onArrived', this);
     this.tag.setVisible(true);
     this.jobsDirty = true;
@@ -445,7 +445,7 @@ export function createCars(ctx, fac) {
       car.mode = 'reversing';
       car.pos.y = 0;
       car.setPath([{ x: lift.x, z: L.exitLaneZ }], { reverse: true, restYaw: Math.PI });
-      ui.sfx('engine');
+      ctx.sfxAt('engine', car.pos);
       car.tag.setVisible(false);
     },
 
