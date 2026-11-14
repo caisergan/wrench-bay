@@ -33,18 +33,26 @@ export function persist(key, value) {
 }
 
 // ---- haptics ----
+// Only for what the player does (see sfx() in ui/audio.js). Piles filling ('coin') never buzz; collecting them
+// ('cash') does.
 const HAPTICS = {
-  click: 'selection', pickup: 'light', drop: 'light', cash: 'light', coin: 'light', trash: 'light',
+  click: 'selection', pickup: 'light', drop: 'light', cash: 'light', trash: 'light',
   lift: 'medium', fix: 'medium', upgrade: 'medium',
   unlock: 'success', done: 'success', vip: 'success',
   error: 'error',
 };
-let haptics = null;
+const RANK = { selection: 0, light: 1, medium: 2, success: 3, error: 3 };
+const HAPTIC_GAP = 80;   // ms: taps closer than this blur into one buzz
+let haptics = null, lastTapAt = -1e9, lastTapRank = -1;
 
 /** Tap feedback for a sound effect name (see ui/audio.js). Native only. */
 export function haptic(name) {
   const kind = haptics && HAPTICS[name];
   if (!kind) return;
+  // one tap at a time: inside the gap only a stronger one gets through (the "done" right after the last "fix")
+  const now = performance.now(), rank = RANK[kind];
+  if (now - lastTapAt < HAPTIC_GAP && rank <= lastTapRank) return;
+  lastTapAt = now; lastTapRank = rank;
   const { Haptics, ImpactStyle, NotificationType } = haptics;
   const p = kind === 'selection' ? Haptics.selectionChanged()
     : kind === 'light' ? Haptics.impact({ style: ImpactStyle.Light })

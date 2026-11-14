@@ -3,6 +3,8 @@ import { haptic, persist } from '../core/platform.js';
 
 const KEY = 'wrench-bay-sound';
 let ctx = null, master = null, noiseBuf = null;
+// where tone() / noise() connect while one sound plays: master, or that sound's own placement chain (see place())
+let out = null;
 // Read lazily: in the iOS app saved settings are restored into localStorage after this module loads.
 let muted = null;
 function readMuted() {
@@ -66,7 +68,7 @@ function tone(freq, dur, o = {}) {
   g.gain.setValueAtTime(0.0001, t0);
   g.gain.exponentialRampToValueAtTime(v, t0 + a);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  osc.connect(g); g.connect(master);
+  osc.connect(g); g.connect(out || master);
   osc.start(t0); osc.stop(t0 + dur + 0.03);
 }
 function noise(dur, o = {}) {
@@ -80,7 +82,7 @@ function noise(dur, o = {}) {
   const g = ctx.createGain();
   g.gain.setValueAtTime(o.vol ?? 0.15, t0);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  src.connect(f); f.connect(g); g.connect(master);
+  src.connect(f); f.connect(g); g.connect(out || master);
   src.start(t0, Math.random() * 0.3); src.stop(t0 + dur + 0.02);
 }
 
@@ -255,17 +257,47 @@ const SOUNDS = {
   },
 };
 const MIN_GAP = { pickup: 60, pay: 60, coin: 45, drop: 50, cash: 80, click: 40, wrench: 90, honk: 200, engine: 250, lift: 300, fix: 80, spray: 200, wash: 300, polish: 150, winch: 300, radio: 400, gull: 600, coins: 120, thud: 100, build: 160, bell: 200, horn: 250, boothShut: 400, boothOpen: 400, slideDoor: 250, suitUp: 500, suitOff: 500 };
-const last = {};
+const last = {}, lastHaptic = {};
 
-export function sfx(name) {
+/** A sound away from the screen centre: quieter, duller (the highs die first with distance) and from its side. */
+function place(vol, pan) {
+  const g = ctx.createGain();
+  g.gain.value = vol;
+  let tail = g;
+  if (vol < 0.999) {
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 900 + 15000 * vol * vol; f.Q.value = 0.5;
+    tail.connect(f); tail = f;
+  }
+  if (pan && ctx.createStereoPanner) {
+    const p = ctx.createStereoPanner();
+    p.pan.value = pan;
+    tail.connect(p); tail = p;
+  }
+  tail.connect(master);
+  setTimeout(() => g.disconnect(), 3000);   // the longest sound is ~1.3 s
+  return g;
+}
+
+/**
+ * Play a sound effect and its haptic. In the world use ctx.sfxAt(name, pos, mine), which fills `o` in:
+ * o.vol 0..1 (fades past the screen edge), o.pan -1..1 (left / right), o.haptic false = sound only.
+ * Only what the player does may buzz the phone: staff, customers, traffic and piles filling pass haptic: false.
+ */
+export function sfx(name, o) {
   const fn = SOUNDS[name];
   if (!fn) return;
-  const now = performance.now();
-  if (now - (last[name] || 0) < (MIN_GAP[name] || 30)) return;
+  const now = performance.now(), gap = MIN_GAP[name] || 30;
+  // iOS app only; independent of the sound setting. Its own throttle, so a far-off mechanic's sound can't eat it.
+  if (o?.haptic !== false && now - (lastHaptic[name] || 0) >= gap) { lastHaptic[name] = now; haptic(name); }
+  const vol = o?.vol ?? 1;
+  if (vol < 0.02 || now - (last[name] || 0) < gap) return;
   last[name] = now;
-  haptic(name); // iOS app only; independent of the sound setting
   if (readMuted()) return;
   if (!ensure()) return;
   if (ctx.state !== 'running') { ctx.resume().catch(() => {}); if (ctx.state !== 'running') return; }
-  try { fn(jit(name === 'pay' ? 0.1 : 0.05)); } catch { /* ignore */ }
+  try {
+    out = vol < 0.999 || o?.pan ? place(vol, o?.pan || 0) : master;
+    fn(jit(name === 'pay' ? 0.1 : 0.05));
+  } catch { /* ignore */ } finally { out = master; }
 }

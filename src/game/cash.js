@@ -43,7 +43,7 @@ export class CashPile {
     const idx = this.bundles.length + this.flying++;
     hop(b, from, (out) => this.slotWorld(Math.min(idx, this.cap - 1), out), {
       duration: 0.42, delay, height: 1.1,
-      onComplete: () => { this.flying--; this.incoming -= value; this._land(value, b); ui.sfx('coin'); },
+      onComplete: () => { this.flying--; this.incoming -= value; this._land(value, b); this.ctx.sfxAt('coin', this.group.position); },
     });
     if (delay > 0) setTimeoutTween(b, delay);
   }

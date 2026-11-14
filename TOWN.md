@@ -669,7 +669,8 @@ registerFacility(PAINT_DEF);                                                    
 | `ctx.obstacles` | static boxes `{minX,maxX,minZ,maxZ}`; use `ctx.solids.add(box) -> box` / `ctx.solids.remove(box)` |
 | `ctx.capsules` | dynamic capsules rebuilt every frame (cars, player vehicles); push more from `ctx.capsuleSources.push(fn(out))` (towed cars, traffic). Capsule = `{ ax, az, bx, bz, r, owner }` |
 | `ctx.movers` | `{ pos, radius, ignore?, hidden? }` things AI customer cars brake + honk for (player vehicles are in it while moving; add towed cars, traffic, pedestrians on crossings) |
-| `ctx.near(pos, margin = 0)` | is it on / near the screen: skip model animation, labels, sfx when false (reach follows the view: much wider in the browser view, `engine.viewReach`) |
+| `ctx.near(pos, margin = 0)` | is it on / near the screen: skip model animation and labels when false (reach follows the view: much wider in the browser view, `engine.viewReach`) |
+| `ctx.sfxAt(name, pos, mine = false)` | a sound in the world: full volume on screen, then quieter, duller and panned to its side over half a screen width past the edge (silent beyond). `mine` = the player caused it, the only case that may vibrate the phone; staff, customers, traffic and piles filling are sound only |
 | `ctx.fx.{poof, confetti, sparks, dust, sparkle}(pos)` | fx at a world position (missing model fx are skipped) |
 | `ctx.cam.lead(x, z, zoom)` / `ctx.cam.reset()` | camera look-ahead (eased) and pull-back; vehicles use it while driving |
 | `ctx.pointers.add({ kind, icon?, text?, worldPos, priority? })` | edge pointer, 6a.8 |

@@ -70,10 +70,11 @@ export class Bay {
     car.lift = this; car.mode = 'snap'; car.claim = null;
     car.speed = 0; car.vx = car.vz = 0; car.wheelSpeed = 0; car.path.length = 0;
     this.phase = 'snap';
+    this.by = who;
     const sx = car.pos.x, sz = car.pos.z, sy = car.yaw;
     const ty = sy + angleDiff(sy, Math.PI);
     const dist = Math.hypot(this.x - sx, this.z - sz);
-    ui.sfx('drop');
+    this.ctx.sfxAt('drop', car.pos, who === 'player');
     tween({
       duration: clamp(0.25 + dist * 0.07, 0.3, 0.6), ease: ease.outCubic,
       onUpdate: (e, k) => {
@@ -98,7 +99,7 @@ export class Bay {
   onSnapped(car) {
     this.phase = 'raise';
     this.model.setLight?.('busy');
-    ui.sfx('lift');
+    this.ctx.sfxAt('lift', this, this.by === 'player');
     this.setWorkMat(true);
     tween({
       duration: ECONOMY.liftTime, ease: ease.inOutQuad,
@@ -130,8 +131,9 @@ export class Bay {
     return r;
   }
 
-  /** Fly a part (already detached into the world root) into the car; job becomes 'ready' on landing. */
-  deliverPart(part, job, from) {
+  /** Fly a part (already detached into the world root) into the car; job becomes 'ready' on landing.
+   *  mine = the player delivered it (the landing may vibrate the phone). */
+  deliverPart(part, job, from, mine = false) {
     const car = this.car;
     job.incoming = true; job.claim = null;
     hop(part, from || part.position, (out) => car.nose(out, 0.75), {
@@ -141,7 +143,7 @@ export class Bay {
         job.incoming = false;
         if (job.state === 'need') job.state = 'ready';
         car.markJobsDirty();
-        ui.sfx('drop');
+        this.ctx.sfxAt('drop', car.pos, mine);
       },
     });
   }
@@ -163,7 +165,7 @@ export class Bay {
       const job = car.findNeed(items[i].userData.partType, null, true);
       if (!job) continue;
       const part = pl.stack.takeAt(i);
-      this.deliverPart(part, job);
+      this.deliverPart(part, job, null, true);
       pl.dropTimer = ECONOMY.deliverInterval;
       break;
     }
@@ -215,7 +217,7 @@ export class Bay {
         }
         if (ready.progress >= 1) {
           car.jobDone(ready);
-          ui.sfx('fix');
+          this.ctx.sfxAt('fix', car.pos, works);
           ui.floatText(car.nose(_w, 1.6), 'Fixed!', 'good');
           sparks(scene, car.nose(_v, 0.8));
         }
@@ -264,8 +266,9 @@ export class Bay {
     confetti(scene, _v.set(car.pos.x, car.pos.y + 1.4, car.pos.z));
     car.model.setShine(true);
     this.model.setLight?.('done');
-    ui.sfx('done');
-    if (car.vip) ui.sfx('vip');
+    const mine = this.playerInZone();   // standing at this bay when it is done: the reward is theirs to feel
+    this.ctx.sfxAt('done', car.pos, mine);
+    if (car.vip) this.ctx.sfxAt('vip', car.pos, mine);
 
     this.payOut(car, pay);
     if (pay.bonusText) ui.floatText(_w.set(car.pos.x - 0.9, car.pos.y + 2.2, car.pos.z), pay.bonusText, 'good');
@@ -291,7 +294,7 @@ export class Bay {
 
   /** Garage: lower the lift, then the car is 'ready' (cars.js lets it leave on its exitGap slot). */
   lowerAndRelease(car) {
-    ui.sfx('lift');
+    this.ctx.sfxAt('lift', this);
     tween({
       duration: ECONOMY.liftTime, delay: 0.25, ease: ease.inOutQuad,
       onUpdate: (e) => { this.h = 1 - e; },
