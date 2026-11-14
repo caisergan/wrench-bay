@@ -8,6 +8,7 @@ import { ICON } from '../ui/icons.js';
 import { DICON, clearLive, syncAll, fmt } from './kit.js';
 import { tabMoney, tabGarage, tabTown, tabPlay } from './tabs-game.js';
 import { tabTune, tabView, tabSave } from './tabs-tools.js';
+import { tabPerf } from './tabs-perf.js';
 import { onTuning, tunedCount } from './tuning.js';
 import { onRebuild } from './actions.js';
 import * as V from './view.js';
@@ -19,6 +20,7 @@ const TABS = [
   { id: 'play', label: 'Play', icon: ICON.play, render: tabPlay },
   { id: 'tune', label: 'Tune', icon: ICON.gauge, render: tabTune },
   { id: 'view', label: 'View', icon: DICON.eye, render: tabView },
+  { id: 'perf', label: 'Perf', icon: ICON.flame, render: tabPerf },
   { id: 'save', label: 'Save', icon: DICON.disk, render: tabSave },
 ];
 // events after which the open tab re-reads the save

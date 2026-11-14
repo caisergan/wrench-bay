@@ -2,13 +2,14 @@
 import * as THREE from 'three';
 import { LAYOUT } from '../config.js';
 import { isBrowserView, onViewMode } from './view.js';
+import { perf, perfStats } from './perf.js';
 
 export const root = document.getElementById('game-root');   // phone-shaped container (fills the window in the browser view)
 export const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9fd8cb);
 scene.fog = new THREE.Fog(0x9fd8cb, 45, 90);
 
-export const renderer = new THREE.WebGLRenderer({ antialias: true });
+export const renderer = new THREE.WebGLRenderer({ antialias: perf.antialias });   // dev Perf tab can turn it off (reload)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.localClippingEnabled = true;   // per-material clipping planes (the player's suit-up wipe)
@@ -28,7 +29,7 @@ const hemi = new THREE.HemisphereLight(0xffffff, 0xb9a88f, 1.4);
 scene.add(hemi);
 export const sun = new THREE.DirectionalLight(0xfff1dd, 2.2);
 sun.position.set(-8, 18, 10);
-sun.castShadow = true;
+sun.castShadow = perf.shadows;
 sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.bias = -0.0005;
 sun.shadow.normalBias = 0.02;
@@ -171,8 +172,9 @@ function setShadowSize(size) {
 /** Phone frame: the original fixed shadow box. Browser view: fitted to the screen, on a bigger map. */
 function applyViewShadow() {
   const sc = sun.shadow.camera;
+  const maxTex = renderer.capabilities.maxTextureSize || 4096;
   if (isBrowserView()) {
-    setShadowSize(Math.min(4096, renderer.capabilities.maxTextureSize || 4096));
+    setShadowSize(Math.min(perf.shadowSize || 4096, maxTex));   // perf.shadowSize: dev Perf tab
     fitShadow(Math.max(zoom, zoomGoal));
     // how far the screen reaches on the ground (driving zooms out to 1.15: measure there, plus a margin)
     const pts = screenCorners(1.15, 0, []);
@@ -181,7 +183,7 @@ function applyViewShadow() {
     Object.assign(viewReach, { x: Math.ceil(x + 2), back: Math.ceil(back + 2), front: Math.ceil(front + 2) });
   } else {
     const P = PHONE_SHADOW;
-    setShadowSize(P.size);
+    setShadowSize(Math.min(perf.shadowSize || P.size, maxTex));
     Object.assign(sc, { left: P.left, right: P.right, top: P.top, bottom: P.bottom, near: P.near, far: P.far });
     sc.updateProjectionMatrix();
     shadowZoom = -1;
@@ -198,6 +200,8 @@ export const viewSize = { w: 1, h: 1 };
 // ---- resize: phone frame = keep a portrait phone aspect on desktop; browser view = fill the window ----
 // The browser view draws up to this many device pixels (a 4K-ish budget), so a big retina window stays smooth.
 const BROWSER_MAX_PIXELS = 4.2e6;
+let maxRatio = 1;   // pixel ratio before dynamic resolution
+let dynScale = 0;   // dynamic resolution's pixel ratio (0 = not started)
 function resize() {
   const vw = window.innerWidth, vh = window.innerHeight;
   const wide = isBrowserView();
@@ -208,7 +212,12 @@ function resize() {
   root.style.height = h + 'px';
   viewSize.w = w; viewSize.h = h;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  renderer.setPixelRatio(wide ? Math.max(1, Math.min(dpr, Math.sqrt(BROWSER_MAX_PIXELS / (w * h)))) : dpr);
+  let ratio = wide ? Math.max(1, Math.min(dpr, Math.sqrt(BROWSER_MAX_PIXELS / (w * h)))) : dpr;
+  if (perf.pixelRatio) ratio = Math.min(perf.pixelRatio, window.devicePixelRatio || 1);   // dev Perf tab
+  maxRatio = ratio;
+  if (perf.dynRes && dynScale) ratio = Math.min(ratio, dynScale);
+  perfStats.pixelRatio = ratio;
+  renderer.setPixelRatio(ratio);
   renderer.setSize(w, h);
   camera.aspect = w / h;
   // widen FOV a bit on very tall phones so the lot width still fits
@@ -229,15 +238,74 @@ export function setPaused(p) { paused = p; }
 
 const clock = new THREE.Clock();
 let elapsed = 0;
-function frame() {
+// Dev Perf tab state (all idle at the defaults: every animation frame is drawn, as before).
+let lastDraw = 0, stillFor = 0, shadowTick = 0, dynT = 0, dynEma = 0, dynGood = 0;
+const lastCam = new THREE.Vector3(), lastFollow = new THREE.Vector3();
+const DYN = { min: 1, step: 0.125, slow: 1.15, fast: 1.04 };
+/** Frames a second this frame aims for (0 = every animation frame). */
+function targetFps() {
+  let fps = perf.fpsCap || Infinity;
+  if (paused && perf.menuFps) fps = Math.min(fps, perf.menuFps);
+  perfStats.idle = !paused && perf.idle30 && stillFor > 0.5 && fps > 30;
+  if (perfStats.idle) fps = 30;
+  return fps === Infinity ? 0 : fps;
+}
+function frame(now = performance.now()) {
   requestAnimationFrame(frame);
+  const fps = targetFps();
+  // a capped loop skips animation frames; 2 ms of slack absorbs the jitter of the screen's refresh
+  if (fps && lastDraw && now - lastDraw < 1000 / fps - 2) return;
+  const gap = lastDraw ? now - lastDraw : 0;
+  lastDraw = now;
+  const t0 = performance.now();
   const dt = Math.min(clock.getDelta(), 1 / 20);
   if (!paused && dt > 0) {
     elapsed += dt;
     for (const fn of updaters) fn(dt, elapsed);
   }
   updateCamera(dt);
+  if (perf.shadowEvery > 1) {
+    renderer.shadowMap.autoUpdate = false;
+    if (++shadowTick >= perf.shadowEvery) { shadowTick = 0; renderer.shadowMap.needsUpdate = true; }
+  } else renderer.shadowMap.autoUpdate = true;
+  if (sun.castShadow && (renderer.shadowMap.autoUpdate || renderer.shadowMap.needsUpdate)) perfStats.shadowDraws++;
   renderer.render(scene, camera);
+  perfStats.cpuMs += (performance.now() - t0 - perfStats.cpuMs) * 0.1;
+  perfStats.drawn++;
+  perfStats.maxGap = Math.max(perfStats.maxGap, gap);
+  if (perf.idle30) trackStill(dt);
+  if (perf.dynRes && gap) dynamicResolution(gap, fps || 60, dt);
+}
+/** Idle 30 fps: how long neither the camera nor the followed object has moved. */
+function trackStill(dt) {
+  const moved = camera.position.distanceToSquared(lastCam) > 1e-6 || (followObj && followObj.position.distanceToSquared(lastFollow) > 1e-6);
+  stillFor = moved ? 0 : stillFor + dt;
+  lastCam.copy(camera.position);
+  if (followObj) lastFollow.copy(followObj.position);
+}
+/** Dynamic resolution: step the pixel ratio down while drawn frames come late, back up once they keep up. */
+function dynamicResolution(gap, fps, dt) {
+  const want = 1000 / fps;
+  dynEma = dynEma ? dynEma + (gap - dynEma) * 0.1 : gap;
+  dynT += dt;
+  if (dynT < 1) return;
+  dynT = 0;
+  const cur = dynScale || maxRatio;
+  let next = cur;
+  if (dynEma > want * DYN.slow) { next = Math.max(DYN.min, cur - DYN.step); dynGood = 0; }
+  else if (dynEma < want * DYN.fast) { if (++dynGood >= 3) { next = Math.min(maxRatio, cur + DYN.step); dynGood = 0; } }
+  else dynGood = 0;
+  if (next !== cur) { dynScale = next; resize(); }
+  perfStats.dynScale = dynScale;
+}
+/** Re-apply the dev Perf tab's switches (pixel ratio, shadows). Antialiasing needs a reload. */
+export function applyPerf() {
+  if (!perf.dynRes) { dynScale = 0; perfStats.dynScale = 0; }
+  if (sun.castShadow !== perf.shadows) sun.castShadow = perf.shadows;   // three recompiles the lit materials
+  stillFor = 0;
+  resize();
+  updateCamera(0);
+  renderer.shadowMap.needsUpdate = true;   // a resized map is empty until its next redraw
 }
 export function start() { updateCamera(0, true); frame(); }
 

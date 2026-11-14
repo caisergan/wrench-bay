@@ -237,3 +237,14 @@
 .dv-th { margin: 8px 0 2px; font-size: 11.5px; font-weight: 700; letter-spacing: .8px; color: var(--teal-d); }
 .dv-th:first-child { margin-top: 0; }
 .dv-line { display: flex; align-items: center; gap: 6px; }
+
+/* Perf tab: heat log and thermal colours (also used by the perf meter) */
+.dv-heatlog { display: flex; flex-direction: column; gap: 2px; max-height: 168px; overflow-y: auto; padding: 6px 8px; border-radius: 12px; background: rgba(47,72,88,.07); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.dv-heatlog:empty { display: none; }
+.dv-hl { display: flex; gap: 10px; color: var(--navy); }
+.dv-ht { flex: none; width: 38px; opacity: .6; text-align: right; }
+.dv-hl.th-fair .dv-hx { color: #b07d00; font-weight: 700; }
+.dv-hl.th-serious .dv-hx, .dv-hl.th-critical .dv-hx { color: #d2463a; font-weight: 700; }
+.dv-meter i { font-style: normal; color: #9bf0a0; }
+.dv-meter i.th-fair { color: var(--mustard); }
+.dv-meter i.th-serious, .dv-meter i.th-critical { color: #ff9a8c; }
