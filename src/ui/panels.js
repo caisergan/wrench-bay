@@ -13,6 +13,7 @@ import { makeModal } from './modal.js';
 import { buildTownPanels } from './panels-town.js';
 import { buildViewPick } from './title.js';
 import { canChooseView } from '../core/view.js';
+import { canVibrate, vibrationOn, setVibration } from '../core/platform.js';
 import { T } from './townstate.js';
 
 export function buildPanels(root, hud) {
@@ -247,7 +248,15 @@ export function buildPanels(root, hud) {
       snd.addEventListener('click', () => { setMuted(!isMuted()); unlockAudio(); sfx('click'); renderPause(); });
       const reset = html(`<button class="btn big coral pressable" data-ui>${ICON.x}<span>Reset progress</span></button>`);
       reset.addEventListener('click', () => { confirming = true; renderPause(); });
-      frag.append(resume, snd);
+      if (canVibrate) {
+        // Sound | Vibration side by side (vibration only exists in the iOS app)
+        const on = vibrationOn();
+        const vib = html(`<button class="btn big cream pressable" data-ui>${on ? ICON.vibrate : ICON.vibrateOff}<span>Vibration: ${on ? 'On' : 'Off'}</span></button>`);
+        vib.addEventListener('click', () => { setVibration(!vibrationOn()); sfx('click'); renderPause(); });
+        const pair = html('<div class="pause-pair" data-ui></div>');
+        pair.append(snd, vib);
+        frag.append(resume, pair);
+      } else frag.append(resume, snd);
       // Mobile / Browser view (browser only; the iOS app is always the phone view)
       if (canChooseView) { viewPick = buildViewPick({ compact: true }); frag.append(viewPick.el); }
       frag.append(reset);

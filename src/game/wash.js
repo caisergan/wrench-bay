@@ -77,7 +77,7 @@ registerPropertySystem('wash', (ctx, prop) => {
     car.wash.phase = 'approach';
     car.mode = 'washDrive';
     car.setPath(WASH.approach.map((p) => ({ x: p.x, z: p.z })), { restYaw: Math.PI / 2, maxSpeed: 3.6 });
-    if (ctx.near(car.pos)) ui.sfx('engine');
+    ctx.sfxAt('engine', car.pos);
   }
   function startTunnel(car) {
     car.wash.phase = 'tunnel';
@@ -96,11 +96,10 @@ registerPropertySystem('wash', (ctx, prop) => {
   /** Car effects by where its body is (front / centre / rear against each station). */
   function effects(car) {
     const w = car.wash, m = car.model, x = car.pos.x, front = x + HALF_LEN, rear = x - HALF_LEN;
-    const near = ctx.near(car.pos, 2);
     if (!w.foam && front >= ST.soap) {
       w.foam = true;
       m.setFoam?.(1, { tri: tier() >= 2 });
-      if (near) ui.sfx('wash');
+      ctx.sfxAt('wash', car.pos);
     }
     if (!w.scrub && front >= ST.brush + 0.2) {
       w.scrub = true;                                   // the brushes take the mud off; the dust film waits for the rinse
@@ -112,7 +111,7 @@ registerPropertySystem('wash', (ctx, prop) => {
       m.setDirt?.(0);
       m.setWet?.(true);
       car.washDirt = 0;
-      if (near) ui.sfx('wash');
+      ctx.sfxAt('wash', car.pos);
     }
     if (!w.dry && x >= ST.dryer) {
       w.dry = true;
@@ -131,10 +130,8 @@ registerPropertySystem('wash', (ctx, prop) => {
       _v.set(car.pos.x, 1.0, car.pos.z + 0.4);
       const n = Math.max(1, Math.min(4, Math.round(total / 15)));
       for (let i = 0; i < n; i++) pile.add(total / n, _v, i * 0.08);
-      if (ctx.near(_v, 2)) {
-        ui.floatText(_v.set(WASH.pile.x, 1.6, WASH.pile.z), '+$' + ui.fmt(total) + ' Wash', 'cash');
-        ui.sfx('coins');
-      }
+      ctx.sfxAt('coins', _v);
+      if (ctx.near(_v, 2)) ui.floatText(_v.set(WASH.pile.x, 1.6, WASH.pile.z), '+$' + ui.fmt(total) + ' Wash', 'cash');
     }
     state.town.stats.washes = (state.town.stats.washes || 0) + 1;
     if (lvl >= 3) addFame('washT3', car.pos);
@@ -173,7 +170,7 @@ registerPropertySystem('wash', (ctx, prop) => {
       switch (w.phase) {
         case 'wait': c.coast(dt); break;
         case 'approach':
-          if (c.drive(dt)) { w.phase = 'pay'; w.t = 0; c.speed = 0; if (ctx.near(c.pos)) ui.sfx('coin'); }
+          if (c.drive(dt)) { w.phase = 'pay'; w.t = 0; c.speed = 0; ctx.sfxAt('coin', c.pos); }
           break;
         case 'pay':
           c.coast(dt);

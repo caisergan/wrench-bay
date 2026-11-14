@@ -407,8 +407,17 @@ walks aboard, the ferry sails, fade, `nextShop()`: new town name, everything x3,
 
 ### 4.16 Guidance
 - **Pointers** at the screen edge for off-screen targets: active rescue, your parked vehicle when a call waits,
-  an affordable for-sale / upgrade pad (one, the cheapest), a full till, a customer at home under 25% patience
-  (red, "Garage!"), the current guide target. At most 3 at once, priority in that order.
+  an affordable for-sale / upgrade pad (one, the cheapest), a full till, a customer at a place you can't hear
+  under 25% patience (bell, "Garage!" / "Spray Bay!", away.js), the current guide target. At most 3 at once,
+  priority in that order (an away call puts its pointer first for 8 s).
+- **Away calls** (`away.js`, per place you own: garage, Spray Bay, later the VIP club). Once you can't hear a place
+  (`ctx.hearing` of its bays is silent), it only speaks up when it needs you: while one of its customers is under 25%
+  patience, a chip "Garage: Speedy bonus m:ss" (until that patience runs out) and the bell pointer; and once per
+  customer the **call**: `call` sfx (shop-door bell) + one `warning` vibration. A place calls at most every 45 s,
+  never within 10 s of you leaving it, never while a panel is open or you tow a rescue (the call waits), and after
+  2 calls you didn't come back for only the chip and pointer remain until you are in earshot again. The first pile
+  you collect at a place after 30 s away plays `homecoming` (coin cascade + success vibration). Nothing shows what a
+  place earned while you were away.
 - **Town map** (HUD button): districts, roads, properties (owned / for sale with price / locked with fame),
   tills, the player, the truck, the active call. Tapping a place sets the guide target there.
 - **Guide arrow** after the town opens: tow shed -> truck -> first call -> drop zone -> "explore" (then only
@@ -669,7 +678,10 @@ registerFacility(PAINT_DEF);                                                    
 | `ctx.obstacles` | static boxes `{minX,maxX,minZ,maxZ}`; use `ctx.solids.add(box) -> box` / `ctx.solids.remove(box)` |
 | `ctx.capsules` | dynamic capsules rebuilt every frame (cars, player vehicles); push more from `ctx.capsuleSources.push(fn(out))` (towed cars, traffic). Capsule = `{ ax, az, bx, bz, r, owner }` |
 | `ctx.movers` | `{ pos, radius, ignore?, hidden? }` things AI customer cars brake + honk for (player vehicles are in it while moving; add towed cars, traffic, pedestrians on crossings) |
-| `ctx.near(pos, margin = 0)` | is it on / near the screen: skip model animation, labels, sfx when false (reach follows the view: much wider in the browser view, `engine.viewReach`) |
+| `ctx.near(pos, margin = 0)` | is it on / near the screen: skip model animation and labels when false (reach follows the view: much wider in the browser view, `engine.viewReach`) |
+| `ctx.hearing(pos)` | how loud a sound at pos plays (1 on screen, 0 from half a screen width past the edge); a place is out of earshot below 0.02 (away.js) |
+| `ctx.away.homecoming(pile)` | true once per trip away from the pile's place (cash.js plays `homecoming` instead of `cash`) |
+| `ctx.sfxAt(name, pos, mine = false)` | a sound in the world: full volume on screen, then quieter, duller and panned to its side over half a screen width past the edge (silent beyond). `mine` = the player caused it, the only case that may vibrate the phone; staff, customers, traffic and piles filling are sound only |
 | `ctx.fx.{poof, confetti, sparks, dust, sparkle}(pos)` | fx at a world position (missing model fx are skipped) |
 | `ctx.cam.lead(x, z, zoom)` / `ctx.cam.reset()` | camera look-ahead (eased) and pull-back; vehicles use it while driving |
 | `ctx.pointers.add({ kind, icon?, text?, worldPos, priority? })` | edge pointer, 6a.8 |
@@ -807,8 +819,8 @@ MAX, which next to the pads read as "maxed out").
   endgame system with `onLevel` takes over instead.
 - Guide: after opening, the arrow points at the tow pad, then at the truck until it was driven once
   (`state.town.hints.truckUsed`); a map tap (`ui:mapTarget { id }`) points at that place until you reach it.
-- Pointers made here: one `sale` pointer (cheapest affordable unlocked pad), one `alert` "Garage!" pointer (a garage
-  customer below 25% patience while you are > 14 m from the lot).
+- Pointers made here: one `sale` pointer (cheapest affordable unlocked pad). The `alert` pointers ("Garage!",
+  "Spray Bay!") belong to away.js.
 - Fame: on `fame:levelup` -> confetti on the player, `fame` sfx, toast "New in town: X!" for new car classes and the
   next garage arrival is one (`garage.forcedType`). The UI shows the level-up panel itself.
 

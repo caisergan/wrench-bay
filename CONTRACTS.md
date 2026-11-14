@@ -136,7 +136,9 @@ every area can run before the others are done.
 - `core/platform.js` (iOS app via Capacitor; every export is a no-op in the browser): `isNative`,
   `initPlatform()` (awaited in `main.js` before `load()`: restores saves from native storage),
   `persist(key, value|null)` (mirror a localStorage write to native storage; any new localStorage key must be added
-  to `MIRRORED_KEYS` and written through `persist`), `haptic(sfxName)` (called by `sfx()`), `onLifecycle({hidden,
+  to `MIRRORED_KEYS` and written through `persist`), `haptic(sfxName)` (called by `sfx()`; one tap at a time: within 80 ms only a stronger kind gets through; off
+  when the Vibration switch is), `vibrationOn()` / `setVibration(on)` (pause menu; key `wrench-bay-vibration`),
+  `canVibrate` (the iOS app, or `?haptics` to show the switch in the browser), `onLifecycle({hidden,
   visible})`, `hideSplash()`. Never read localStorage at module load time: in the app it is restored afterwards.
 - `config.js`: `PALETTE`, `PART_TYPES`, `PROBLEMS`, `CAR_TYPES`, `CAR`, `LAYOUT`, `UNLOCKS`, `VISIBLE_PADS`,
   `ECONOMY`, `PLAYER`, `UPGRADES`, `BOOSTS`, `SHOP_NAMES`. All positions come from `LAYOUT`; never hard-code them.
@@ -244,7 +246,12 @@ which carry `data-ui`). Exports `ui`:
   `unlock`, `pay`, `click`, `upgrade`, `error` (existing) plus `engine` (short car start / rev), `honk` (cute
   double beep, a car arrived), `lift` (hydraulic whirr ~0.5 s), `wrench` (one ratchet click; called ~6x per second
   while working), `fix` (bright ding: one job done), `done` (little success jingle: car finished), `vip`
-  (sparkle), `trash` (parts dumped).
+  (sparkle), `trash` (parts dumped). `ui.sfx(name, { vol, pan, haptic })` places it: game code in the world calls
+  `ctx.sfxAt(name, pos, mine)` instead, which fades it out past the screen edge and keeps the phone still unless
+  `mine` (the player did it: their delivery, repair, parking, dump). Staff, customers, traffic and cash landing on a
+  pile never vibrate; collecting a pile (`cash`) does. Away calls (TOWN.md 4.16): `call` (shop-door bell + warning
+  vibration: a place you can't hear needs you) and `homecoming` (coin cascade + success vibration: the first pile at
+  a place after a trip).
 - `ui.openUpgrades()` / `ui.closeUpgrades()`: upgrades sheet, one row per key of `UPGRADES` (5 rows; must fit a
   phone screen), opened on `upgradepad:enter`, closed on `upgradepad:exit`.
 - `ui.showShopComplete(onNext)`: celebration modal; its button calls `onNext` and emits `ui:nextShop`.

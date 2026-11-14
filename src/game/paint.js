@@ -198,9 +198,9 @@ class SprayBooth extends Bay {
   playerOnFeed() { const pl = this.ctx.player; return pl.onFoot && onMat(pl.pos, this.feedPos, PAINT.feedMat); }
 
   /** Canisters go into the feed rack (cradle = the job's index), not into the car. They fly over, turning upright. */
-  deliverPart(part, job, from) {
+  deliverPart(part, job, from, mine = false) {
     const car = this.car, i = car.jobs.indexOf(job), anchor = this.feed?.slotAnchor(i);
-    if (!anchor || this.cans[i]) { super.deliverPart(part, job, from); return; }
+    if (!anchor || this.cans[i]) { super.deliverPart(part, job, from, mine); return; }
     job.incoming = true; job.claim = null;
     this.cans[i] = part;
     const start = (from || part.position).clone(), r0 = part.rotation.z, s0 = part.scale.x;
@@ -221,7 +221,7 @@ class SprayBooth extends Bay {
         if (job.state === 'need') job.state = 'ready';
         car.markJobsDirty();
         this.feed.setSlot(i, 'loaded');
-        if (this.ctx.near(this.feedPos, 2)) ui.sfx('drop');
+        this.ctx.sfxAt('drop', this.feedPos, mine);
       },
     });
   }
@@ -278,7 +278,7 @@ class SprayBooth extends Bay {
     else this.northHold = Math.max(0, this.northHold - dt);
     const north = sealed && this.northHold <= 0;
     if (south === this.doorsShut.south && north === this.doorsShut.north) return;
-    if (this.ctx.near(this.workPos, 2)) ui.sfx(south !== this.doorsShut.south ? (south ? 'boothShut' : 'boothOpen') : 'slideDoor');
+    this.ctx.sfxAt(south !== this.doorsShut.south ? (south ? 'boothShut' : 'boothOpen') : 'slideDoor', this.workPos);
     this.doorsShut.south = south; this.doorsShut.north = north;
     this.model.setDoors?.(south, north);
     this.applyDoorSolids();
@@ -383,7 +383,7 @@ class SprayBooth extends Bay {
             this.emptyCan(car.jobs.indexOf(job));
             car.jobDone(job);
             if (stripe) car.model.setStripe?.(hexOf(car.paint.stripe));
-            if (this.ctx.near(car.pos)) ui.sfx('fix');
+            this.ctx.sfxAt('fix', car.pos, works);
           }
         }
       }
@@ -420,9 +420,9 @@ class SprayBooth extends Bay {
     }
     if (hex == null) return;
     this.sprayT += dt;
-    if (!this.ctx.near(this.workPos, 2)) return;
     this.hissT -= dt;
-    if (this.hissT <= 0) { this.hissT = 0.34; ui.sfx('spray'); }
+    if (this.hissT <= 0) { this.hissT = 0.34; this.ctx.sfxAt('spray', this.workPos); }
+    if (!this.ctx.near(this.workPos, 2)) return;
     this.mistT -= dt;
     if (this.mistT > 0 || this.sprayT < 0.3) return;   // the gun comes up first
     this.mistT = 0.08;
@@ -455,7 +455,7 @@ class SprayBooth extends Bay {
     this.timer.setProgress(0);
     this.timer.setText(String(Math.ceil(this.cureTime)));
     this.timer.setVisible(true);
-    if (this.ctx.near(this.workPos, 3)) ui.sfx('cure');
+    this.ctx.sfxAt('cure', this.workPos);
   }
 
   /** After the payout (Bay.finish): doors open, masking off, gloss; the car may back out once the doors are open. */

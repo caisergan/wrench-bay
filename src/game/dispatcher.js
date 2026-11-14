@@ -153,7 +153,7 @@ class TruckDriver {
       this.blockT += dt;
       if (!this.honked && this.blockT > DSP.honkAfter) {
         this.honked = true;
-        if (this.ctx.near(this.truck.pos)) ui.sfx('honk');
+        this.ctx.sfxAt('honk', this.truck.pos);
       }
     } else if (!who) { this.blockT = 0; this.honked = false; }
     return cap;
@@ -467,7 +467,7 @@ class Dispatcher {
     const t = this.truck;
     t.driver = this;                           // the enter ring goes: nobody else gets in now
     this.phase = 'board';
-    if (this.ctx.near(t.pos)) ui.sfx('pickup');
+    this.ctx.sfxAt('pickup', t.pos);
     this.driver.hopIn(t, () => this.depart());
   }
 
@@ -480,7 +480,7 @@ class Dispatcher {
     const plan = planHookApproach(net, refOf(t), hook, c.carPos, { lead: SHED_LEAD, mergeR: SHED_MERGE_R });
     if (!plan) { console.warn('[wrench-bay] dispatcher: no route to', c.spot?.id); this.release(); this.alight(); return; }
     t.model.setBeacon?.(true);
-    if (this.ctx.near(t.pos)) ui.sfx('engine');
+    this.ctx.sfxAt('engine', t.pos);
     if (!this.api.standin && !state.town.hints.dispatcherFirst) {
       state.town.hints.dispatcherFirst = true; save();
       ui.toast('Your tow driver took the call! He answers them while you are busy');
