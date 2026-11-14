@@ -71,8 +71,13 @@ const lead = new THREE.Vector2(), leadGoal = new THREE.Vector2();
 let zoom = 1, zoomGoal = 1;
 /** rect {minX,maxX,minZ,maxZ}: follow the target 1:1 inside it (the open town). null: legacy lot clamp. */
 export function setCameraBounds(rect) { townClamp = rect ? { ...rect } : null; }
-/** Look ahead of the followed object by (x, z) world units (e.g. ahead of a vehicle's velocity). Eased. */
+/** Look ahead of the followed object by (x, z) world units (e.g. ahead of a vehicle's velocity, or south of the
+ *  player so they stay above an open bottom sheet). Eased; applies in the town and on the lot alike. */
 export function setCameraLead(x = 0, z = 0) { leadGoal.set(x, z); }
+// Focus: look at a fixed ground point instead of the followed object (the upgrade board's "look what you bought").
+let focus = null;
+/** p = { x, z }: glide to that ground point and stay there; null: glide back to the followed object. */
+export function setCameraFocus(p) { focus = p ? { x: p.x, z: p.z } : null; }
 /** Pull the camera back (k > 1) or in. Eased; 1 = default framing. */
 export function setCameraZoom(k = 1) { zoomGoal = k; }
 /**
@@ -92,14 +97,16 @@ function updateCamera(dt, snap = false) {
   zoom += (zoomGoal - zoom) * kl;
   if (followObj && !camPinned) {
     let tx, tz;
+    const fx = focus ? focus.x : followObj.position.x, fz = focus ? focus.z : followObj.position.z;
+    const lx = focus ? 0 : lead.x, lz = focus ? 0 : lead.y;
     if (townClamp) {
-      tx = THREE.MathUtils.clamp(followObj.position.x + lead.x, townClamp.minX, townClamp.maxX);
-      tz = THREE.MathUtils.clamp(followObj.position.z + lead.y, townClamp.minZ, townClamp.maxZ);
+      tx = THREE.MathUtils.clamp(fx + lx, townClamp.minX, townClamp.maxX);
+      tz = THREE.MathUtils.clamp(fz + lz, townClamp.minZ, townClamp.maxZ);
     } else {
-      tx = THREE.MathUtils.clamp(followObj.position.x * 0.85, CAM_CLAMP.minX, CAM_CLAMP.maxX);
-      tz = THREE.MathUtils.clamp(followObj.position.z, CAM_CLAMP.minZ, CAM_CLAMP.maxZ);
+      tx = THREE.MathUtils.clamp(fx * 0.85 + lx, CAM_CLAMP.minX, CAM_CLAMP.maxX);
+      tz = THREE.MathUtils.clamp(fz + lz, CAM_CLAMP.minZ, CAM_CLAMP.maxZ);
     }
-    const k = snap ? 1 : 1 - Math.exp(-dt * 5);
+    const k = snap ? 1 : 1 - Math.exp(-dt * (focus ? 3.4 : 5));
     camTarget.x += (tx - camTarget.x) * k;
     camTarget.z += (tz - camTarget.z) * k;
   }
@@ -243,6 +250,26 @@ export function start() { updateCamera(0, true); frame(); }
 
 // Project a world position to CSS pixels relative to #game-root. Returns {x, y, visible}.
 const _v = new THREE.Vector3();
+/**
+ * Camera lead (world z, south positive) that puts the followed ground point at fraction fy of the screen height
+ * (0 = top, 1 = bottom) once the camera has settled at the zoom it is easing to. The upgrade board uses it to keep the
+ * player above its sheet.
+ */
+export function leadForScreenY(fy) {
+  probe.copy(camera);
+  probe.position.copy(CAMERA_OFFSET).multiplyScalar(zoomGoal);
+  probe.lookAt(0, 0, -1.2);
+  probe.updateMatrixWorld();
+  const want = 1 - 2 * fy;
+  let lo = -12, hi = 24;
+  for (let i = 0; i < 28; i++) {
+    const mid = (lo + hi) / 2;
+    _p.set(0, 0, -mid).project(probe);
+    if (_p.y > want) hi = mid; else lo = mid;
+  }
+  return (lo + hi) / 2;
+}
+
 export function worldToScreen(pos) {
   _v.copy(pos).project(camera);
   const w = viewSize.w, h = viewSize.h;

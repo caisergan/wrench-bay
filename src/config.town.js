@@ -436,6 +436,9 @@ export const PAINT = {
   // Waste-paint drum against the west wall at the end of the walkway, next to the first tank: walking up to it with
   // canisters dumps them (wrong colours). Trigger = radius + player radius + 0.15, kept clear of the red tank's ring.
   scrapBin: { x: -40.7, z: -7.3 }, scrapBinRadius: 0.55,
+  // Upgrade board pad (game/board.js) on the colour lab's floor, in front of its counter. Far enough from the lab's
+  // south wall that its slate base and window band never hide the pad from the game camera.
+  board: { x: -21.95, z: -0.75 },
 
   // Fixed fittings of the hall (createPaintHall reads these; gameplay keeps its own positions above clear of them).
   decor: {
@@ -446,7 +449,8 @@ export const PAINT = {
     compressor: { x: -42.55, z: -9.0 }, receiver: { x: -42.55, z: -6.3 }, dryer: { x: -42.55, z: -4.2 },
     flammables: { x: -42.55, z: -2.0 },
     airLineY: 2.3, manifoldY: 1.72,                             // blue air line / paint supply manifold on the walls
-    // glass-walled mixing room in the front-east corner, door in its west wall, shop window onto the forecourt
+    // glass-walled mixing room in the front-east corner ("the office": the upgrade board is inside), automatic
+    // sliding door in its west wall, shop window onto the forecourt
     colourLab: { minX: -23.4, maxX: -19.8, minZ: -2.8, maxZ: 1.2, doorZ: -1.0, doorW: 0.9 },
     // painters' corner along the west wall
     lockers: { x: -40.95, z0: -3.4, z1: -1.6 },                 // three PPE lockers against the wall
